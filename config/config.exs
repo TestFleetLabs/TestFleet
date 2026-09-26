@@ -22,6 +22,16 @@ config :testfleet, TestFleetWeb.Endpoint,
   pubsub_server: TestFleet.PubSub,
   live_view: [signing_salt: "Uc+rJzLb"]
 
+# Background jobs (main spec section 28). Oban creates runs and does fire-and-forget
+# work; it never starts or owns a running container.
+config :testfleet, Oban,
+  engine: Oban.Engines.Basic,
+  repo: TestFleet.Repo,
+  queues: [default: 10, schedules: 1, notifications: 5, cleanup: 1],
+  pruner: [max_age: 7 * 24 * 60 * 60],
+  # Rescues TestFleet's own jobs; runs are recovered by the reconciler, never by Oban.
+  lifeline: [rescue_after: :timer.minutes(30)]
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.

@@ -12,15 +12,12 @@ defmodule TestFleetWeb.Layouts do
   embed_templates "layouts/*"
 
   @doc """
-  Renders your app layout.
-
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
+  Renders the app layout: a sidebar on large screens, a top bar with a
+  slide-down menu on small ones.
 
   ## Examples
 
-      <Layouts.app flash={@flash}>
+      <Layouts.app flash={@flash} active={:runs}>
         <h1>Content</h1>
       </Layouts.app>
 
@@ -31,45 +28,138 @@ defmodule TestFleetWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
+  attr :active, :atom,
+    default: nil,
+    values: [nil, :dashboard, :projects, :runs, :registries],
+    doc: "the navigation entry to highlight"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://phoenix.hexdocs.pm/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+    <div class="min-h-screen bg-base-200/50">
+      <aside
+        id="sidebar"
+        class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-base-300 bg-base-100 lg:flex"
+      >
+        <.brand class="h-16 px-5" />
+        <.main_nav id="nav" active={@active} class="flex-1 px-3 py-4" />
+        <div class="flex items-center justify-between border-t border-base-300 px-5 py-4">
+          <span class="text-xs text-base-content/50 tabular-nums">
+            v{Application.spec(:testfleet, :vsn)}
+          </span>
+          <.theme_toggle />
+        </div>
+      </aside>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+      <header class="sticky top-0 z-30 border-b border-base-300 bg-base-100/90 backdrop-blur lg:hidden">
+        <div class="flex h-14 items-center justify-between px-4">
+          <.brand />
+          <button
+            id="mobile-nav-toggle"
+            type="button"
+            aria-label={gettext("Toggle navigation")}
+            aria-controls="mobile-menu"
+            aria-expanded="false"
+            class="grid size-9 cursor-pointer place-items-center rounded-lg text-base-content/70 transition-colors hover:bg-base-200 hover:text-base-content"
+            phx-click={toggle_mobile_nav()}
+          >
+            <.icon name="hero-bars-3" class="size-5" />
+          </button>
+        </div>
+        <div id="mobile-menu" class="hidden border-t border-base-300">
+          <.main_nav id="mobile-nav" active={@active} class="px-3 py-3" />
+          <div class="flex justify-end px-4 pb-3">
+            <.theme_toggle />
+          </div>
+        </div>
+      </header>
+
+      <main class="lg:pl-64">
+        <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+    </div>
 
     <.flash_group flash={@flash} />
     """
+  end
+
+  defp toggle_mobile_nav do
+    JS.toggle(
+      to: "#mobile-menu",
+      in:
+        {"transition ease-out duration-150", "opacity-0 -translate-y-1",
+         "opacity-100 translate-y-0"},
+      out:
+        {"transition ease-in duration-100", "opacity-100 translate-y-0",
+         "opacity-0 -translate-y-1"}
+    )
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-nav-toggle")
+  end
+
+  attr :class, :any, default: nil
+
+  defp brand(assigns) do
+    ~H"""
+    <.link navigate={~p"/"} class={["group flex items-center gap-2.5", @class]}>
+      <span class="grid size-8 place-items-center rounded-lg bg-primary text-primary-content shadow-sm transition-transform duration-200 group-hover:-rotate-6">
+        <.icon name="hero-rocket-launch" class="size-5" />
+      </span>
+      <span class="text-base font-semibold tracking-tight">TestFleet</span>
+    </.link>
+    """
+  end
+
+  attr :id, :string, required: true, doc: "prefix for the ids of the entries"
+  attr :active, :atom, default: nil
+  attr :class, :any, default: nil
+
+  defp main_nav(assigns) do
+    assigns = assign(assigns, :items, nav_items())
+
+    ~H"""
+    <nav id={@id} aria-label={gettext("Main")} class={@class}>
+      <ul class="space-y-1">
+        <li :for={{key, label, icon, path} <- @items}>
+          <.link
+            navigate={path}
+            id={"#{@id}-#{key}"}
+            aria-current={if(key == @active, do: "page")}
+            class={[
+              "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+              if(key == @active,
+                do: "bg-primary/10 text-primary",
+                else: "text-base-content/70 hover:bg-base-200 hover:text-base-content"
+              )
+            ]}
+          >
+            <.icon
+              name={icon}
+              class={[
+                "size-5 transition-colors duration-150",
+                if(key == @active,
+                  do: "text-primary",
+                  else: "text-base-content/40 group-hover:text-base-content/70"
+                )
+              ]}
+            />
+            {label}
+          </.link>
+        </li>
+      </ul>
+    </nav>
+    """
+  end
+
+  defp nav_items do
+    [
+      {:dashboard, gettext("Dashboard"), "hero-squares-2x2", ~p"/"},
+      {:projects, gettext("Projects"), "hero-folder", ~p"/projects"},
+      {:runs, gettext("Runs"), "hero-play-circle", ~p"/runs"},
+      {:registries, gettext("Registries"), "hero-server-stack", ~p"/registries"}
+    ]
   end
 
   @doc """

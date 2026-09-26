@@ -17,7 +17,13 @@ defmodule TestFleetWeb.Router do
   scope "/", TestFleetWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    # Authentication (OIDC) will add an on_mount hook and current_scope here.
+    live_session :default do
+      live "/", DashboardLive, :index
+      live "/projects", ProjectLive.Index, :index
+      live "/runs", RunLive.Index, :index
+      live "/registries", RegistryLive.Index, :index
+    end
   end
 
   # Other scopes may use custom stacks.

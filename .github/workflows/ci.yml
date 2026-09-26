@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+
+jobs:
+  # The same checks as `mix precommit`, but failing instead of fixing.
+  check:
+    name: Compile, format, test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-
+
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
+      - run: mix deps.get
+      - run: mix compile --warnings-as-errors
+      - run: mix deps.unlock --check-unused
+      - run: mix format --check-formatted
+      - run: mix test
+
+  # Integration tests against the real Docker Engine (.specs/execution-spike-spec.md).
+  docker:
+    name: Docker integration tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-
+
+      - name: Build the fixture suite image
+        run: docker build -t testfleet/spike-suite:dev test/support/fixtures/spike_suite
+
+      - name: Start the spike registry and push the fixture
+        run: |
+          docker compose --profile spike up -d registry
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:5055/v2/ && break
+            sleep 1
+          done
+          echo spike-password | docker login localhost:5055 -u spike --password-stdin
+          docker tag testfleet/spike-suite:dev localhost:5055/spike-suite:dev
+          docker push localhost:5055/spike-suite:dev
+          docker logout localhost:5055
+
+      - run: mix deps.get
+
+      # Linux runners can use the Docker socket directly; no socket proxy needed.
+      - run: mix test --only docker
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock

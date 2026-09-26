@@ -10,6 +10,7 @@ defmodule TestFleet.Application do
     children = [
       TestFleetWeb.Telemetry,
       TestFleet.Repo,
+      {Oban, Application.fetch_env!(:testfleet, Oban)},
       {DNSCluster, query: Application.get_env(:testfleet, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TestFleet.PubSub},
       {Registry, keys: :unique, name: TestFleet.Execution.Registry},
