@@ -2,18 +2,9 @@ defmodule TestFleetWeb.CoreComponents do
   @moduledoc """
   Provides core UI components.
 
-  At first glance, this module may seem daunting, but its goal is to provide
-  core building blocks for your application, such as tables, forms, and
-  inputs. The components consist mostly of markup and are well-documented
-  with doc strings and declarative assigns. You may customize and style
-  them in any way you want, based on your application growth and needs.
-
-  The foundation for styling is Tailwind CSS, a utility-first CSS framework,
-  augmented with daisyUI, a Tailwind CSS plugin that provides UI components
-  and themes. Here are useful references:
-
-    * [daisyUI](https://daisyui.com/docs/intro/) - a good place to get
-      started and see the available components.
+  Buttons, inputs, tables, and flashes, styled with plain Tailwind CSS. Colors
+  come from the theme tokens in `app.css` (`base-100`, `primary`, `error`, ...);
+  daisyUI provides only those themes, not the component classes.
 
     * [Tailwind CSS](https://tailwindcss.com) - the foundational framework
       we build on. You will use it for layout, sizing, flexbox, grid, and
@@ -63,23 +54,33 @@ defmodule TestFleetWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="toast toast-top toast-end z-50"
+      class="fixed top-4 right-4 z-50 w-80 sm:w-96"
       {@rest}
     >
       <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
+        "flex items-start gap-3 rounded-xl border bg-base-100 p-4 text-sm shadow-lg shadow-base-content/5",
+        @kind == :info && "border-info/30",
+        @kind == :error && "border-error/30"
       ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
+        <.icon
+          :if={@kind == :info}
+          name="hero-information-circle"
+          class="size-5 shrink-0 text-info"
+        />
+        <.icon
+          :if={@kind == :error}
+          name="hero-exclamation-circle"
+          class="size-5 shrink-0 text-error"
+        />
+        <div class="min-w-0 flex-1">
           <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
+          <p class="text-base-content/80">{msg}</p>
         </div>
-        <div class="flex-1" />
         <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+          <.icon
+            name="hero-x-mark"
+            class="size-5 opacity-40 transition-opacity group-hover:opacity-70"
+          />
         </button>
       </div>
     </div>
@@ -94,19 +95,39 @@ defmodule TestFleetWeb.CoreComponents do
       <.button>Send!</.button>
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
+      <.button phx-click="delete" variant="danger" data-confirm="Sure?">Delete</.button>
+
+  `class` is added to the button's own classes.
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :rest, :global,
+    include: ~w(href navigate patch method download name value disabled type form)
+
+  attr :class, :any, default: nil
+  attr :variant, :string, values: ~w(primary secondary danger ghost), default: "secondary"
+  attr :size, :string, values: ~w(sm md), default: "md"
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "primary" => "bg-primary text-primary-content shadow-sm hover:bg-primary/90",
+      "secondary" =>
+        "border border-base-300 bg-base-100 text-base-content shadow-xs hover:bg-base-200",
+      "danger" => "bg-error/10 text-error hover:bg-error/15",
+      "ghost" => "text-base-content/70 hover:bg-base-200 hover:text-base-content"
+    }
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assign(assigns, :class, [
+        "inline-flex cursor-pointer items-center justify-center rounded-lg font-medium",
+        if(assigns.size == "sm",
+          do: "gap-1.5 px-2.5 py-1.5 text-xs",
+          else: "gap-2 px-3.5 py-2 text-sm"
+        ),
+        "transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+        "disabled:cursor-not-allowed disabled:opacity-50 phx-submit-loading:opacity-75",
+        Map.fetch!(variants, assigns.variant),
+        assigns.class
+      ])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""
@@ -166,6 +187,7 @@ defmodule TestFleetWeb.CoreComponents do
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
+  attr :hint, :string, default: nil, doc: "help text shown below the input"
   attr :value, :any
 
   attr :type, :string,
@@ -212,27 +234,27 @@ defmodule TestFleetWeb.CoreComponents do
       end)
 
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
+    <div>
+      <input
+        type="hidden"
+        name={@name}
+        value="false"
+        disabled={@rest[:disabled]}
+        form={@rest[:form]}
+      />
+      <label for={@id} class="flex cursor-pointer items-center gap-2.5 text-sm font-medium">
         <input
-          type="hidden"
+          type="checkbox"
+          id={@id}
           name={@name}
-          value="false"
-          disabled={@rest[:disabled]}
-          form={@rest[:form]}
+          value="true"
+          checked={@checked}
+          class={@class || "size-4 cursor-pointer rounded border-base-300 accent-primary"}
+          {@rest}
         />
-        <span class="label">
-          <input
-            type="checkbox"
-            id={@id}
-            name={@name}
-            value="true"
-            checked={@checked}
-            class={@class || "checkbox checkbox-sm"}
-            {@rest}
-          />{@label}
-        </span>
+        {@label}
       </label>
+      <p :if={@hint} class="mt-1 pl-6.5 text-xs text-base-content/60">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -240,20 +262,19 @@ defmodule TestFleetWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <select
-          id={@id}
-          name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
-          multiple={@multiple}
-          {@rest}
-        >
-          <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
-        </select>
-      </label>
+    <div class="space-y-1.5">
+      <label :if={@label} for={@id} class="block text-sm font-medium">{@label}</label>
+      <select
+        id={@id}
+        name={@name}
+        class={[@class || field_classes(), @errors != [] && (@error_class || field_error_classes())]}
+        multiple={@multiple}
+        {@rest}
+      >
+        <option :if={@prompt} value="">{@prompt}</option>
+        {Phoenix.HTML.Form.options_for_select(@options, @value)}
+      </select>
+      <p :if={@hint} class="text-xs text-base-content/60">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -261,19 +282,18 @@ defmodule TestFleetWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <textarea
-          id={@id}
-          name={@name}
-          class={[
-            @class || "w-full textarea",
-            @errors != [] && (@error_class || "textarea-error")
-          ]}
-          {@rest}
-        >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
-      </label>
+    <div class="space-y-1.5">
+      <label :if={@label} for={@id} class="block text-sm font-medium">{@label}</label>
+      <textarea
+        id={@id}
+        name={@name}
+        class={[
+          @class || [field_classes(), "min-h-24"],
+          @errors != [] && (@error_class || field_error_classes())
+        ]}
+        {@rest}
+      >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+      <p :if={@hint} class="text-xs text-base-content/60">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -282,31 +302,39 @@ defmodule TestFleetWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <input
-          type={@type}
-          name={@name}
-          id={@id}
-          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={[
-            @class || "w-full input",
-            @errors != [] && (@error_class || "input-error")
-          ]}
-          {@rest}
-        />
-      </label>
+    <div class="space-y-1.5">
+      <label :if={@label} for={@id} class="block text-sm font-medium">{@label}</label>
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={[
+          @class || field_classes(),
+          @errors != [] && (@error_class || field_error_classes())
+        ]}
+        {@rest}
+      />
+      <p :if={@hint} class="text-xs text-base-content/60">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
 
+  defp field_classes do
+    "block w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm shadow-xs " <>
+      "placeholder:text-base-content/40 transition-colors duration-150 " <>
+      "focus:border-primary focus:outline-none focus:ring-3 focus:ring-primary/15 " <>
+      "disabled:cursor-not-allowed disabled:opacity-60"
+  end
+
+  defp field_error_classes, do: "border-error focus:border-error focus:ring-error/15"
+
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
-      <.icon name="hero-exclamation-circle" class="size-5" />
+    <p class="mt-1.5 flex items-center gap-1.5 text-sm text-error">
+      <.icon name="hero-exclamation-circle-mini" class="size-4 shrink-0" />
       {render_slot(@inner_block)}
     </p>
     """
@@ -326,7 +354,7 @@ defmodule TestFleetWeb.CoreComponents do
         <h1 class="text-lg font-semibold leading-8">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-base-content/70">
+        <p :if={@subtitle != []} class="text-sm text-base-content/60">
           {render_slot(@subtitle)}
         </p>
       </div>
@@ -367,34 +395,44 @@ defmodule TestFleetWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
-      <thead>
-        <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
-          <th :if={@action != []}>
-            <span class="sr-only">{gettext("Actions")}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
-          <td
-            :for={col <- @col}
-            phx-click={@row_click && @row_click.(row)}
-            class={@row_click && "hover:cursor-pointer"}
+    <div class="overflow-x-auto rounded-xl border border-base-300 bg-base-100">
+      <table class="w-full text-left text-sm">
+        <thead class="border-b border-base-300 bg-base-200/50 text-xs font-medium tracking-wide text-base-content/60 uppercase">
+          <tr>
+            <th :for={col <- @col} class="px-4 py-3 font-medium">{col[:label]}</th>
+            <th :if={@action != []} class="px-4 py-3">
+              <span class="sr-only">{gettext("Actions")}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          id={@id}
+          phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}
+          class="divide-y divide-base-300"
+        >
+          <tr
+            :for={row <- @rows}
+            id={@row_id && @row_id.(row)}
+            class="transition-colors duration-150 hover:bg-base-200/40"
           >
-            {render_slot(col, @row_item.(row))}
-          </td>
-          <td :if={@action != []} class="w-0 font-semibold">
-            <div class="flex gap-4">
-              <%= for action <- @action do %>
-                {render_slot(action, @row_item.(row))}
-              <% end %>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            <td
+              :for={col <- @col}
+              phx-click={@row_click && @row_click.(row)}
+              class={["px-4 py-3 align-middle", @row_click && "cursor-pointer"]}
+            >
+              {render_slot(col, @row_item.(row))}
+            </td>
+            <td :if={@action != []} class="w-0 px-4 py-3">
+              <div class="flex items-center justify-end gap-1">
+                <%= for action <- @action do %>
+                  {render_slot(action, @row_item.(row))}
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     """
   end
 
@@ -414,14 +452,12 @@ defmodule TestFleetWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="list">
-      <li :for={item <- @item} class="list-row">
-        <div class="list-col-grow">
-          <div class="font-bold">{item.title}</div>
-          <div>{render_slot(item)}</div>
-        </div>
-      </li>
-    </ul>
+    <dl class="divide-y divide-base-300">
+      <div :for={item <- @item} class="grid gap-1 py-3 sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-base-content/60">{item.title}</dt>
+        <dd class="text-sm sm:col-span-2">{render_slot(item)}</dd>
+      </div>
+    </dl>
     """
   end
 

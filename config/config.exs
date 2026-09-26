@@ -8,6 +8,8 @@
 import Config
 
 config :testfleet,
+  # Without this, Phoenix generators derive "Testfleet" from the app name
+  namespace: TestFleet,
   ecto_repos: [TestFleet.Repo],
   generators: [timestamp_type: :utc_datetime]
 

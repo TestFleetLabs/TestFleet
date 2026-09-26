@@ -267,6 +267,7 @@ updated_at
 id
 project_id
 name
+slug
 description
 
 image
@@ -2345,7 +2346,7 @@ Those can come later.
 - LiveView
 - PostgreSQL
 - Oban
-- authentication (OIDC single sign-on)
+- authentication (OIDC single sign-on) — **deferred** (2026-09-26): built after the other milestones; until then all pages are open and user references (`runs.triggered_by_user_id`) stay empty
 - basic navigation
 
 ---
@@ -2719,9 +2720,13 @@ Examples:
 ```text
 DATABASE_URL
 SECRET_KEY_BASE
+CLOAK_KEY
 PHX_HOST
 PORT
+DOCKER_HOST
 ```
+
+`CLOAK_KEY` (base64, 32 bytes) encrypts environment variable values and registry passwords at rest. Losing it makes them unreadable, so it must be backed up with the database.
 
 TestFleet should not require rebuilding its image for environment-specific configuration.
 

@@ -9,6 +9,7 @@ defmodule TestFleet.Application do
   def start(_type, _args) do
     children = [
       TestFleetWeb.Telemetry,
+      TestFleet.Vault,
       TestFleet.Repo,
       {Oban, Application.fetch_env!(:testfleet, Oban)},
       {DNSCluster, query: Application.get_env(:testfleet, :dns_cluster_query) || :ignore},

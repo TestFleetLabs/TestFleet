@@ -11,6 +11,16 @@ config :testfleet, TestFleet.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
+# Encryption at rest; development only. Production reads CLOAK_KEY (config/runtime.exs).
+config :testfleet, TestFleet.Vault,
+  ciphers: [
+    default:
+      {Cloak.Ciphers.AES.GCM,
+       tag: "AES.GCM.V1",
+       key: Base.decode64!("rwssHn3/IcjAKkZWPnfP5i8IZaGDyAdVk5K4d05LbKY="),
+       iv_length: 12}
+  ]
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #

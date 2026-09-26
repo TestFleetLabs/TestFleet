@@ -21,6 +21,16 @@ config :testfleet, TestFleetWeb.Endpoint,
   secret_key_base: "3bbDwi4jKLfuFf+ifl3SBAIaS0+9icYgzRN2jx2Yxmr/spIoM5HZsD1flPUBmuKY",
   server: false
 
+# Encryption at rest; test only
+config :testfleet, TestFleet.Vault,
+  ciphers: [
+    default:
+      {Cloak.Ciphers.AES.GCM,
+       tag: "AES.GCM.V1",
+       key: Base.decode64!("UqH+t8NVuYJGt8eBiagih8Ti/tPEwkIKMhp+JFtUMWE="),
+       iv_length: 12}
+  ]
+
 # Jobs are inserted but not executed; tests run them explicitly with Oban.Testing
 config :testfleet, Oban, testing: :manual
 

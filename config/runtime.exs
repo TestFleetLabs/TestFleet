@@ -74,6 +74,21 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
+  # Encrypts environment variable values and registry passwords at rest.
+  # Losing this key makes them unreadable. Generate one with:
+  # mix run -e "32 |> :crypto.strong_rand_bytes() |> Base.encode64() |> IO.puts()"
+  cloak_key =
+    System.get_env("CLOAK_KEY") ||
+      raise """
+      environment variable CLOAK_KEY is missing (base64, 32 bytes).
+      """
+
+  config :testfleet, TestFleet.Vault,
+    ciphers: [
+      default:
+        {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(cloak_key), iv_length: 12}
+    ]
+
   host = System.get_env("PHX_HOST") || "example.com"
 
   config :testfleet, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")

@@ -3,8 +3,60 @@ defmodule TestFleetWeb.AppComponents do
   Building blocks for TestFleet pages: page headers, stat tiles, panels, and empty states.
   """
   use Phoenix.Component
+  use Gettext, backend: TestFleetWeb.Gettext
 
-  import TestFleetWeb.CoreComponents, only: [icon: 1]
+  import TestFleetWeb.CoreComponents, only: [icon: 1, input: 1]
+
+  @doc """
+  Renders the slug input of a form whose changeset generates an empty slug from
+  another field (see `TestFleet.Slug`).
+
+  The input shows only what the user typed; the generated slug is previewed as the
+  placeholder. Showing the generated value in the input would send it back with the
+  next keystroke, where it would count as typed by hand and stop following the name.
+
+  ## Examples
+
+      <.slug_input field={@form[:slug]} source={@form[:name]} label="Slug" />
+  """
+  attr :field, Phoenix.HTML.FormField, required: true
+
+  attr :source, Phoenix.HTML.FormField,
+    required: true,
+    doc: "the field the slug is generated from"
+
+  attr :label, :string, required: true
+  attr :hint, :string, default: nil
+
+  def slug_input(assigns) do
+    %{form: form, field: field} = assigns.field
+    key = Atom.to_string(field)
+
+    typed =
+      if Map.has_key?(form.params, key),
+        do: form.params[key],
+        else: Map.get(form.data, field)
+
+    preview = TestFleet.Slug.slugify(assigns.source.value)
+
+    assigns =
+      assigns
+      |> assign(:value, typed)
+      |> assign(
+        :placeholder,
+        if(preview == "", do: gettext("generated from the name"), else: preview)
+      )
+
+    ~H"""
+    <.input
+      field={@field}
+      value={@value}
+      label={@label}
+      placeholder={@placeholder}
+      hint={@hint}
+    />
+    """
+  end
 
   @doc """
   Renders the title row of a page.
@@ -72,13 +124,38 @@ defmodule TestFleetWeb.AppComponents do
   attr :title, :string, required: true
   attr :class, :any, default: nil
   slot :inner_block, required: true
+  slot :actions
 
   def panel(assigns) do
     ~H"""
     <section id={@id} class={["rounded-xl border border-base-300 bg-base-100", @class]}>
-      <h2 class="border-b border-base-300 px-5 py-3.5 text-sm font-semibold">{@title}</h2>
+      <div class="flex min-h-12 items-center justify-between gap-3 border-b border-base-300 px-5 py-2">
+        <h2 class="text-sm font-semibold">{@title}</h2>
+        <div :if={@actions != []} class="flex items-center gap-1">{render_slot(@actions)}</div>
+      </div>
       {render_slot(@inner_block)}
     </section>
+    """
+  end
+
+  @doc """
+  Renders a small label, e.g. for a slug or a limit.
+  """
+  attr :tone, :atom, default: :neutral, values: [:neutral, :primary, :warning]
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def badge(assigns) do
+    ~H"""
+    <span class={[
+      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
+      @tone == :neutral && "bg-base-200 text-base-content/70",
+      @tone == :primary && "bg-primary/10 text-primary",
+      @tone == :warning && "bg-warning/15 text-warning",
+      @class
+    ]}>
+      {render_slot(@inner_block)}
+    </span>
     """
   end
 
@@ -91,14 +168,21 @@ defmodule TestFleetWeb.AppComponents do
   attr :icon, :string, required: true
   attr :title, :string, required: true
   attr :compact, :boolean, default: false
+
+  attr :class, :any,
+    default: "flex",
+    doc: "display classes; use `hidden only:flex` as the placeholder of a stream"
+
   slot :inner_block, doc: "the explanation below the title"
+  slot :actions
 
   def empty_state(assigns) do
     ~H"""
     <div
       id={@id}
       class={[
-        "flex flex-col items-center justify-center text-center",
+        "flex-col items-center justify-center text-center",
+        @class,
         if(@compact,
           do: "px-6 py-10",
           else: "rounded-2xl border border-dashed border-base-300 bg-base-100 px-6 py-16"
@@ -115,6 +199,61 @@ defmodule TestFleetWeb.AppComponents do
       <p :if={@inner_block != []} class="mt-1 max-w-md text-sm text-base-content/60">
         {render_slot(@inner_block)}
       </p>
+      <div :if={@actions != []} class="mt-5 flex gap-2">{render_slot(@actions)}</div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders the path to the current page. The last crumb is the current page and
+  has no link.
+
+  ## Examples
+
+      <.breadcrumbs>
+        <:crumb navigate={~p"/projects"}>Projects</:crumb>
+        <:crumb>{@project.name}</:crumb>
+      </.breadcrumbs>
+  """
+  slot :crumb, required: true do
+    attr :navigate, :string
+  end
+
+  def breadcrumbs(assigns) do
+    ~H"""
+    <nav aria-label="Breadcrumb" class="mb-3">
+      <ol class="flex flex-wrap items-center gap-1.5 text-sm text-base-content/60">
+        <li :for={{crumb, index} <- Enum.with_index(@crumb)} class="flex items-center gap-1.5">
+          <.icon :if={index > 0} name="hero-chevron-right-mini" class="size-4 text-base-content/30" />
+          <.link
+            :if={crumb[:navigate]}
+            navigate={crumb.navigate}
+            class="transition-colors hover:text-base-content"
+          >
+            {render_slot(crumb)}
+          </.link>
+          <span :if={!crumb[:navigate]} aria-current="page" class="text-base-content/80">
+            {render_slot(crumb)}
+          </span>
+        </li>
+      </ol>
+    </nav>
+    """
+  end
+
+  @doc """
+  Renders the card that holds a form, with the buttons in a footer.
+  """
+  slot :inner_block, required: true
+  slot :footer, required: true
+
+  def form_card(assigns) do
+    ~H"""
+    <div class="max-w-2xl overflow-hidden rounded-xl border border-base-300 bg-base-100">
+      <div class="space-y-5 p-6">{render_slot(@inner_block)}</div>
+      <div class="flex items-center justify-end gap-2 border-t border-base-300 bg-base-200/40 px-6 py-4">
+        {render_slot(@footer)}
+      </div>
     </div>
     """
   end

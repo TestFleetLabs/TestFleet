@@ -68,6 +68,7 @@ defmodule TestFleet.MixProject do
       {:swoosh, "~> 1.16"},
       {:req, "~> 0.5"},
       {:oban, "~> 2.24"},
+      {:cloak_ecto, "~> 1.3"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
