@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(fnm *)",
+      "PowerShell(npx *)",
+      "PowerShell(Set-Location -LiteralPath *)",
+      "Bash(mix test *)",
+      "Bash(docker run *)",
+      "Bash(docker build *)",
+      "Bash(docker rm *)",
+      "Bash(curl *)",
+      "Bash(docker rmi *)",
+      "Bash(docker network *)",
+      "Bash(docker exec *)",
+      "Bash(mix precommit *)",
+      "Bash(gh repo *)",
+      "Bash(mix deps.unlock --check-unused)",
+      "Bash(mix format *)",
+      "Bash(elixir --version)",
+      "Bash(mix archive *)",
+      "Bash(command -v fnm)",
+      "Bash(mix compile *)",
+      "WebFetch(domain:docs.github.com)",
+      "WebSearch"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

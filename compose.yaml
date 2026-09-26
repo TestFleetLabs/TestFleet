@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - testfleet-db:/var/lib/postgresql
+
+  # Exposes a restricted Docker Engine API over HTTP, so TestFleet never
+  # touches the raw socket. Point DOCKER_HOST at tcp://localhost:2375.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - POST=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:2375:2375"
+    restart: unless-stopped
+
+  # Private registry for the execution spike tests (profile "spike").
+  # Credentials: spike / spike-password. Port 5000 is reserved on many Windows machines.
+  registry:
+    image: registry:3
+    profiles: [spike]
+    environment:
+      - REGISTRY_AUTH=htpasswd
+      - REGISTRY_AUTH_HTPASSWD_REALM=TestFleet spike
+      - REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
+    volumes:
+      - ./test/support/fixtures/registry/htpasswd:/auth/htpasswd:ro
+    ports:
+      - "5055:5000"
+
+volumes:
+  testfleet-db:
