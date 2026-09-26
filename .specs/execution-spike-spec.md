@@ -502,4 +502,5 @@ Findings for the milestones:
 - Req's `into: :self` works well for the log and wait streams: both arrive as messages in the `RunExecution` process, with no extra processes.
 - `Result.finished_at` is TestFleet's clock when finalizing, not the container's `State.FinishedAt`. For durations close to the timeout this adds the time of artifact collection.
 - Artifact extraction does not yet guard against symlinks in the tar stream; that belongs to Milestone 6 together with the size limit.
+- `RunExecution` emits one `{:output, lines}` event per HTTP chunk. Through the socket proxy a chatty suite produced ~70 lines per chunk; over the Unix socket on CI the chunks are far smaller, down to single lines. Consumers must never append batches with `++` (this made a test helper quadratic and timed out CI), and the persistence path needs the 100 ms / 500 lines batching from main spec section 21.
 - Each running run holds two long-lived HTTP connections (logs and wait). The Finch pool size must be checked against the global concurrency limit in Milestone 3.

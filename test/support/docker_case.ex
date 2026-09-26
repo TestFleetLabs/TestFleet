@@ -86,38 +86,54 @@ defmodule TestFleet.DockerCase do
     ExUnit.Callbacks.on_exit(fn -> Command.remove(RunExecution.container_name(run_id)) end)
   end
 
-  @doc "Waits for the result. Returns `{result, lines}` with all output received meanwhile."
-  def await_finished(run_id, timeout \\ 30_000, lines \\ []) do
+  # Output arrives in one batch per HTTP chunk; over a Unix socket that can be a
+  # single line. Batches are therefore collected in reverse and flattened once:
+  # appending with ++ would copy all lines received so far for every batch.
+
+  @doc """
+  Waits for the result. Returns `{result, lines}` with all output received meanwhile.
+  `timeout` is the longest silence allowed between two events.
+  """
+  def await_finished(run_id, timeout \\ 30_000), do: await_finished(run_id, timeout, [])
+
+  defp await_finished(run_id, timeout, batches) do
     receive do
-      {:run_event, ^run_id, {:output, new_lines}} ->
-        await_finished(run_id, timeout, lines ++ new_lines)
+      {:run_event, ^run_id, {:output, lines}} ->
+        await_finished(run_id, timeout, [lines | batches])
 
       {:run_event, ^run_id, {:finished, result}} ->
-        {result, lines}
+        {result, flatten(batches)}
 
       {:run_event, ^run_id, _event} ->
-        await_finished(run_id, timeout, lines)
+        await_finished(run_id, timeout, batches)
     after
-      timeout -> ExUnit.Assertions.flunk("run #{run_id} did not finish within #{timeout} ms")
+      timeout -> ExUnit.Assertions.flunk("run #{run_id}: no event for #{timeout} ms")
     end
   end
 
   @doc "Collects output until a line satisfies `fun`. Returns all lines so far."
-  def await_output(run_id, fun, timeout \\ 15_000, lines \\ []) do
+  def await_output(run_id, fun, timeout \\ 15_000), do: await_output(run_id, fun, timeout, [])
+
+  defp await_output(run_id, fun, timeout, batches) do
     receive do
-      {:run_event, ^run_id, {:output, new_lines}} ->
-        lines = lines ++ new_lines
-        if Enum.any?(new_lines, fun), do: lines, else: await_output(run_id, fun, timeout, lines)
+      {:run_event, ^run_id, {:output, lines}} ->
+        batches = [lines | batches]
+
+        if Enum.any?(lines, fun),
+          do: flatten(batches),
+          else: await_output(run_id, fun, timeout, batches)
 
       {:run_event, ^run_id, {:finished, result}} ->
         ExUnit.Assertions.flunk("run #{run_id} finished early: #{inspect(result)}")
 
       {:run_event, ^run_id, _event} ->
-        await_output(run_id, fun, timeout, lines)
+        await_output(run_id, fun, timeout, batches)
     after
       timeout -> ExUnit.Assertions.flunk("run #{run_id}: expected output did not arrive")
     end
   end
+
+  defp flatten(batches), do: batches |> Enum.reverse() |> Enum.concat()
 
   def await_event(run_id, pattern_fun, timeout \\ 15_000) do
     receive do
