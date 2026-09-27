@@ -190,7 +190,7 @@ defmodule TestFleet.RunsTest do
                image: "registry.company.com/customer-a/e2e:1.17",
                command: ["./run.sh", "-v"],
                environment: %{"BASE_URL" => "https://example.com", "API_TOKEN" => "s3cret-token"},
-               secret_values: ["s3cret-token"],
+               secret_keys: ["API_TOKEN"],
                registry_auth: %{username: "deploy", password: "registry-password"},
                timeout_seconds: 600,
                cpu_limit: 2.0,

@@ -248,7 +248,7 @@ defmodule TestFleet.Runs do
       image: run.image,
       command: run.command,
       environment: Map.new(environment.variables, &{&1.key, &1.value}),
-      secret_values: for(%{secret: true, value: value} <- environment.variables, do: value),
+      secret_keys: for(%{secret: true, key: key} <- environment.variables, do: key),
       registry_auth: registry_auth,
       timeout_seconds: test_definition.timeout_seconds,
       cpu_limit: test_definition.cpu_limit,

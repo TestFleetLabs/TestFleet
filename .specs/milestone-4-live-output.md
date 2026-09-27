@@ -80,7 +80,7 @@ One row per line (main spec section 9):
 `TestFleet.Execution.Masker` replaces every occurrence of a secret value with `[MASKED]` (main spec section 21).
 
 - **Where:** in `RunExecution`, on each complete line, before numbering and batching. No event, subscriber, or handler ever sees an unmasked line. `Execution.run/1` and the spike tests are masked too.
-- **What:** the values of the run's secret variables (`Request.secret_values`). A multi-line secret (for example a PEM key) is masked line by line: each of its lines is its own pattern, if it is at least 6 characters long (the minimum length of a secret, Milestone 2).
+- **What:** the values of the run's secret variables. The request names them (`Request.secret_keys`, which replaces Milestone 3's `secret_values`); their values come from `Request.environment`. A multi-line secret (for example a PEM key) is masked line by line: each of its lines is its own pattern, if it is at least 6 characters long (the minimum length of a secret, Milestone 2).
 - **How:** one compiled pattern (`:binary.compile_pattern/1`) per run, built once. When several secrets match at the same position, the longest wins, so a secret that contains another is masked completely.
 - **Known limits** (documented, not solved):
   - A secret split across two lines, or by `LineBuffer`'s 1 MB overflow split, is not masked.
@@ -184,7 +184,14 @@ Milestone 3's startup recovery attaches with `last_log_timestamp`. It now also p
 
 ## 9. Fixture
 
-The fixture suite gets a mode `secret` that prints the value of `SPIKE_SECRET` in the middle of a line, on its own, and twice on one line. After the change, the fixture image must be rebuilt and pushed to the spike registry ([execution-spike-spec.md](execution-spike-spec.md), section 9).
+The fixture suite gets two modes:
+
+- `secret` prints the value of `SPIKE_SECRET` in the middle of a line, on its own, and twice on one line (on stderr), and `SPIKE_PLAIN` unmasked.
+- `tick` prints `tick 1`, `tick 2`, … once a second for `SPIKE_TICKS` seconds (default 5), then passes: a suite that finishes on its own, for watching live output.
+
+After the change, the fixture image must be rebuilt and pushed to the spike registry ([execution-spike-spec.md](execution-spike-spec.md), section 9). Slice A only needs the local image; the end-to-end tests of slice B need the pushed one.
+
+The masking test after a reattach uses `alpine:3` with an inline loop that prints the secret every second, like the existing reattach tests.
 
 ---
 
@@ -198,7 +205,7 @@ The fixture suite gets a mode `secret` that prints the value of `SPIKE_SECRET` i
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** specified; not started.
+**Status (2026-09-27):** slice A is built (237 tests, plus 50 Docker integration tests).
 
 ---
 

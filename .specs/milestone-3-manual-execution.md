@@ -170,14 +170,14 @@ config :testfleet, TestFleet.Execution.Dispatcher,
 | `environment_name` | the environment's `slug` (main spec: `TestFleet_ENVIRONMENT=production`) |
 | `image`, `command` | the run (copied at creation) |
 | `environment` | the environment's variables, decrypted |
-| `secret_values` | the values of its secret variables (used for masking from Milestone 4) |
+| `secret_keys` | the keys of its secret variables (used for masking from Milestone 4; was `secret_values` until then) |
 | `registry_auth` | `Registries.get_registry_for_image(image)`, or `nil` for an anonymous pull |
 | `timeout_seconds`, `cpu_limit`, `memory_limit`, `shm_size` | the test definition |
 | `pull_policy` | `:auto` (main spec section 39) |
 | `stop_grace_seconds` | 30 |
 | `artifact_path` | `nil` until Milestone 6: no artifacts are collected |
 
-The request holds decrypted secrets. It is never logged, and `Request` redacts `environment`, `registry_auth`, and `secret_values` from `inspect`.
+The request holds decrypted secrets. It is never logged, and `Request` redacts `environment` and `registry_auth` from `inspect`.
 
 ---
 

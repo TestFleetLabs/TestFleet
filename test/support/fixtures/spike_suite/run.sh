@@ -70,6 +70,24 @@ case "${SPIKE_MODE:-pass}" in
     env | grep '^TestFleet_' | sort
     exit 0
     ;;
+  secret)
+    # Suites echo configuration; TestFleet must mask it (Milestone 4, section 9).
+    echo "token=${SPIKE_SECRET} in the middle"
+    echo "${SPIKE_SECRET}"
+    echo "twice: ${SPIKE_SECRET} ${SPIKE_SECRET}" >&2
+    echo "not secret: ${SPIKE_PLAIN:-}"
+    exit 0
+    ;;
+  tick)
+    # Ticks for SPIKE_TICKS seconds, then passes.
+    i=0
+    while [ "$i" -lt "${SPIKE_TICKS:-5}" ]; do
+      i=$((i + 1))
+      echo "tick $i"
+      sleep 1
+    done
+    exit 0
+    ;;
   *)
     echo "unknown SPIKE_MODE ${SPIKE_MODE}" >&2
     exit 2

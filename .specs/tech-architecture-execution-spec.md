@@ -781,13 +781,13 @@ defmodule TestFleet.Execution.Request do
     :memory_limit,
     :shm_size,
     :registry_auth,
-    :secret_values,
+    :secret_keys,
     :artifact_path
   ]
 end
 ```
 
-`pull_policy` defaults to `auto` (section 39); `if_missing` and `never` exist for locally built images. `project_id` and `environment_name` feed the container labels and `TestFleet_ENVIRONMENT`. The execution spike implemented this struct in [execution-spike-spec.md](execution-spike-spec.md).
+`pull_policy` defaults to `auto` (section 39); `if_missing` and `never` exist for locally built images. `project_id` and `environment_name` feed the container labels and `TestFleet_ENVIRONMENT`. `secret_keys` names the variables in `environment` whose values are masked (section 21); the keys are also stored as a container label, so a reattaching process can mask too ([milestone-4-live-output.md](milestone-4-live-output.md), section 4). The execution spike implemented this struct in [execution-spike-spec.md](execution-spike-spec.md).
 
 MVP implementation:
 

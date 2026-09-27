@@ -13,6 +13,10 @@ defmodule TestFleet.Execution.RunExecution do
       {:output, [%{sequence: n, stream: :stdout | :stderr, timestamp: ns, content: line}]}
       {:finished, %TestFleet.Execution.Result{}}
 
+  Output lines are masked (`TestFleet.Execution.Masker`) before they leave the
+  process, and reported in batches: after 100 ms, 500 lines, or 1 MiB, whichever
+  comes first. All output is reported before `{:finished, result}`.
+
   `{:finished, result}` is reported before the container is removed, so the final
   status is recorded even if TestFleet dies in between (Milestone 3, section 7). The
   process exits once the container is removed.
@@ -35,7 +39,7 @@ defmodule TestFleet.Execution.RunExecution do
 
   require Logger
 
-  alias TestFleet.Execution.{LineBuffer, Result, Status}
+  alias TestFleet.Execution.{LineBuffer, Masker, Result, Status}
   alias TestFleet.Execution.Docker.{Command, ImageRef, LogDecoder}
 
   @network "TestFleet-runs"
@@ -45,6 +49,10 @@ defmodule TestFleet.Execution.RunExecution do
   @drain_timeout 5_000
   # Extra time after the stop grace period before sending SIGKILL ourselves.
   @kill_margin 5_000
+  # Output is reported in batches (main spec section 21, Milestone 4 section 5).
+  @batch_interval 100
+  @batch_max_lines 500
+  @batch_max_bytes 1_048_576
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: via(Keyword.fetch!(opts, :run_id)))
@@ -85,7 +93,12 @@ defmodule TestFleet.Execution.RunExecution do
       drain_timer: nil,
       decoder: LogDecoder.new(),
       lines: LineBuffer.new(),
+      masker: Masker.new(request_secrets(request)),
       sequence: opts[:next_sequence] || 1,
+      batch: [],
+      batch_lines: 0,
+      batch_bytes: 0,
+      batch_timer: nil,
       resume_after: opts[:last_log_timestamp],
       stopping: false,
       cancelled: false,
@@ -95,6 +108,16 @@ defmodule TestFleet.Execution.RunExecution do
 
     {:ok, state, {:continue, Keyword.fetch!(opts, :mode)}}
   end
+
+  defp request_secrets(nil), do: []
+
+  defp request_secrets(request),
+    do:
+      for(
+        key <- request.secret_keys,
+        {:ok, value} <- [Map.fetch(request.environment, key)],
+        do: value
+      )
 
   @impl true
   def handle_continue(:start, state) do
@@ -163,6 +186,12 @@ defmodule TestFleet.Execution.RunExecution do
       {:noreply, begin_stop(%{state | timed_out: true})}
     end
   end
+
+  # A timer of an earlier batch may fire after that batch was flushed for its size.
+  def handle_info({:flush_batch, timer}, %{batch_timer: {timer, _ref}} = state),
+    do: {:noreply, flush_batch(state)}
+
+  def handle_info({:flush_batch, _stale}, state), do: {:noreply, state}
 
   def handle_info(:force_kill, state) do
     unless state.exited, do: Command.kill(state.container_id)
@@ -281,6 +310,12 @@ defmodule TestFleet.Execution.RunExecution do
         "TestFleet.stop_grace_seconds" => to_string(request.stop_grace_seconds)
       }
       |> put_present("TestFleet.project_id", request.project_id && to_string(request.project_id))
+      # The keys, not the values: an attaching process reads the values from the
+      # container's environment.
+      |> put_present(
+        "TestFleet.secret_keys",
+        if(request.secret_keys != [], do: Enum.join(request.secret_keys, ","))
+      )
 
     host_config =
       %{
@@ -317,11 +352,25 @@ defmodule TestFleet.Execution.RunExecution do
       state
       | container_id: info["Id"],
         owns_container: true,
+        masker: Masker.new(container_secrets(info, labels)),
         image: get_in(info, ["Config", "Image"]),
         timeout_seconds: label_integer(labels, "TestFleet.timeout_seconds"),
         stop_grace_seconds:
           label_integer(labels, "TestFleet.stop_grace_seconds") || @default_stop_grace_seconds
     }
+  end
+
+  # The values the suite actually got, even if the variables changed since.
+  defp container_secrets(info, labels) do
+    keys = String.split(labels["TestFleet.secret_keys"] || "", ",", trim: true)
+
+    env =
+      for entry <- get_in(info, ["Config", "Env"]) || [],
+          [key, value] <- [String.split(entry, "=", parts: 2)],
+          into: %{},
+          do: {key, value}
+
+    for key <- keys, {:ok, value} <- [Map.fetch(env, key)], do: value
   end
 
   defp label_integer(labels, key) do
@@ -435,16 +484,46 @@ defmodule TestFleet.Execution.RunExecution do
     emit(%{state | lines: buffer}, lines)
   end
 
+  # Masks and numbers complete lines, and adds them to the pending batch.
   defp emit(state, []), do: state
 
   defp emit(state, lines) do
-    numbered =
-      lines
-      |> Enum.with_index(state.sequence)
-      |> Enum.map(fn {line, sequence} -> Map.put(line, :sequence, sequence) end)
+    state = Enum.reduce(lines, state, &add_to_batch(&2, &1))
 
-    notify(state, {:output, numbered})
-    %{state | sequence: state.sequence + length(lines)}
+    if state.batch != [] and state.batch_timer == nil do
+      timer = make_ref()
+      ref = Process.send_after(self(), {:flush_batch, timer}, @batch_interval)
+      %{state | batch_timer: {timer, ref}}
+    else
+      state
+    end
+  end
+
+  defp add_to_batch(state, line) do
+    line =
+      line
+      |> Map.put(:content, Masker.mask(state.masker, line.content))
+      |> Map.put(:sequence, state.sequence)
+
+    state = %{
+      state
+      | sequence: state.sequence + 1,
+        batch: [line | state.batch],
+        batch_lines: state.batch_lines + 1,
+        batch_bytes: state.batch_bytes + byte_size(line.content)
+    }
+
+    if state.batch_lines >= @batch_max_lines or state.batch_bytes >= @batch_max_bytes,
+      do: flush_batch(state),
+      else: state
+  end
+
+  defp flush_batch(%{batch: []} = state), do: state
+
+  defp flush_batch(state) do
+    with {_timer, ref} <- state.batch_timer, do: Process.cancel_timer(ref)
+    notify(state, {:output, Enum.reverse(state.batch)})
+    %{state | batch: [], batch_lines: 0, batch_bytes: 0, batch_timer: nil}
   end
 
   defp maybe_complete(%{exited: false} = state), do: {:noreply, state}
@@ -461,7 +540,8 @@ defmodule TestFleet.Execution.RunExecution do
   defp finalize(state) do
     if state.deadline_timer, do: Process.cancel_timer(state.deadline_timer)
     if state.drain_timer, do: Process.cancel_timer(state.drain_timer)
-    state = flush_lines(state)
+    # All output is reported before the result.
+    state = state |> flush_lines() |> flush_batch()
 
     {facts, artifacts} = inspect_container(state)
     {status, error_message} = Status.decide(facts)
