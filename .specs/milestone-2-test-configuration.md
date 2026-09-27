@@ -136,11 +136,24 @@ mix run -e "32 |> :crypto.strong_rand_bytes() |> Base.encode64() |> IO.puts()"
   - the next occurrence is computed on local wall-clock time in the schedule's timezone, then converted to UTC,
   - a local time that does not exist (spring forward) moves to the first valid instant after the gap,
   - a local time that occurs twice (fall back) uses the first occurrence.
+  - As a consequence, every local wall-clock time runs at most once. A schedule that runs every few minutes pauses during the repeated hour of a fall-back night, because those local times already ran. Accepted: it is the price of never running a daily 02:30 schedule twice.
 - Disabled schedules keep `next_run_at` but are ignored by the tick (Milestone 5).
 - The form previews the next three run times in the schedule's timezone while typing.
+
+Decisions made while building:
+
+- Only **enabled** test definitions can be chosen. A schedule whose test definition is disabled later keeps working as data (it can still be edited), and the tick must skip it (Milestone 5). The dashboard's upcoming schedules already leave such schedules out.
+- The cron expression must have exactly **five fields** (the `crontab` library would also accept a year field), or be an alias such as `@daily`. `@reboot` is rejected. Whitespace is normalized. An expression that never matches a date, such as `0 0 30 2 *`, is rejected.
+- `next_run_at` is computed in `TestFleet.Schedules.Cron` from local wall-clock time; `crontab` only finds matching local times, and the DST rules above are applied by TestFleet, not by the library.
+- The timezone select offers the canonical zones of the IANA `zone1970.tab` bundled with `tz`, plus `Etc/UTC`. Validation accepts every name the database knows, including links such as `UTC`. New schedules preselect `config :testfleet, :default_timezone` (`Europe/Vienna`).
+- The form offers presets for common expressions (every day at 06:00, weekdays at 06:00, every hour, every 15 minutes). With a single enabled test definition or a single environment, it is preselected. Without either, the form explains what is missing and links to create it.
+- Times are shown in the schedule's timezone with the zone abbreviation (`Sun 27 Sep 2026, 06:00 CEST`); the UTC time is in the tooltip.
+- The dashboard's "Upcoming schedules" panel (main spec section 42) lists the next six enabled schedules of all projects.
 
 ---
 
 ## 11. Done
 
 Milestone 2 is done when all five slices are merged, `mix precommit` passes, and a project with a registry, a test definition, an environment with secret and non-secret variables, and a schedule can be configured entirely through the UI.
+
+**Status (2026-09-27):** all five slices are built and tested (173 tests, plus 37 Docker integration tests). The last check, configuring everything through the UI end to end, is pending a manual walkthrough.

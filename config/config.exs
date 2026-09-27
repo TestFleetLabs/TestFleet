@@ -34,6 +34,12 @@ config :testfleet, Oban,
   # Rescues TestFleet's own jobs; runs are recovered by the reconciler, never by Oban.
   lifeline: [rescue_after: :timer.minutes(30)]
 
+# Time zones for schedules (IANA database, bundled with the tz package)
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
+# Preselected in new schedules
+config :testfleet, :default_timezone, "Europe/Vienna"
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.
@@ -50,7 +56,7 @@ config :testfleet, TestFleet.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure esbuild (the version is required)
 config :esbuild,
-  version: "0.25.4",
+  version: "0.28.2",
   testfleet: [
     args:
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),

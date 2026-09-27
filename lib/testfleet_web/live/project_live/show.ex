@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.ProjectLive.Show do
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Environments, Projects, TestDefinitions}
+  alias TestFleet.{Environments, Projects, Schedules, TestDefinitions}
 
   @impl true
   def mount(%{"slug" => slug}, _session, socket) do
@@ -12,8 +12,12 @@ defmodule TestFleetWeb.ProjectLive.Show do
      |> assign(:page_title, project.name)
      |> assign(:project, project)
      |> stream(:test_definitions, TestDefinitions.list_test_definitions(project))
-     |> stream(:environments, Environments.list_environments(project))}
+     |> stream(:environments, Environments.list_environments(project))
+     |> stream(:schedules, Schedules.list_schedules(project))}
   end
+
+  defp overlap_label(:queue), do: gettext("queues overlaps")
+  defp overlap_label(:allow), do: gettext("runs in parallel")
 
   defp format_timeout(seconds) when rem(seconds, 3600) == 0,
     do: gettext("%{count} h", count: div(seconds, 3600))
@@ -176,14 +180,67 @@ defmodule TestFleetWeb.ProjectLive.Show do
           </.panel>
 
           <.panel id="schedules" title={gettext("Schedules")} class="lg:col-span-2">
-            <.empty_state
-              id="schedules-empty"
-              icon="hero-calendar"
-              title={gettext("No schedules yet")}
-              compact
-            >
-              {gettext("A schedule runs a test definition against an environment at fixed times.")}
-            </.empty_state>
+            <:actions>
+              <.button
+                id="new-schedule"
+                variant="ghost"
+                size="sm"
+                navigate={~p"/projects/#{@project.slug}/schedules/new"}
+              >
+                <.icon name="hero-plus-mini" class="size-4" /> {gettext("New")}
+              </.button>
+            </:actions>
+
+            <ul id="schedule-list" phx-update="stream" class="divide-y divide-base-300">
+              <li id="schedules-empty" class="hidden only:block">
+                <.empty_state
+                  id="schedules-empty-state"
+                  icon="hero-calendar"
+                  title={gettext("No schedules yet")}
+                  compact
+                >
+                  {gettext("A schedule runs a test definition against an environment at fixed times.")}
+                </.empty_state>
+              </li>
+              <li :for={{id, schedule} <- @streams.schedules} id={id}>
+                <.link
+                  navigate={~p"/projects/#{@project.slug}/schedules/#{schedule.id}/edit"}
+                  class={[
+                    "group flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40",
+                    !schedule.enabled && "opacity-60 hover:opacity-100"
+                  ]}
+                >
+                  <div class="min-w-0">
+                    <p class="flex items-center gap-1.5 truncate text-sm font-medium">
+                      {schedule.test_definition.name}
+                      <.icon name="hero-arrow-right-mini" class="size-3.5 text-base-content/40" />
+                      {schedule.environment.name}
+                    </p>
+                    <p class="font-mono text-xs text-base-content/50">
+                      {schedule.cron_expression}
+                      <span class="font-sans">· {schedule.timezone}</span>
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <.badge :if={schedule.overlap_policy != :skip}>
+                      {overlap_label(schedule.overlap_policy)}
+                    </.badge>
+                    <.badge :if={!schedule.enabled} tone={:warning}>{gettext("disabled")}</.badge>
+                    <span
+                      :if={schedule.enabled}
+                      class="flex items-center gap-1.5 text-xs text-base-content/60"
+                    >
+                      <.icon name="hero-clock-mini" class="size-3.5" />
+                      <.local_time at={schedule.next_run_at} timezone={schedule.timezone} />
+                    </span>
+                    <.icon
+                      name="hero-chevron-right-mini"
+                      class="size-4 text-base-content/30 transition group-hover:translate-x-0.5 group-hover:text-primary"
+                    />
+                  </div>
+                </.link>
+              </li>
+            </ul>
           </.panel>
         </div>
       </div>

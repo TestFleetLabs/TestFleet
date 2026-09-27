@@ -153,7 +153,9 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
                 variant="danger"
                 phx-click="delete"
                 data-confirm={
-                  gettext("Delete %{name} and all its variables?", name: @environment.name)
+                  gettext("Delete %{name} with its variables and schedules?",
+                    name: @environment.name
+                  )
                 }
               >
                 <.icon name="hero-trash-mini" class="size-4" /> {gettext("Delete")}

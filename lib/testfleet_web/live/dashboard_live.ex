@@ -1,13 +1,18 @@
 defmodule TestFleetWeb.DashboardLive do
   use TestFleetWeb, :live_view
 
+  alias TestFleet.Schedules
+
+  @upcoming_limit 6
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, gettext("Dashboard"))
      # There are no runs yet; these figures are wired to the Runs context with manual execution.
-     |> assign(:stats, %{running: 0, passed_today: 0, failed_today: 0, timeouts: 0})}
+     |> assign(:stats, %{running: 0, passed_today: 0, failed_today: 0, timeouts: 0})
+     |> stream(:upcoming, Schedules.list_upcoming(@upcoming_limit))}
   end
 
   @impl true
@@ -64,12 +69,31 @@ defmodule TestFleetWeb.DashboardLive do
           </.panel>
 
           <.panel id="upcoming-schedules" title={gettext("Upcoming schedules")}>
-            <.empty_state
-              id="upcoming-schedules-empty"
-              icon="hero-calendar"
-              title={gettext("Nothing scheduled")}
-              compact
-            />
+            <ul id="upcoming-list" phx-update="stream" class="divide-y divide-base-300">
+              <li id="upcoming-empty" class="hidden only:block">
+                <.empty_state
+                  id="upcoming-schedules-empty"
+                  icon="hero-calendar"
+                  title={gettext("Nothing scheduled")}
+                  compact
+                />
+              </li>
+              <li :for={{id, schedule} <- @streams.upcoming} id={id}>
+                <.link
+                  navigate={~p"/projects/#{schedule.test_definition.project.slug}"}
+                  class="block px-5 py-3 transition-colors duration-150 hover:bg-base-200/40"
+                >
+                  <p class="truncate text-sm font-medium">{schedule.test_definition.name}</p>
+                  <p class="truncate text-xs text-base-content/60">
+                    {schedule.test_definition.project.name} · {schedule.environment.name}
+                  </p>
+                  <p class="mt-1 flex items-center gap-1.5 text-xs text-base-content/60">
+                    <.icon name="hero-clock-mini" class="size-3.5" />
+                    <.local_time at={schedule.next_run_at} timezone={schedule.timezone} />
+                  </p>
+                </.link>
+              </li>
+            </ul>
           </.panel>
         </div>
       </div>

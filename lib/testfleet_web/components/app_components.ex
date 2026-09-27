@@ -8,6 +8,33 @@ defmodule TestFleetWeb.AppComponents do
   import TestFleetWeb.CoreComponents, only: [icon: 1, input: 1]
 
   @doc """
+  Renders a UTC timestamp in a time zone, e.g. "Sun 27 Sep 2026, 06:00 CEST".
+
+  ## Examples
+
+      <.local_time at={@schedule.next_run_at} timezone={@schedule.timezone} />
+  """
+  attr :at, DateTime, required: true
+  attr :timezone, :string, required: true
+  attr :id, :string, default: nil
+  attr :class, :any, default: nil
+
+  def local_time(assigns) do
+    assigns = assign(assigns, :local, DateTime.shift_zone!(assigns.at, assigns.timezone))
+
+    ~H"""
+    <time
+      id={@id}
+      datetime={DateTime.to_iso8601(@at)}
+      title={"#{Calendar.strftime(@at, "%Y-%m-%d %H:%M")} UTC · #{@timezone}"}
+      class={["tabular-nums", @class]}
+    >
+      {Calendar.strftime(@local, "%a %-d %b %Y, %H:%M %Z")}
+    </time>
+    """
+  end
+
+  @doc """
   Renders the slug input of a form whose changeset generates an empty slug from
   another field (see `TestFleet.Slug`).
 
