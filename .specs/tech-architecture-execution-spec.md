@@ -1082,9 +1082,13 @@ or
 
 Each flush is one `insert_all` into `run_logs` and one PubSub broadcast carrying the batch.
 
+A batch is also flushed at 1 MiB of content, because a single line can be up to 1 MB long. See [milestone-4-live-output.md](milestone-4-live-output.md), section 5.
+
 ## Log limit
 
 Each run has a maximum stored log size (configurable, for example 50 MB). Beyond it, TestFleet stops persisting lines, stores a single truncation marker, and keeps streaming only the tail to connected clients.
+
+The truncation marker is the flag `runs.log_truncated`, not a row, so `run_logs` holds only container output. See [milestone-4-live-output.md](milestone-4-live-output.md), section 6.
 
 ---
 
@@ -2407,6 +2411,8 @@ LiveView
 ```
 
 and persist logs, with batching, secret masking, and the per-run log limit.
+
+Details: [milestone-4-live-output.md](milestone-4-live-output.md).
 
 ---
 

@@ -311,7 +311,7 @@ Implementation:
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** all slices are built (227 tests, plus 46 Docker integration tests). The manual walkthrough (section 13) is pending.
+**Status (2026-09-27): done.** All four slices are built and tested (227 tests, plus 46 Docker integration tests), and the manual walkthrough of section 13 worked: a private-registry suite ran from the UI to `passed`, a failing suite ended `failed`, a running suite was cancelled, runs beyond the environment limit waited in `queued`, and a run survived a restart of TestFleet.
 
 ---
 
