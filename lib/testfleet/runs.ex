@@ -17,6 +17,8 @@ defmodule TestFleet.Runs do
 
   import Ecto.Query, warn: false
 
+  alias TestFleet.Artifacts
+  alias TestFleet.Artifacts.Storage
   alias TestFleet.Environments.Environment
   alias TestFleet.Execution
   alias TestFleet.Execution.{Request, Result}
@@ -343,7 +345,8 @@ defmodule TestFleet.Runs do
       shm_size: test_definition.shm_size_bytes,
       pull_policy: :auto,
       stop_grace_seconds: @stop_grace_seconds,
-      artifact_path: nil
+      artifact_path: Storage.run_dir(run.id),
+      max_artifact_bytes: Artifacts.max_bytes()
     )
   end
 

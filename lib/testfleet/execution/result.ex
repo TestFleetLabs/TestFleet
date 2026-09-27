@@ -4,6 +4,9 @@ defmodule TestFleet.Execution.Result do
 
   `logs` is only filled by `TestFleet.Execution.run/2`; `RunExecution` streams output
   as events and does not keep it.
+
+  `test_results` is `nil` without JUnit, and the parsed cases otherwise (each with the
+  JUnit `file` it came from). `warnings` are collection problems to show on the run.
   """
 
   defstruct [
@@ -18,6 +21,8 @@ defmodule TestFleet.Execution.Result do
     :finished_at,
     oom_killed: false,
     artifacts: [],
+    test_results: nil,
+    warnings: [],
     logs: []
   ]
 
@@ -35,6 +40,8 @@ defmodule TestFleet.Execution.Result do
           finished_at: DateTime.t(),
           oom_killed: boolean(),
           artifacts: [%{path: String.t(), size_bytes: non_neg_integer()}],
+          test_results: [map()] | nil,
+          warnings: [String.t()],
           logs: [TestFleet.Execution.LineBuffer.line()]
         }
 end

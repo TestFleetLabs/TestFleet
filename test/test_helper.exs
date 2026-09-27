@@ -9,4 +9,7 @@ TestFleet.Repo.query!(
   "SELECT setval('runs_id_seq', GREATEST((SELECT last_value FROM runs_id_seq), 1000000000))"
 )
 
+# Artifacts of dispatched runs in the Docker tests; the rows are rolled back anyway.
+File.rm_rf!(TestFleet.Artifacts.Storage.root())
+
 Ecto.Adapters.SQL.Sandbox.mode(TestFleet.Repo, :manual)

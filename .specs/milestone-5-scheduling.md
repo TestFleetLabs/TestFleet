@@ -169,7 +169,7 @@ config :testfleet, Oban,
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** all slices are built (273 tests, plus 55 Docker integration tests). The manual walkthrough (section 11) is pending.
+**Status (2026-09-27): done.** Both slices are built and tested (273 tests, plus 55 Docker integration tests), and the manual walkthrough of section 11 worked: an every-minute schedule created runs, `skip` and `queue` behaved as specified, missed slots after a stop became one run, and a disabled test definition skipped and resumed.
 
 ---
 

@@ -18,6 +18,8 @@ defmodule TestFleet.Execution.Request do
     :environment_name,
     :registry_auth,
     :artifact_path,
+    # nil: no limit
+    :max_artifact_bytes,
     :cpu_limit,
     :memory_limit,
     command: [],
@@ -36,6 +38,7 @@ defmodule TestFleet.Execution.Request do
           environment_name: String.t() | nil,
           registry_auth: %{username: String.t(), password: String.t()} | nil,
           artifact_path: Path.t() | nil,
+          max_artifact_bytes: pos_integer() | nil,
           cpu_limit: number() | nil,
           memory_limit: pos_integer() | nil,
           command: [String.t()],

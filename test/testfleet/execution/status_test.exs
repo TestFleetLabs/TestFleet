@@ -43,4 +43,35 @@ defmodule TestFleet.Execution.StatusTest do
   test "a run cancelled before it started is cancelled, not an error" do
     assert Status.decide(%{cancelled: true, started: false}) == {:cancelled, nil}
   end
+
+  describe "JUnit" do
+    defp with_junit(exit_code, failed),
+      do: Map.merge(@started, %{exit_code: exit_code, junit: %{failed: failed}})
+
+    test "rule 6: exit code 0 with failures is failed" do
+      assert Status.decide(with_junit(0, 2)) == {:failed, nil}
+      assert Status.decide(with_junit(0, 0)) == {:passed, nil}
+    end
+
+    test "rule 8: a non-zero exit code with failures is failed" do
+      assert Status.decide(with_junit(1, 1)) == {:failed, nil}
+    end
+
+    test "rule 9: a non-zero exit code without failures is an error" do
+      assert Status.decide(with_junit(3, 0)) ==
+               {:error, "The suite exited with code 3, but its JUnit report has no failures"}
+    end
+
+    test "rule 10: a non-zero exit code without JUnit stays failed" do
+      assert Status.decide(Map.merge(@started, %{exit_code: 1, junit: nil})) == {:failed, nil}
+    end
+
+    test "cancellation, timeout, and OOM win over JUnit" do
+      assert Status.decide(Map.put(with_junit(0, 0), :cancelled, true)) == {:cancelled, nil}
+      assert Status.decide(Map.put(with_junit(143, 3), :timed_out, true)) == {:timeout, nil}
+
+      assert Status.decide(Map.put(with_junit(137, 0), :oom_killed, true)) ==
+               {:error, "memory limit exceeded"}
+    end
+  end
 end

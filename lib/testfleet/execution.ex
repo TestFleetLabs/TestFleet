@@ -29,8 +29,9 @@ defmodule TestFleet.Execution do
   @doc """
   Takes over the container of a run whose process is gone (main spec section 32).
 
-  Options: `:handler`, `:subscriber`, `:artifact_path`, `:last_log_timestamp`
-  (nanoseconds of the last line already received) and `:next_sequence`.
+  Options: `:handler`, `:subscriber`, `:artifact_path`, `:max_artifact_bytes`,
+  `:last_log_timestamp` (nanoseconds of the last line already received) and
+  `:next_sequence`.
   """
   def attach(run_id, opts \\ []) do
     start_child(
@@ -39,6 +40,7 @@ defmodule TestFleet.Execution do
       handler: opts[:handler],
       subscriber: Keyword.get(opts, :subscriber, self()),
       artifact_path: opts[:artifact_path],
+      max_artifact_bytes: opts[:max_artifact_bytes],
       last_log_timestamp: opts[:last_log_timestamp],
       next_sequence: opts[:next_sequence]
     )

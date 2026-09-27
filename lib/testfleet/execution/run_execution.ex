@@ -39,11 +39,11 @@ defmodule TestFleet.Execution.RunExecution do
 
   require Logger
 
-  alias TestFleet.Execution.{LineBuffer, Masker, Result, Status}
+  alias TestFleet.Execution.{Collector, LineBuffer, Masker, Result, Status}
   alias TestFleet.Execution.Docker.{Command, ImageRef, LogDecoder}
 
   @network "TestFleet-runs"
-  @artifacts_dir "/TestFleet/artifacts"
+  @artifacts_dir Collector.artifacts_dir()
   @default_stop_grace_seconds 30
   # How long to wait for the rest of the logs after the container exited.
   @drain_timeout 5_000
@@ -77,6 +77,8 @@ defmodule TestFleet.Execution.RunExecution do
       request: request,
       image: request && request.image,
       artifact_path: if(request, do: request.artifact_path, else: opts[:artifact_path]),
+      max_artifact_bytes:
+        if(request, do: request.max_artifact_bytes, else: opts[:max_artifact_bytes]),
       timeout_seconds: request && request.timeout_seconds,
       stop_grace_seconds: (request && request.stop_grace_seconds) || @default_stop_grace_seconds,
       phase: :preparing,
@@ -543,8 +545,15 @@ defmodule TestFleet.Execution.RunExecution do
     # All output is reported before the result.
     state = state |> flush_lines() |> flush_batch()
 
-    {facts, artifacts} = inspect_container(state)
-    {status, error_message} = Status.decide(facts)
+    # TestFleet's clock only when the container cannot tell (it never started, or
+    # vanished); taken before collecting, which is not test time.
+    now = DateTime.utc_now()
+    {facts, collection} = inspect_container(state)
+    finished_at = facts[:finished_at] || now
+    {status, error_message} = Status.decide(Map.put(facts, :junit, collection.junit))
+
+    for warning <- collection.warnings,
+        do: Logger.warning("run #{state.run_id}: #{warning}")
 
     notify(
       state,
@@ -559,8 +568,10 @@ defmodule TestFleet.Execution.RunExecution do
          image_digest: state.image_digest,
          container_id: state.container_id,
          started_at: state.started_at,
-         finished_at: DateTime.utc_now(),
-         artifacts: artifacts
+         finished_at: finished_at,
+         artifacts: collection.artifacts,
+         test_results: collection.test_results,
+         warnings: collection.warnings
        }}
     )
 
@@ -580,85 +591,45 @@ defmodule TestFleet.Execution.RunExecution do
     }
 
     if state.container_id == nil or state.started_at == nil do
-      {facts, []}
+      {facts, Collector.empty()}
     else
       case Command.inspect(state.container_id) do
         {:ok, %{"State" => %{"Running" => true}}} ->
-          {Map.put(facts, :error, state.error || "container is still running"),
-           collect_artifacts(state)}
+          {Map.put(facts, :error, state.error || "container is still running"), collect(state)}
 
         {:ok, %{"State" => container_state}} ->
+          # The container's own end, like `started_at` is its own start: the
+          # duration is the suite's, whatever TestFleet or Docker were busy with.
           facts =
             Map.merge(facts, %{
               exit_code: container_state["ExitCode"],
-              oom_killed: container_state["OOMKilled"]
+              oom_killed: container_state["OOMKilled"],
+              finished_at: container_finished_at(container_state["FinishedAt"])
             })
 
-          {facts, collect_artifacts(state)}
+          {facts, collect(state)}
 
         {:error, %{status: 404}} ->
-          {Map.put(facts, :container_missing, true), []}
+          {Map.put(facts, :container_missing, true), Collector.empty()}
 
         {:error, error} ->
-          {Map.put(facts, :error, error.message), []}
+          {Map.put(facts, :error, error.message), Collector.empty()}
       end
     end
   end
 
-  defp collect_artifacts(%{artifact_path: nil}), do: []
-
-  defp collect_artifacts(%{artifact_path: path} = state) do
-    File.mkdir_p!(path)
-    tar = Path.join(path, ".artifacts.tar")
-
-    result =
-      try do
-        with :ok <- Command.archive(state.container_id, @artifacts_dir, tar),
-             do: extract_artifacts(tar, path)
-      after
-        File.rm(tar)
-      end
-
-    case result do
-      :ok ->
-        list_artifacts(path)
-
-      {:error, %{status: 404}} ->
-        []
-
-      {:error, error} ->
-        Logger.warning("run #{state.run_id}: cannot collect artifacts: #{error.message}")
-        []
+  # Docker reports "0001-01-01T00:00:00Z" for a container that has not finished.
+  defp container_finished_at(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, %DateTime{year: year} = finished_at, _offset} when year > 1 -> finished_at
+      _ -> nil
     end
   end
 
-  # Docker puts the directory's contents under a top-level entry named after it.
-  defp extract_artifacts(tar, path) do
-    staging = Path.join(path, ".artifacts-extract")
-    File.rm_rf!(staging)
-    :ok = :erl_tar.extract(String.to_charlist(tar), [{:cwd, String.to_charlist(staging)}])
+  defp container_finished_at(_value), do: nil
 
-    root = Path.join(staging, Path.basename(@artifacts_dir))
-
-    for entry <- File.ls!(root) do
-      File.rename!(Path.join(root, entry), Path.join(path, entry))
-    end
-
-    File.rm_rf!(staging)
-    :ok
-  end
-
-  defp list_artifacts(path) do
-    # Path.wildcard/2 needs forward slashes, which Path.expand/1 produces on Windows too.
-    path = Path.expand(path)
-
-    path
-    |> Path.join("**")
-    |> Path.wildcard(match_dot: true)
-    |> Enum.filter(&File.regular?/1)
-    |> Enum.map(&%{path: Path.relative_to(&1, path), size_bytes: File.stat!(&1).size})
-    |> Enum.sort_by(& &1.path)
-  end
+  defp collect(state),
+    do: Collector.collect(state.container_id, state.artifact_path, state.max_artifact_bytes)
 
   defp remove_container(state) do
     case Command.remove(state.container_id) do

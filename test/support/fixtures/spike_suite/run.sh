@@ -10,6 +10,11 @@ write_artifacts() {
   echo "<html><body>report</body></html>" > "$artifacts/reports/index.html"
 }
 
+# junit FILE TESTCASES: writes a JUnit report with the given <testcase> elements.
+junit() {
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<testsuites><testsuite name="e2e">%s</testsuite></testsuites>\n' "$2" > "$1"
+}
+
 tick_forever() {
   i=0
   while true; do
@@ -76,6 +81,47 @@ case "${SPIKE_MODE:-pass}" in
     echo "${SPIKE_SECRET}"
     echo "twice: ${SPIKE_SECRET} ${SPIKE_SECRET}" >&2
     echo "not secret: ${SPIKE_PLAIN:-}"
+    exit 0
+    ;;
+  junit_pass)
+    mkdir -p "$artifacts"
+    junit "$artifacts/junit.xml" '<testcase classname="Smoke" name="loads" time="0.5"/><testcase classname="Smoke" name="later"><skipped/></testcase>'
+    exit 0
+    ;;
+  junit_fail)
+    mkdir -p "$artifacts/screenshots"
+    echo "not really a png" > "$artifacts/screenshots/checkout.png"
+    junit "$artifacts/junit.xml" '<testcase classname="Cart" name="adds" time="1"/><testcase classname="Cart" name="pays" time="2"><failure message="expected 200, got 500">at pay (cart.spec.ts:12)</failure></testcase><testcase classname="Cart" name="crashes"><error message="TypeError"/></testcase>'
+    exit 1
+    ;;
+  junit_swallow)
+    mkdir -p "$artifacts"
+    junit "$artifacts/junit.xml" '<testcase classname="Cart" name="pays"><failure message="expected 200"/></testcase>'
+    exit 0
+    ;;
+  junit_crash)
+    mkdir -p "$artifacts"
+    junit "$artifacts/junit.xml" '<testcase classname="Cart" name="adds"/>'
+    echo "reporter crashed" >&2
+    exit 1
+    ;;
+  junit_shards)
+    mkdir -p "$artifacts/junit"
+    junit "$artifacts/junit/shard-1.xml" '<testcase classname="A" name="one"/>'
+    junit "$artifacts/junit/shard-2.xml" '<testcase classname="B" name="two"><failure message="no"/></testcase>'
+    echo "not xml" > "$artifacts/junit/broken.xml"
+    exit 1
+    ;;
+  big_artifacts)
+    mkdir -p "$artifacts"
+    junit "$artifacts/junit.xml" '<testcase classname="Big" name="records a video"/>'
+    head -c "$((${SPIKE_ARTIFACT_MB:-5} * 1024 * 1024))" /dev/zero > "$artifacts/video.webm"
+    exit 0
+    ;;
+  unsafe_artifacts)
+    mkdir -p "$artifacts"
+    echo "kept" > "$artifacts/report.txt"
+    ln -s /etc/passwd "$artifacts/passwd"
     exit 0
     ;;
   tick)

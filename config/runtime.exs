@@ -38,6 +38,16 @@ if run_log_limit_mb = System.get_env("RUN_LOG_LIMIT_MB") do
     max_log_bytes: String.to_integer(run_log_limit_mb) * 1024 * 1024
 end
 
+# Where artifacts are stored, and how much one run may keep (Milestone 6, section 4)
+if artifacts_dir = System.get_env("ARTIFACTS_DIR") do
+  config :testfleet, TestFleet.Artifacts, root: artifacts_dir
+end
+
+if artifact_limit_mb = System.get_env("ARTIFACT_LIMIT_MB") do
+  config :testfleet, TestFleet.Artifacts,
+    max_bytes: String.to_integer(artifact_limit_mb) * 1024 * 1024
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :testfleet, TestFleetWeb.Endpoint,
@@ -56,6 +66,10 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # The mounted volume of the containerized deployment (main spec, amendment)
+  config :testfleet, TestFleet.Artifacts,
+    root: System.get_env("ARTIFACTS_DIR", "/var/lib/TestFleet/artifacts")
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

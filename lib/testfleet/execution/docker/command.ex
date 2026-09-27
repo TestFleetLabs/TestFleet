@@ -140,18 +140,50 @@ defmodule TestFleet.Execution.Docker.Command do
   @doc """
   Downloads `path` from the container as a tar file to `destination`. Returns
   `{:error, %{status: 404}}` when the path does not exist.
+
+  With `max_bytes`, the download stops as soon as it passes that size and returns
+  `{:error, %{reason: :too_large}}`; `destination` then holds a partial archive.
   """
-  def archive(id, path, destination) do
+  def archive(id, path, destination, max_bytes \\ nil) do
+    file = File.open!(destination, [:write, :binary])
+
+    # Counts while writing, so a huge archive never reaches the disk in full.
+    into = fn {:data, data}, {request, response} ->
+      size = Req.Response.get_private(response, :archive_bytes, 0) + byte_size(data)
+
+      if max_bytes && size > max_bytes do
+        {:halt, {request, Req.Response.put_private(response, :too_large, true)}}
+      else
+        IO.binwrite(file, data)
+        {:cont, {request, Req.Response.put_private(response, :archive_bytes, size)}}
+      end
+    end
+
     options = [
       method: :get,
       url: "/containers/#{id}/archive",
       params: [path: path],
       decode_body: false,
-      into: File.stream!(destination),
+      into: into,
       receive_timeout: 60_000
     ]
 
-    with {:ok, _} <- call(options, [200]), do: :ok
+    try do
+      with {:ok, response} <- call(options, [200]) do
+        if Req.Response.get_private(response, :too_large) do
+          {:error,
+           %{
+             status: 200,
+             message: "archive of #{path} exceeds #{max_bytes} bytes",
+             reason: :too_large
+           }}
+        else
+          :ok
+        end
+      end
+    after
+      File.close(file)
+    end
   end
 
   def remove(id) do

@@ -74,7 +74,9 @@ defmodule TestFleet.Execution.Recovery do
     opts = [
       handler: Recorder,
       last_log_timestamp: run.last_log_timestamp,
-      next_sequence: run.last_log_sequence + 1
+      next_sequence: run.last_log_sequence + 1,
+      artifact_path: TestFleet.Artifacts.Storage.run_dir(run.id),
+      max_artifact_bytes: TestFleet.Artifacts.max_bytes()
     ]
 
     case Execution.attach(run.id, opts) do

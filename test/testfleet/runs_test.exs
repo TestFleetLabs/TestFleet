@@ -197,10 +197,12 @@ defmodule TestFleet.RunsTest do
                memory_limit: 1_073_741_824,
                shm_size: 2_147_483_648,
                pull_policy: :auto,
-               artifact_path: nil
+               artifact_path: artifact_path,
+               max_artifact_bytes: 524_288_000
              } = request
 
       assert run_id == run.id
+      assert artifact_path == TestFleet.Artifacts.Storage.run_dir(run.id)
       assert project_id == context.project.id
 
       inspected = inspect(request)

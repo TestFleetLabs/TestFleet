@@ -151,6 +151,10 @@ Rules 1–5 still come first: a cancelled, timed-out, or OOM-killed run keeps it
 
 The decision table lives in one place, `Status`, and needs the JUnit facts. Parsing where the files are extracted keeps the final status in the `Result`, as for every other rule, and keeps the recorder a writer only. `TestFleet.Results.JUnit` touches no database and no configuration, so this does not break the execution isolation.
 
+### `finished_at`
+
+Until now, `Result.finished_at` was TestFleet's clock at finalizing (spike spec section 14), so a run's duration included collecting its artifacts, and any delay of a busy Docker host. It is now the container's `State.FinishedAt`, just as `started_at` is its `State.StartedAt`: the duration is the suite's own, measured on one clock. TestFleet's clock remains the fallback when the container cannot tell (it never started, or disappeared). The Docker tests for timeouts showed the difference: with collection added, durations under load exceeded their margin.
+
 ### Events
 
 `Result` gains `test_results` and `warnings`. The main spec's `{:run_test_result, result}` event is dropped: JUnit exists only after the suite finished, so the results arrive together with `{:run_finished, run}`, whose counts tell the page to load them. **Deviation**, main spec section 22 is updated.
@@ -256,7 +260,7 @@ The image must be rebuilt and pushed afterwards (spike spec section 9).
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** specified; not started.
+**Status (2026-09-27):** slice A is built (288 tests, plus 64 Docker integration tests).
 
 ---
 

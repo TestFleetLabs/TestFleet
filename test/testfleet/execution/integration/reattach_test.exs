@@ -61,7 +61,12 @@ defmodule TestFleet.Execution.Integration.ReattachTest do
         command: ["sh", "-c", "echo before; sleep 2; echo after; exit 3"]
       )
 
-    [before] = await_output(request.run_id, &(&1.content == "before"))
+    # Under load, "after" can arrive in the same batch; the reattach replays it.
+    before =
+      request.run_id
+      |> await_output(&(&1.content == "before"))
+      |> Enum.find(&(&1.content == "before"))
+
     kill_process(pid)
     Process.sleep(3_000)
 

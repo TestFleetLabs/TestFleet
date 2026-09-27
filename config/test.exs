@@ -35,6 +35,9 @@ config :testfleet, TestFleet.Vault,
 # Startup recovery talks to Docker, so only the Docker tests turn it on.
 config :testfleet, TestFleet.Execution.Dispatcher, start: false, recover: false
 
+# Kept apart from the dev artifacts
+config :testfleet, TestFleet.Artifacts, root: "tmp/test_artifacts"
+
 # Jobs are inserted but not executed; tests run them explicitly with Oban.Testing
 config :testfleet, Oban, testing: :manual
 
