@@ -71,6 +71,21 @@ defmodule TestFleet.Execution.Docker.Command do
     end
   end
 
+  @doc """
+  Logs in to a registry without pulling (`POST /auth`), to check credentials.
+  Nothing is stored: TestFleet still sends credentials with every pull.
+  """
+  def check_auth(host, %{username: username, password: password}) do
+    body = %{
+      username: username,
+      password: password,
+      serveraddress: RegistryAuth.server_address(host)
+    }
+
+    options = [method: :post, url: "/auth", json: body, receive_timeout: 30_000]
+    with {:ok, _} <- call(options, [200]), do: :ok
+  end
+
   def inspect_image(reference) do
     with {:ok, %{body: body}} <- call([method: :get, url: "/images/#{reference}/json"], [200]),
          do: {:ok, body}

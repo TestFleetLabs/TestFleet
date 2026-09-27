@@ -102,8 +102,14 @@ mix run -e "32 |> :crypto.strong_rand_bytes() |> Base.encode64() |> IO.puts()"
 ## 8. Registries
 
 - `host` is what image references are matched against (main spec section 38): `registry.company.com`, `ghcr.io`, `localhost:5055`, `docker.io`. Unique. No scheme, no path.
-- `password` is encrypted and never sent back to the browser; the edit form works like secret variables.
+  - Stored the way `ImageRef` reports hosts: trimmed, lowercase, and `index.docker.io` as `docker.io`. Otherwise a registry could never match.
+  - `Registries.get_registry_for_image/1` resolves the credentials for an image; Milestone 3 uses it when building the execution request.
+- `name`, `username`, and `password` are required.
+- `password` is encrypted and never sent back to the browser; the edit form works like secret variables: empty means "keep the current password". What the user typed is echoed back while editing (the browser has it anyway); the stored password never is.
 - **Test connection** calls the Docker Engine's `POST /auth` with the credentials. This authenticates against the registry without pulling. The socket proxy needs `AUTH=1` for this.
+  - Available on the new and the edit form, before saving. It uses the values in the form; an empty password on the edit form uses the stored one.
+  - It runs asynchronously; the result is shown in the form and cleared as soon as a field changes.
+  - Docker's error message is shown as-is (e.g. `login attempt to http://localhost:5055/v2/ failed with status: 401 Unauthorized`).
 
 ---
 

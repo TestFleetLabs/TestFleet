@@ -16,6 +16,7 @@ defmodule TestFleet.Execution.Docker.RegistryAuth do
     [{"x-registry-auth", auth |> Jason.encode!() |> Base.url_encode64()}]
   end
 
-  defp server_address("docker.io"), do: @docker_hub_server
-  defp server_address(host), do: host
+  @doc "The `serveraddress` Docker expects for a registry host."
+  def server_address("docker.io"), do: @docker_hub_server
+  def server_address(host), do: host
 end

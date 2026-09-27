@@ -17,6 +17,8 @@ services:
       - CONTAINERS=1
       - IMAGES=1
       - NETWORKS=1
+      # POST /auth, for "Test connection" on registries
+      - AUTH=1
       - POST=1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

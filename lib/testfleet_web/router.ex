@@ -29,6 +29,8 @@ defmodule TestFleetWeb.Router do
       live "/projects/:slug/environments/:env/edit", EnvironmentLive.Form, :edit
       live "/runs", RunLive.Index, :index
       live "/registries", RegistryLive.Index, :index
+      live "/registries/new", RegistryLive.Form, :new
+      live "/registries/:id/edit", RegistryLive.Form, :edit
     end
   end
 
