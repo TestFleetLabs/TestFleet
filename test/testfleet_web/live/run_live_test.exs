@@ -207,6 +207,43 @@ defmodule TestFleetWeb.RunLiveTest do
     end
   end
 
+  describe "project page" do
+    test "shows the project's recent runs, live", %{conn: conn} = context do
+      other_project_run = run_fixture()
+      run = run_fixture(test_definition: context.test_definition)
+
+      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      assert has_element?(view, "#recent-run-list #runs-#{run.id}")
+      refute has_element?(view, "#runs-#{other_project_run.id}")
+
+      {:ok, new} = Runs.create_manual_run(context.test_definition, context.environment)
+      assert has_element?(view, "#recent-run-list #runs-#{new.id}")
+
+      :ok = Runs.cancel_run(other_project_run)
+      refute has_element?(view, "#runs-#{other_project_run.id}")
+    end
+
+    test "keeps the latest 10 when an older run changes", %{conn: conn} = context do
+      [oldest | _] = for _ <- 1..10, do: run_fixture(test_definition: context.test_definition)
+
+      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      assert has_element?(view, "#runs-#{oldest.id}")
+
+      {:ok, new} = Runs.create_manual_run(context.test_definition, context.environment)
+      assert has_element?(view, "#runs-#{new.id}")
+      refute has_element?(view, "#runs-#{oldest.id}")
+
+      # An update of a run that dropped off the list must not bring it back.
+      :ok = Runs.cancel_run(oldest)
+      refute has_element?(view, "#runs-#{oldest.id}")
+    end
+
+    test "shows an empty state without runs", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      assert has_element?(view, "#recent-runs-empty-state")
+    end
+  end
+
   describe "deleting configuration with runs" do
     setup context do
       %{

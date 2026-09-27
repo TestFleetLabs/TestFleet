@@ -187,6 +187,7 @@ defmodule TestFleetWeb.AppComponents do
   @doc """
   Renders a small label, e.g. for a slug or a limit.
   """
+  attr :id, :string, default: nil
   attr :tone, :atom, default: :neutral, values: [:neutral, :primary, :warning]
   attr :class, :any, default: nil
   attr :title, :string, default: nil
@@ -195,6 +196,7 @@ defmodule TestFleetWeb.AppComponents do
   def badge(assigns) do
     ~H"""
     <span
+      id={@id}
       class={[
         "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
         @tone == :neutral && "bg-base-200 text-base-content/70",

@@ -5,6 +5,7 @@ defmodule TestFleetWeb.RunLive.Index do
   use TestFleetWeb, :live_view
 
   alias TestFleet.Runs
+  alias TestFleetWeb.RunFeed
 
   @limit 50
 
@@ -12,30 +13,16 @@ defmodule TestFleetWeb.RunLive.Index do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Runs.subscribe()
 
-    runs = Runs.list_runs(limit: @limit)
-
     {:ok,
      socket
      |> assign(:page_title, gettext("Runs"))
-     |> assign(:oldest_id, runs |> List.last() |> then(&(&1 && &1.id)))
-     |> stream(:runs, runs)}
+     |> RunFeed.init(:runs, Runs.list_runs(limit: @limit))}
   end
 
   @impl true
-  def handle_info({:run_created, run}, socket) do
-    {:noreply,
-     socket
-     |> update(:oldest_id, &(&1 || run.id))
-     |> stream_insert(:runs, run, at: 0, limit: @limit)}
-  end
-
-  # Updates of runs older than the list would otherwise be appended to it.
-  def handle_info({event, run}, socket) when event in [:run_updated, :run_finished] do
-    oldest_id = socket.assigns.oldest_id
-
-    if oldest_id && run.id >= oldest_id,
-      do: {:noreply, stream_insert(socket, :runs, run)},
-      else: {:noreply, socket}
+  def handle_info({event, _run} = message, socket)
+      when event in [:run_created, :run_updated, :run_finished] do
+    {:noreply, RunFeed.apply_event(socket, :runs, message, @limit)}
   end
 
   @impl true

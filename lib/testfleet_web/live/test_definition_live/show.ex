@@ -5,6 +5,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
   use TestFleetWeb, :live_view
 
   alias TestFleet.{Environments, Projects, Runs, TestDefinitions}
+  alias TestFleetWeb.RunFeed
 
   @recent_runs 20
 
@@ -15,16 +16,16 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
 
     if connected?(socket), do: Runs.subscribe()
 
-    runs = Runs.list_runs(test_definition: test_definition, limit: @recent_runs)
-
     {:ok,
      socket
      |> assign(:page_title, test_definition.name)
      |> assign(:project, project)
      |> assign(:test_definition, test_definition)
      |> assign(:environments, Environments.list_environments(project))
-     |> assign(:oldest_run_id, runs |> List.last() |> then(&(&1 && &1.id)))
-     |> stream(:runs, runs)}
+     |> RunFeed.init(
+       :runs,
+       Runs.list_runs(test_definition: test_definition, limit: @recent_runs)
+     )}
   end
 
   @impl true
@@ -45,29 +46,11 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
   end
 
   @impl true
-  def handle_info({event, run}, socket)
+  def handle_info({event, run} = message, socket)
       when event in [:run_created, :run_updated, :run_finished] do
-    %{test_definition: test_definition, oldest_run_id: oldest_run_id} = socket.assigns
-
-    socket =
-      cond do
-        run.test_definition_id != test_definition.id ->
-          socket
-
-        event == :run_created ->
-          socket
-          |> assign(:oldest_run_id, oldest_run_id || run.id)
-          |> stream_insert(:runs, run, at: 0, limit: @recent_runs)
-
-        # Updates of runs older than the list would otherwise be appended to it.
-        oldest_run_id && run.id >= oldest_run_id ->
-          stream_insert(socket, :runs, run)
-
-        true ->
-          socket
-      end
-
-    {:noreply, socket}
+    if run.test_definition_id == socket.assigns.test_definition.id,
+      do: {:noreply, RunFeed.apply_event(socket, :runs, message, @recent_runs)},
+      else: {:noreply, socket}
   end
 
   @impl true

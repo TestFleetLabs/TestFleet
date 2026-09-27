@@ -47,12 +47,14 @@ defmodule TestFleet.Runs do
   Runs, newest first, preloaded like `get_run!/1`.
 
   Options: `:limit` (default #{@default_limit}), `:project`, `:test_definition`,
-  `:statuses`.
+  `:statuses`, and `oldest_first: true`.
   """
   def list_runs(opts \\ []) do
+    direction = if opts[:oldest_first], do: :asc, else: :desc
+
     query =
       from r in Run,
-        order_by: [desc: r.id],
+        order_by: [{^direction, r.id}],
         limit: ^Keyword.get(opts, :limit, @default_limit)
 
     opts
@@ -83,6 +85,48 @@ defmodule TestFleet.Runs do
 
   def has_runs?(%Environment{id: id}),
     do: Repo.exists?(from r in Run, where: r.environment_id == ^id)
+
+  @doc """
+  The dashboard figures (Milestone 3, section 10): `running` (`preparing` +
+  `running`), `queued`, and the runs that finished today as `passed`, `failed`, or
+  `timeout`. "Today" is the calendar day of `now` in `timezone`.
+  """
+  def dashboard_stats(timezone, now \\ DateTime.utc_now()) do
+    since = start_of_day(now, timezone)
+
+    counts =
+      Repo.all(
+        from r in Run,
+          where:
+            r.status in ^[:queued | Run.active_statuses()] or
+              (r.status in [:passed, :failed, :timeout] and r.finished_at >= ^since),
+          group_by: r.status,
+          select: {r.status, count(r.id)}
+      )
+      |> Map.new()
+
+    %{
+      running: Map.get(counts, :preparing, 0) + Map.get(counts, :running, 0),
+      queued: Map.get(counts, :queued, 0),
+      passed_today: Map.get(counts, :passed, 0),
+      failed_today: Map.get(counts, :failed, 0),
+      timeouts_today: Map.get(counts, :timeout, 0)
+    }
+  end
+
+  # Midnight may not exist, or exist twice, on a daylight saving change.
+  defp start_of_day(now, timezone) do
+    date = now |> DateTime.shift_zone!(timezone) |> DateTime.to_date()
+
+    midnight =
+      case DateTime.new(date, ~T[00:00:00], timezone) do
+        {:ok, midnight} -> midnight
+        {:ambiguous, first, _second} -> first
+        {:gap, _before, just_after} -> just_after
+      end
+
+    midnight |> DateTime.shift_zone!("Etc/UTC") |> usec()
+  end
 
   ## Creating
 

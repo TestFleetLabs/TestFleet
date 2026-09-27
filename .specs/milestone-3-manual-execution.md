@@ -291,6 +291,13 @@ Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec secti
 - The project page gets a "Recent runs" panel (main spec section 42).
 - All of them update live from the `runs` topic.
 
+Implementation:
+
+- `Runs.dashboard_stats/2` computes the figures in one grouped query. When midnight does not exist on a daylight saving change, the day starts when the clock jumps; when it exists twice, at the first one.
+- The figures are recomputed on every run event, and once a minute so that "today" rolls over at midnight.
+- "Queued runs" shows the 10 that have waited longest (they start first), the total as a badge, and "and N more waiting" below. The panel is reloaded when a queued run changes, so the next waiting run moves up.
+- `TestFleetWeb.RunFeed` keeps the "newest runs" lists (runs list, test definition page, project page, dashboard) current: new runs go on top within the limit, and updates only touch runs that are shown. Before, an update of a run that had dropped off a full list appended it at the bottom.
+
 ---
 
 ## 11. Slices
@@ -304,7 +311,7 @@ Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec secti
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slices A, B, and C are built (219 tests, plus 46 Docker integration tests).
+**Status (2026-09-27):** all slices are built (227 tests, plus 46 Docker integration tests). The manual walkthrough (section 13) is pending.
 
 ---
 

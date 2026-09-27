@@ -1,11 +1,16 @@
 defmodule TestFleetWeb.ProjectLive.Show do
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Environments, Projects, Schedules, TestDefinitions}
+  alias TestFleet.{Environments, Projects, Runs, Schedules, TestDefinitions}
+  alias TestFleetWeb.RunFeed
+
+  @recent_runs 10
 
   @impl true
   def mount(%{"slug" => slug}, _session, socket) do
     project = Projects.get_project_by_slug!(slug)
+
+    if connected?(socket), do: Runs.subscribe()
 
     {:ok,
      socket
@@ -13,7 +18,16 @@ defmodule TestFleetWeb.ProjectLive.Show do
      |> assign(:project, project)
      |> stream(:test_definitions, TestDefinitions.list_test_definitions(project))
      |> stream(:environments, Environments.list_environments(project))
-     |> stream(:schedules, Schedules.list_schedules(project))}
+     |> stream(:schedules, Schedules.list_schedules(project))
+     |> RunFeed.init(:runs, Runs.list_runs(project: project, limit: @recent_runs))}
+  end
+
+  @impl true
+  def handle_info({event, run} = message, socket)
+      when event in [:run_created, :run_updated, :run_finished] do
+    if run.test_definition.project_id == socket.assigns.project.id,
+      do: {:noreply, RunFeed.apply_event(socket, :runs, message, @recent_runs)},
+      else: {:noreply, socket}
   end
 
   defp overlap_label(:queue), do: gettext("queues overlaps")
@@ -239,6 +253,27 @@ defmodule TestFleetWeb.ProjectLive.Show do
                   </div>
                 </.link>
               </li>
+            </ul>
+          </.panel>
+
+          <.panel id="recent-runs" title={gettext("Recent runs")} class="lg:col-span-2">
+            <ul id="recent-run-list" phx-update="stream" class="divide-y divide-base-300">
+              <li id="recent-runs-empty" class="hidden only:block">
+                <.empty_state
+                  id="recent-runs-empty-state"
+                  icon="hero-play-circle"
+                  title={gettext("No runs yet")}
+                  compact
+                >
+                  {gettext("Start a test definition with Run now on its page.")}
+                </.empty_state>
+              </li>
+              <.run_row
+                :for={{id, run} <- @streams.runs}
+                id={id}
+                run={run}
+                context={:project}
+              />
             </ul>
           </.panel>
         </div>

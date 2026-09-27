@@ -85,6 +85,49 @@ defmodule TestFleet.RunsTest do
 
       assert [first.id] ==
                Enum.map(Runs.list_runs(project: context.project, statuses: [:passed]), & &1.id)
+
+      assert [first.id, second.id, other.id] ==
+               Enum.map(Runs.list_runs(oldest_first: true), & &1.id)
+    end
+  end
+
+  describe "dashboard_stats/2" do
+    defp run(context, attrs), do: run_fixture([test_definition: context.test_definition] ++ attrs)
+
+    test "counts active and queued runs, and results of today in the time zone", context do
+      # 10:00 UTC on Sep 27 is 12:00 in Vienna; the day there began at 22:00 UTC on Sep 26.
+      now = ~U[2026-09-27 10:00:00Z]
+      today = ~U[2026-09-26 22:30:00.000000Z]
+      yesterday = ~U[2026-09-26 21:30:00.000000Z]
+
+      run(context, status: :queued)
+      run(context, status: :preparing)
+      run(context, status: :running)
+      run(context, status: :passed, finished_at: today)
+      run(context, status: :passed, finished_at: yesterday)
+      run(context, status: :failed, finished_at: today)
+      run(context, status: :timeout, finished_at: today)
+      run(context, status: :error, finished_at: today)
+      run(context, status: :cancelled, finished_at: today)
+
+      assert Runs.dashboard_stats("Europe/Vienna", now) == %{
+               running: 2,
+               queued: 1,
+               passed_today: 1,
+               failed_today: 1,
+               timeouts_today: 1
+             }
+
+      # In UTC, the day began at 00:00 UTC on Sep 27: nothing finished today.
+      assert %{passed_today: 0, failed_today: 0} = Runs.dashboard_stats("Etc/UTC", now)
+    end
+
+    test "a day without midnight starts when the clock jumps", context do
+      # Asia/Beirut skips from 00:00 to 01:00 on the last Sunday of March.
+      now = ~U[2026-03-29 10:00:00Z]
+      run(context, status: :passed, finished_at: ~U[2026-03-28 22:30:00.000000Z])
+
+      assert %{passed_today: 1} = Runs.dashboard_stats("Asia/Beirut", now)
     end
   end
 
