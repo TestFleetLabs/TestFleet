@@ -226,6 +226,88 @@ defmodule TestFleet.RunsTest do
     end
   end
 
+  describe "append_log/3" do
+    setup context do
+      %{run: run_fixture(test_definition: context.test_definition, status: :running)}
+    end
+
+    defp line(sequence, content, stream \\ :stdout),
+      do: %{sequence: sequence, stream: stream, content: content, timestamp: 1_000 + sequence}
+
+    defp stored(run), do: run |> Runs.list_log_tail(1_000) |> Enum.map(&{&1.sequence, &1.content})
+
+    test "stores the lines, advances the run, and broadcasts the batch", %{run: run} do
+      Runs.subscribe(run.id)
+
+      :ok = Runs.append_log(run.id, [line(1, "starting"), line(2, "warning", :stderr)])
+
+      assert [
+               %{sequence: 1, stream: :stdout},
+               %{sequence: 2, stream: :stderr, content: "warning"}
+             ] =
+               Runs.list_log_tail(run, 10)
+
+      assert %{last_log_sequence: 2, last_log_timestamp: 1_002, log_bytes: 15} =
+               Runs.get_run!(run.id)
+
+      assert_receive {:run_output, [%{sequence: 1, content: "starting"}, %{sequence: 2}]}
+    end
+
+    test "records the newest timestamp, which is not always the last line's", %{run: run} do
+      lines = [
+        %{line(1, "err", :stderr) | timestamp: 5_000},
+        %{line(2, "out") | timestamp: 4_000}
+      ]
+
+      :ok = Runs.append_log(run.id, lines)
+
+      assert %{last_log_sequence: 2, last_log_timestamp: 5_000} = Runs.get_run!(run.id)
+    end
+
+    test "is not broadcast on the global topic", %{run: run} do
+      Runs.subscribe()
+      :ok = Runs.append_log(run.id, [line(1, "x")])
+      refute_receive {:run_output, _}
+    end
+
+    test "replaces NUL bytes, which PostgreSQL cannot store", %{run: run} do
+      :ok = Runs.append_log(run.id, [line(1, "a" <> <<0>> <> "b")])
+      assert [{1, "a�b"}] = stored(run)
+    end
+
+    test "skips lines stored before, e.g. read again after a reattach", %{run: run} do
+      :ok = Runs.append_log(run.id, [line(1, "one"), line(2, "two")])
+      :ok = Runs.append_log(run.id, [line(2, "two"), line(3, "three")])
+
+      assert [{1, "one"}, {2, "two"}, {3, "three"}] = stored(run)
+      assert %{last_log_sequence: 3, log_bytes: 11} = Runs.get_run!(run.id)
+    end
+
+    test "stops storing at the log limit, but keeps broadcasting", %{run: run} do
+      Runs.subscribe(run.id)
+      limit = [max_log_bytes: 10]
+
+      :ok = Runs.append_log(run.id, [line(1, "12345"), line(2, "1234"), line(3, "123")], limit)
+      # Would fit the remaining byte, but the log is already truncated.
+      :ok = Runs.append_log(run.id, [line(4, "1")], limit)
+
+      assert [{1, "12345"}, {2, "1234"}] = stored(run)
+
+      assert %{log_truncated: true, log_bytes: 9, last_log_sequence: 4} =
+               Runs.get_run!(run.id)
+
+      assert_receive {:run_output, [_, _, %{sequence: 3}]}
+      assert_receive {:run_output, [%{sequence: 4}]}
+    end
+
+    test "list_log_tail/2 returns the last lines in order", %{run: run} do
+      :ok = Runs.append_log(run.id, for(n <- 1..5, do: line(n, "line #{n}")))
+
+      assert [{4, "line 4"}, {5, "line 5"}] =
+               run |> Runs.list_log_tail(2) |> Enum.map(&{&1.sequence, &1.content})
+    end
+  end
+
   describe "deleting configuration with runs" do
     setup context do
       %{

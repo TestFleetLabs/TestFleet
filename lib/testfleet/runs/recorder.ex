@@ -18,8 +18,10 @@ defmodule TestFleet.Runs.Recorder do
 
   def handle_event(run_id, {:running, started_at}), do: Runs.mark_running(run_id, started_at)
 
+  def handle_event(run_id, {:output, lines}), do: Runs.append_log(run_id, lines)
+
   def handle_event(run_id, {:finished, result}), do: Runs.finish(run_id, result)
 
-  # `{:status, :preparing}` was set by the dispatcher; output is stored from Milestone 4.
+  # `{:status, :preparing}` was set by the dispatcher.
   def handle_event(_run_id, _event), do: :ok
 end

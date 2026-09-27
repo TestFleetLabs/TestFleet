@@ -116,11 +116,11 @@ Batching lives in the execution process, as the main spec says: the handler is c
 
 ## 6. Persisting
 
-`Runs.Recorder` handles `{:output, lines}` with `Runs.append_log(run_id, lines)`:
+`Runs.Recorder` handles `{:output, lines}` with `Runs.append_log(run_id, lines)` (the optional third argument `max_log_bytes:` overrides the configured limit in tests):
 
 1. Strip NUL bytes (`\0` → `�`). PostgreSQL `text` cannot hold them, and one NUL would otherwise crash the run's process.
 2. In one transaction:
-   - Update the run: `last_log_sequence` and `last_log_timestamp` of the batch's last line, and `log_bytes + batch bytes`.
+   - Update the run: `last_log_sequence` of the batch's last line, `last_log_timestamp` of its **newest** line, and `log_bytes + stored bytes`. The newest timestamp is not always the last line's: stdout and stderr interleave, and a line can have a lower sequence but a later timestamp. Resuming skips every line not newer than `last_log_timestamp`, so it must be the newest.
    - `insert_all` the lines that fit under the log limit (`on_conflict: :nothing`).
    - If a line does not fit: store none of the later lines, and set `log_truncated = true`.
 3. Broadcast `{:run_output, lines}` on `run:<id>`, with **all** lines of the batch, stored or not (main spec section 21: "keeps streaming only the tail to connected clients").
@@ -205,7 +205,7 @@ The masking test after a reattach uses `alpine:3` with an inline loop that print
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slice A is built (237 tests, plus 50 Docker integration tests).
+**Status (2026-09-27):** slices A and B are built (239 tests, plus 54 Docker integration tests).
 
 ---
 

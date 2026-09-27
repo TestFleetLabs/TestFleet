@@ -33,6 +33,11 @@ if max_concurrent_runs = System.get_env("MAX_CONCURRENT_RUNS") do
     max_concurrent_runs: String.to_integer(max_concurrent_runs)
 end
 
+if run_log_limit_mb = System.get_env("RUN_LOG_LIMIT_MB") do
+  config :testfleet, TestFleet.Runs,
+    max_log_bytes: String.to_integer(run_log_limit_mb) * 1024 * 1024
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :testfleet, TestFleetWeb.Endpoint,

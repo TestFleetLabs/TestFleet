@@ -24,6 +24,9 @@ defmodule TestFleet.Runs.Run do
 
     field :container_id, :string
     field :last_log_timestamp, :integer
+    field :last_log_sequence, :integer, default: 0
+    field :log_bytes, :integer, default: 0
+    field :log_truncated, :boolean, default: false
 
     field :queued_at, :utc_datetime_usec
     field :started_at, :utc_datetime_usec

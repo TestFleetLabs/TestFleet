@@ -71,7 +71,13 @@ defmodule TestFleet.Execution.Recovery do
   end
 
   defp execute({:attach, run} = action) do
-    case Execution.attach(run.id, handler: Recorder, last_log_timestamp: run.last_log_timestamp) do
+    opts = [
+      handler: Recorder,
+      last_log_timestamp: run.last_log_timestamp,
+      next_sequence: run.last_log_sequence + 1
+    ]
+
+    case Execution.attach(run.id, opts) do
       {:ok, _pid} ->
         Logger.info("run #{run.id}: reattached after restart")
 

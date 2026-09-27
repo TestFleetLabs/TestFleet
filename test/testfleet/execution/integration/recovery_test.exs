@@ -48,12 +48,15 @@ defmodule TestFleet.Execution.Integration.RecoveryTest do
 
   # A hanging suite whose process died: the container keeps running, and the run
   # stays `running` without anyone watching it.
-  defp orphaned_run(context) do
+  # With `output`, the process is killed only after that line was stored.
+  defp orphaned_run(context, output \\ nil) do
     start_supervised!({Dispatcher, poll_interval: :timer.hours(1)})
     Runs.subscribe()
     {:ok, run} = Runs.create_manual_run(context.test_definition, context.environment)
+    Runs.subscribe(run.id)
     on_exit(fn -> Command.remove(RunExecution.container_name(run.id)) end)
     await_status(run.id, :running)
+    if output, do: await_output(run.id, output)
 
     stop_supervised!(Dispatcher)
     [{pid, _}] = Registry.lookup(TestFleet.Execution.Registry, run.id)
@@ -76,6 +79,18 @@ defmodule TestFleet.Execution.Integration.RecoveryTest do
       {_event, %Run{id: ^run_id}} -> await_status(run_id, status)
     after
       30_000 -> flunk("run #{run_id} did not reach #{status}")
+    end
+  end
+
+  # `{:run_output, _}` is broadcast after the batch is stored.
+  defp await_output(run_id, content) do
+    receive do
+      {:run_output, lines} ->
+        if Enum.any?(lines, &(&1.content == content)),
+          do: :ok,
+          else: await_output(run_id, content)
+    after
+      30_000 -> flunk("run #{run_id}: #{inspect(content)} did not arrive")
     end
   end
 
@@ -132,6 +147,25 @@ defmodule TestFleet.Execution.Integration.RecoveryTest do
     :ok = Runs.cancel_run(Runs.get_run!(run.id))
     assert %Run{status: :cancelled} = await_finished(run.id)
     assert {:error, %{status: 404}} = Command.inspect(RunExecution.container_name(run.id))
+  end
+
+  test "the stored log continues without gaps or duplicates", context do
+    run = orphaned_run(context, "tick 2")
+    # The suite keeps ticking while nothing is attached.
+    Process.sleep(2_000)
+
+    restart!()
+    await_output(run.id, "tick 6")
+
+    :ok = Runs.cancel_run(Runs.get_run!(run.id))
+    assert %Run{status: :cancelled} = await_finished(run.id)
+
+    lines = Runs.list_log_tail(run, 1_000)
+    ticks = lines |> Enum.map(& &1.content) |> Enum.filter(&String.starts_with?(&1, "tick "))
+
+    assert ticks == Enum.map(1..length(ticks), &"tick #{&1}")
+    assert length(ticks) >= 6
+    assert Enum.map(lines, & &1.sequence) == Enum.to_list(1..length(lines))
   end
 
   test "finishes a suite that exited while TestFleet was down", context do

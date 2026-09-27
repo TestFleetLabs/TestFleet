@@ -11,6 +11,8 @@ defmodule TestFleet.Runs do
       {:run_created, run}
       {:run_updated, run}
       {:run_finished, run}
+
+  Output lines are broadcast on `run:<id>` only, as `{:run_output, lines}`.
   """
 
   import Ecto.Query, warn: false
@@ -21,12 +23,13 @@ defmodule TestFleet.Runs do
   alias TestFleet.Projects.Project
   alias TestFleet.Registries
   alias TestFleet.Repo
-  alias TestFleet.Runs.Run
+  alias TestFleet.Runs.{LogLine, Run}
   alias TestFleet.TestDefinitions.TestDefinition
 
   @topic "runs"
   @default_limit 50
   @stop_grace_seconds 30
+  @max_log_bytes 50 * 1024 * 1024
 
   ## PubSub
 
@@ -291,6 +294,106 @@ defmodule TestFleet.Runs do
             do: {field, value}
 
     transition(run_id, [:queued | Run.active_statuses()], changes)
+  end
+
+  @doc """
+  Stores a batch of (already masked) output lines and broadcasts it as
+  `{:run_output, lines}` on `run:<id>` (Milestone 4, section 6).
+
+  Lines are stored up to the log limit (`:max_log_bytes`, default from
+  `config :testfleet, TestFleet.Runs`). The first line that does not fit sets
+  `log_truncated`; from then on lines are only broadcast. Lines already stored,
+  e.g. read again after a reattach, are skipped.
+  """
+  def append_log(run_id, lines, opts \\ [])
+  def append_log(_run_id, [], _opts), do: :ok
+
+  def append_log(run_id, lines, opts) do
+    max_bytes = Keyword.get_lazy(opts, :max_log_bytes, &max_log_bytes/0)
+    lines = Enum.map(lines, &sanitize_line/1)
+
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        %{log_bytes: log_bytes, log_truncated: truncated} =
+          Repo.one!(
+            from r in Run,
+              where: r.id == ^run_id,
+              select: %{log_bytes: r.log_bytes, log_truncated: r.log_truncated},
+              lock: "FOR UPDATE"
+          )
+
+        {fitting, cut?} =
+          if truncated, do: {[], false}, else: take_fitting(lines, max_bytes - log_bytes)
+
+        {_count, inserted} =
+          Repo.insert_all(LogLine, Enum.map(fitting, &Map.put(&1, :run_id, run_id)),
+            on_conflict: :nothing,
+            returning: [:content]
+          )
+
+        last_sequence = List.last(lines).sequence
+        # The newest, not the last line's: stdout and stderr lines interleave, and a
+        # reattach skips every line not newer than this (Milestone 4, section 7).
+        newest_timestamp =
+          lines |> Enum.map(& &1.timestamp) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
+
+        Repo.update_all(
+          from(r in Run,
+            where: r.id == ^run_id,
+            update: [
+              set: [
+                last_log_sequence:
+                  fragment("GREATEST(?, ?)", r.last_log_sequence, ^last_sequence),
+                last_log_timestamp:
+                  fragment("GREATEST(?, ?::bigint)", r.last_log_timestamp, ^newest_timestamp),
+                log_truncated: ^(truncated or cut?)
+              ],
+              inc: [log_bytes: ^Enum.sum_by(inserted, &byte_size(&1.content))]
+            ]
+          ),
+          []
+        )
+
+        :ok
+      end)
+
+    Phoenix.PubSub.broadcast(TestFleet.PubSub, run_topic(run_id), {:run_output, lines})
+  end
+
+  # PostgreSQL text cannot hold NUL bytes.
+  defp sanitize_line(line) do
+    %{
+      sequence: line.sequence,
+      stream: line.stream,
+      content: String.replace(line.content, <<0>>, "�"),
+      timestamp: line.timestamp
+    }
+  end
+
+  defp take_fitting(lines, remaining), do: take_fitting(lines, remaining, [])
+
+  defp take_fitting([], _remaining, acc), do: {Enum.reverse(acc), false}
+
+  defp take_fitting([line | rest], remaining, acc) do
+    size = byte_size(line.content)
+
+    if size <= remaining,
+      do: take_fitting(rest, remaining - size, [line | acc]),
+      else: {Enum.reverse(acc), true}
+  end
+
+  defp max_log_bytes,
+    do: Application.get_env(:testfleet, __MODULE__, [])[:max_log_bytes] || @max_log_bytes
+
+  @doc "The last `limit` stored lines of a run, in order."
+  def list_log_tail(%Run{id: id}, limit) do
+    Repo.all(
+      from l in LogLine,
+        where: l.run_id == ^id,
+        order_by: [desc: l.sequence],
+        limit: ^limit
+    )
+    |> Enum.reverse()
   end
 
   @doc "Finalizes a run as `error` without an execution result, e.g. when it cannot start."

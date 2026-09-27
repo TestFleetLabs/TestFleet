@@ -27,7 +27,13 @@ defmodule TestFleet.Runs.RecorderTest do
     assert DateTime.compare(recorded, started_at) == :eq
     assert_receive {:run_updated, %Run{status: :running}}
 
-    Recorder.handle_event(run.id, {:output, [%{sequence: 1, content: "ignored"}]})
+    Recorder.handle_event(
+      run.id,
+      {:output, [%{sequence: 1, stream: :stdout, content: "tick 1", timestamp: 42}]}
+    )
+
+    assert [%{sequence: 1, content: "tick 1"}] = Runs.list_log_tail(run, 10)
+    assert_receive {:run_output, [%{content: "tick 1"}]}
 
     Recorder.handle_event(
       run.id,

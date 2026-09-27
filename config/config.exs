@@ -46,6 +46,9 @@ config :testfleet, TestFleet.Execution.Dispatcher,
   max_concurrent_runs: 10,
   poll_interval: 5_000
 
+# Stored log size per run; later output is only streamed live. RUN_LOG_LIMIT_MB at runtime.
+config :testfleet, TestFleet.Runs, max_log_bytes: 50 * 1024 * 1024
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.

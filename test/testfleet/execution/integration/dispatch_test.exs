@@ -40,9 +40,10 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
     }
   end
 
-  defp run_now(context, mode, image \\ nil) do
+  defp run_now(context, mode, image \\ nil, variables \\ []) do
     environment = environment_fixture(project: context.project, max_concurrent_runs: 1)
     variable_fixture(environment, %{key: "SPIKE_MODE", value: mode})
+    for variable <- variables, do: variable_fixture(environment, variable)
 
     test_definition =
       if image do
@@ -133,6 +134,59 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
 
     assert statuses == [:queued, :preparing, :error]
     assert is_binary(message)
+  end
+
+  test "output is stored and broadcast with secrets masked", context do
+    secret = "s3cret-value-42"
+
+    run =
+      run_now(context, "secret", nil, [
+        %{key: "SPIKE_SECRET", value: secret, secret: true},
+        %{key: "SPIKE_PLAIN", value: "plain-value"}
+      ])
+
+    Runs.subscribe(run.id)
+    assert {%Run{status: :passed}, _} = await_finished(run.id)
+
+    lines = Runs.list_log_tail(run, 100)
+
+    assert %{
+             stdout: ["token=[MASKED] in the middle", "[MASKED]", "not secret: plain-value"],
+             stderr: ["twice: [MASKED] [MASKED]"]
+           } == Enum.group_by(lines, & &1.stream, & &1.content)
+
+    assert Enum.map(lines, & &1.sequence) == [1, 2, 3, 4]
+    assert %Run{last_log_sequence: 4, last_log_timestamp: timestamp} = Runs.get_run!(run.id)
+    assert timestamp == lines |> Enum.map(& &1.timestamp) |> Enum.max()
+
+    assert_received {:run_output, broadcast}
+    refute Enum.any?(broadcast, &(&1.content =~ secret))
+  end
+
+  test "a chatty suite stores every line", context do
+    run = run_now(context, "chatty")
+
+    assert {%Run{status: :passed}, _} = await_finished(run.id)
+
+    lines = Runs.list_log_tail(run, 200_000)
+    assert Enum.map(lines, & &1.sequence) == Enum.to_list(1..100_001)
+    assert %Run{last_log_sequence: 100_001, log_truncated: false} = Runs.get_run!(run.id)
+  end
+
+  test "the log limit stops storing, not the run", context do
+    previous = Application.get_env(:testfleet, Runs)
+    Application.put_env(:testfleet, Runs, max_log_bytes: 1_000)
+    on_exit(fn -> Application.put_env(:testfleet, Runs, previous) end)
+
+    run = run_now(context, "chatty")
+    assert {%Run{status: :passed}, _} = await_finished(run.id)
+
+    assert %Run{log_truncated: true, log_bytes: bytes, last_log_sequence: 100_001} =
+             Runs.get_run!(run.id)
+
+    assert bytes <= 1_000
+    stored = Runs.list_log_tail(run, 1_000)
+    assert Enum.map(stored, & &1.sequence) == Enum.to_list(1..length(stored))
   end
 
   test "cancelling a running suite", context do
