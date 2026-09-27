@@ -9,6 +9,7 @@ defmodule TestFleet.Execution do
   """
 
   alias TestFleet.Execution.{Request, RunExecution}
+  alias TestFleet.Execution.Docker.Command
 
   @doc """
   Starts a run and returns immediately.
@@ -58,6 +59,27 @@ defmodule TestFleet.Execution do
         :ok
     end
   end
+
+  @doc "Whether a `RunExecution` process owns the run right now."
+  def executing?(run_id), do: Registry.lookup(TestFleet.Execution.Registry, run_id) != []
+
+  @doc """
+  TestFleet's containers, running or not: `{:ok, [%{run_id: id, container_id: id}]}`.
+  Containers without a valid `TestFleet.run_id` label are left out.
+  """
+  def list_containers do
+    with {:ok, containers} <- Command.list(["TestFleet=true"]) do
+      containers =
+        for container <- containers,
+            {run_id, ""} <- [Integer.parse(container["Labels"]["TestFleet.run_id"] || "")],
+            do: %{run_id: run_id, container_id: container["Id"]}
+
+      {:ok, containers}
+    end
+  end
+
+  @doc "Removes a container, running or not. Idempotent."
+  def remove_container(container_id), do: Command.remove(container_id)
 
   @doc """
   Runs to completion and returns the result with all log lines.

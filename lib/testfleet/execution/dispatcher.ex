@@ -17,12 +17,15 @@ defmodule TestFleet.Execution.Dispatcher do
     * `:poll_interval` - milliseconds between safety-net passes (default 5000)
     * `:engine` - the module that starts executions (default `TestFleet.Execution`)
     * `:engine_opts` - extra options passed to `engine.start/2`
+    * `:recover` - run `TestFleet.Execution.Recovery` before the first pass (default
+      true). It always works on the real Docker engine.
     * `:name` - the registered name (default `#{inspect(__MODULE__)}`)
   """
   use GenServer
 
   require Logger
 
+  alias TestFleet.Execution.Recovery
   alias TestFleet.Runs
   alias TestFleet.Runs.Recorder
 
@@ -30,7 +33,8 @@ defmodule TestFleet.Execution.Dispatcher do
     max_concurrent_runs: 10,
     poll_interval: 5_000,
     engine: TestFleet.Execution,
-    engine_opts: []
+    engine_opts: [],
+    recover: true
   ]
 
   def start_link(opts \\ []) do
@@ -52,10 +56,15 @@ defmodule TestFleet.Execution.Dispatcher do
     Runs.subscribe()
     schedule_poll(config)
 
-    {:ok, config, {:continue, :dispatch}}
+    {:ok, config, {:continue, if(config.recover, do: :recover, else: :dispatch)}}
   end
 
   @impl true
+  def handle_continue(:recover, state) do
+    Recovery.run()
+    {:noreply, state, {:continue, :dispatch}}
+  end
+
   def handle_continue(:dispatch, state) do
     dispatch_pass(state)
     {:noreply, state}

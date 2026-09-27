@@ -20,6 +20,7 @@ defmodule TestFleetWeb.RunLive.Show do
      |> assign(:page_title, gettext("Run #%{id}", id: run.id))
      |> assign(:timezone, Timezones.default())
      |> assign(:ticking, false)
+     |> assign(:cancelling, false)
      |> assign_run(run)}
   end
 
@@ -40,7 +41,9 @@ defmodule TestFleetWeb.RunLive.Show do
   @impl true
   def handle_event("cancel", _params, socket) do
     :ok = Runs.cancel_run(socket.assigns.run)
-    {:noreply, socket}
+    # An active run stops its container first (up to the grace period); the final
+    # status arrives through `run:<id>`. A queued run is already cancelled.
+    {:noreply, assign(socket, :cancelling, true)}
   end
 
   @impl true
@@ -104,7 +107,16 @@ defmodule TestFleetWeb.RunLive.Show do
             </div>
 
             <.button
-              :if={!Run.final?(@run)}
+              :if={@cancelling and !Run.final?(@run)}
+              id="cancelling-run"
+              variant="danger"
+              disabled
+            >
+              <.icon name="hero-arrow-path-mini" class="size-4 animate-spin" />
+              {gettext("Cancelling…")}
+            </.button>
+            <.button
+              :if={!@cancelling and !Run.final?(@run)}
               id="cancel-run"
               variant="danger"
               phx-click="cancel"

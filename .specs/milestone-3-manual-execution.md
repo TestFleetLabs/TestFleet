@@ -213,7 +213,9 @@ If a database write fails, the handler raises, and `RunExecution` crashes. The c
 - `preparing` / `running` → `Execution.cancel(run.id)`. `RunExecution` stops the container (SIGTERM, SIGKILL after the grace period), and the final status `cancelled` arrives through the recorder.
 - final → `:ok`, nothing happens.
 
-The run page has a "Cancel" button with confirmation while the run is not final. The main spec's `POST /api/runs/:id/cancel` comes with the API.
+The run page has a "Cancel" button with confirmation while the run is not final. After a click on an active run, it turns into a disabled "Cancelling…" until the final status arrives, which can take the stop grace period (30 s). The state lives in the page only; a reload shows "Cancel" again. The main spec's `POST /api/runs/:id/cancel` comes with the API.
+
+**Known gap:** an active run without a `RunExecution` process cannot be cancelled; `Execution.cancel/1` finds nothing and returns `:ok`. This happens in the short window between the dispatcher's `queued → preparing` and the process start, and after a restart whose recovery was skipped because Docker was unreachable. A persisted cancel request that the process (or the recovery) picks up closes this gap; it belongs to the reconciler work in Milestone 7.
 
 ---
 
@@ -229,6 +231,15 @@ Before its first dispatch pass, the dispatcher recovers the runs that were activ
 | final | present | Remove the container. |
 
 When Docker cannot be reached, recovery is skipped with a warning, and the runs stay as they are until the next start. Recovery never makes a guess without Docker's answer.
+
+Implementation (`TestFleet.Execution.Recovery`, run by the dispatcher in `handle_continue` before its first pass):
+
+- Containers are found by the label `TestFleet=true` and matched to runs by `TestFleet.run_id` (`Execution.list_containers/0`).
+- Runs that still have a `RunExecution` process are skipped. That happens when only the dispatcher restarted, not TestFleet; the process may be pulling an image, without a container yet.
+- Containers without a run row are not touched. On a development machine, the dev and test databases share one Docker host. Removing orphans needs a way to tell instances apart and is part of the reconciler (Milestone 7).
+- The test database starts run ids at 10^9 (`test/test_helper.exs`), so test containers cannot collide with dev containers of the same name.
+- Attaching passes `last_log_timestamp`. The log sequence continues once logs are stored (Milestone 4).
+- The dispatcher option `recover: false` turns recovery off; the test environment does, except in the Docker tests.
 
 Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec section 32), including orphans without a run row.
 
@@ -293,7 +304,7 @@ Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec secti
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slices A and B are built (214 tests, plus 41 Docker integration tests).
+**Status (2026-09-27):** slices A, B, and C are built (219 tests, plus 46 Docker integration tests).
 
 ---
 

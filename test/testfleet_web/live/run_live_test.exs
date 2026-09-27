@@ -134,6 +134,29 @@ defmodule TestFleetWeb.RunLiveTest do
       assert %{status: :cancelled} = Runs.get_run!(run.id)
     end
 
+    test "an active run shows it is cancelling until the final status arrives",
+         %{conn: conn} = context do
+      run = run_fixture(test_definition: context.test_definition, status: :running)
+
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      view |> element("#cancel-run") |> render_click()
+
+      assert has_element?(view, "#cancelling-run[disabled]")
+      refute has_element?(view, "#cancel-run")
+      assert has_element?(view, "#run-status[data-status='running']")
+
+      # What the recorder does once the container has stopped.
+      {:ok, _} =
+        Runs.finish(run.id, %TestFleet.Execution.Result{
+          run_id: run.id,
+          status: :cancelled,
+          finished_at: DateTime.utc_now()
+        })
+
+      assert has_element?(view, "#run-status[data-status='cancelled']")
+      refute has_element?(view, "#cancelling-run")
+    end
+
     test "updates live", %{conn: conn} = context do
       run = run_fixture(test_definition: context.test_definition)
       {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")

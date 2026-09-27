@@ -168,6 +168,18 @@ defmodule TestFleet.Runs do
     {by_environment |> Map.values() |> Enum.sum(), by_environment}
   end
 
+  @doc "Runs that are `preparing` or `running`, oldest first."
+  def list_active do
+    Repo.all(from r in Run, where: r.status in ^Run.active_statuses(), order_by: [asc: r.id])
+  end
+
+  @doc "The ids among `ids` that belong to finished runs."
+  def final_run_ids(ids) do
+    Repo.all(
+      from r in Run, where: r.id in ^ids and r.status in ^Run.final_statuses(), select: r.id
+    )
+  end
+
   @doc "Admits a queued run: `queued → preparing`. `:error` if it is no longer queued."
   def mark_preparing(%Run{id: id}), do: transition(id, [:queued], status: :preparing)
 
