@@ -17,13 +17,16 @@ defmodule TestFleet.Runs do
 
   alias TestFleet.Environments.Environment
   alias TestFleet.Execution
+  alias TestFleet.Execution.{Request, Result}
   alias TestFleet.Projects.Project
+  alias TestFleet.Registries
   alias TestFleet.Repo
   alias TestFleet.Runs.Run
   alias TestFleet.TestDefinitions.TestDefinition
 
   @topic "runs"
   @default_limit 50
+  @stop_grace_seconds 30
 
   ## PubSub
 
@@ -136,12 +139,125 @@ defmodule TestFleet.Runs do
     end
   end
 
+  ## Dispatching
+
+  @doc "Queued runs, oldest first, with their environment (for its limit)."
+  def list_queued do
+    Repo.all(
+      from r in Run,
+        where: r.status == :queued,
+        order_by: [asc: r.id],
+        preload: :environment
+    )
+  end
+
+  @doc """
+  Runs holding a slot under the concurrency limits (`preparing`, `running`):
+  `{total, %{environment_id => count}}`.
+  """
+  def active_counts do
+    by_environment =
+      Repo.all(
+        from r in Run,
+          where: r.status in ^Run.active_statuses(),
+          group_by: r.environment_id,
+          select: {r.environment_id, count(r.id)}
+      )
+      |> Map.new()
+
+    {by_environment |> Map.values() |> Enum.sum(), by_environment}
+  end
+
+  @doc "Admits a queued run: `queued → preparing`. `:error` if it is no longer queued."
+  def mark_preparing(%Run{id: id}), do: transition(id, [:queued], status: :preparing)
+
+  @doc """
+  Builds the execution request (Milestone 3, section 6). It holds decrypted
+  variables and registry credentials; `Request` keeps them out of `inspect`.
+  """
+  def build_request(%Run{} = run) do
+    run = Repo.preload(run, [:test_definition, environment: :variables], force: true)
+    %{test_definition: test_definition, environment: environment} = run
+
+    registry_auth =
+      case Registries.get_registry_for_image(run.image) do
+        nil -> nil
+        registry -> %{username: registry.username, password: registry.password}
+      end
+
+    Request.new(
+      run_id: run.id,
+      project_id: test_definition.project_id,
+      environment_name: environment.slug,
+      image: run.image,
+      command: run.command,
+      environment: Map.new(environment.variables, &{&1.key, &1.value}),
+      secret_values: for(%{secret: true, value: value} <- environment.variables, do: value),
+      registry_auth: registry_auth,
+      timeout_seconds: test_definition.timeout_seconds,
+      cpu_limit: test_definition.cpu_limit,
+      memory_limit: test_definition.memory_limit,
+      shm_size: test_definition.shm_size_bytes,
+      pull_policy: :auto,
+      stop_grace_seconds: @stop_grace_seconds,
+      artifact_path: nil
+    )
+  end
+
+  ## Recording execution (see `TestFleet.Runs.Recorder`)
+
+  @doc "Records facts of an active run, e.g. `image_digest` or `container_id`."
+  def record(run_id, changes) do
+    transition(run_id, Run.active_statuses(), changes)
+  end
+
+  @doc "`preparing → running`, with the container's start time."
+  def mark_running(run_id, %DateTime{} = started_at) do
+    transition(run_id, [:preparing], status: :running, started_at: started_at)
+  end
+
+  @doc "Records the final status of a run from the execution result."
+  def finish(run_id, %Result{} = result) do
+    changes =
+      [
+        status: result.status,
+        finished_at: result.finished_at,
+        exit_code: result.exit_code,
+        oom_killed: result.oom_killed,
+        error_message: result.error_message
+      ] ++
+        for {field, value} <- [
+              image_digest: result.image_digest,
+              container_id: result.container_id,
+              started_at: result.started_at
+            ],
+            value != nil,
+            do: {field, value}
+
+    transition(run_id, [:queued | Run.active_statuses()], changes)
+  end
+
+  @doc "Finalizes a run as `error` without an execution result, e.g. when it cannot start."
+  def fail(run_id, message) do
+    transition(run_id, [:queued | Run.active_statuses()],
+      status: :error,
+      error_message: message,
+      finished_at: DateTime.utc_now()
+    )
+  end
+
   ## Transitions
 
   # Updates the run only while its status is one of `from`, so a late or repeated
   # event cannot reopen a finished run.
   defp transition(id, from, changes) do
-    changes = Keyword.put(changes, :updated_at, DateTime.utc_now())
+    changes =
+      changes
+      |> Keyword.put(:updated_at, DateTime.utc_now())
+      |> Enum.map(fn
+        {field, %DateTime{} = value} -> {field, usec(value)}
+        change -> change
+      end)
 
     query = from r in Run, where: r.id == ^id and r.status in ^from, select: r
 
@@ -161,6 +277,10 @@ defmodule TestFleet.Runs do
     Phoenix.PubSub.broadcast(TestFleet.PubSub, run_topic(run.id), message)
     Phoenix.PubSub.broadcast(TestFleet.PubSub, @topic, message)
   end
+
+  # The columns are utc_datetime_usec; Docker's StartedAt may come with less precision.
+  defp usec(%DateTime{microsecond: {value, _precision}} = datetime),
+    do: %{datetime | microsecond: {value, 6}}
 
   defp preload(run_or_runs),
     do: Repo.preload(run_or_runs, [:environment, test_definition: :project])

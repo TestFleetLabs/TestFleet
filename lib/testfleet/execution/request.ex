@@ -7,6 +7,8 @@ defmodule TestFleet.Execution.Request do
   `:if_missing` and `:never` exist for locally built images.
   """
 
+  # Holds decrypted variables and registry credentials.
+  @derive {Inspect, except: [:environment, :registry_auth, :secret_values]}
   @enforce_keys [:run_id, :image]
   defstruct [
     :run_id,

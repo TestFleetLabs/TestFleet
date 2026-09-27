@@ -117,6 +117,72 @@ defmodule TestFleet.RunsTest do
     end
   end
 
+  describe "build_request/1" do
+    test "combines the run, test definition, environment, and registry", context do
+      {:ok, test_definition} =
+        TestDefinitions.update_test_definition(context.test_definition, %{
+          image: "registry.company.com/customer-a/e2e:1.17",
+          timeout_seconds: 600,
+          cpu_limit: 2.0,
+          memory_limit: 1024 * 1024 * 1024
+        })
+
+      environment = environment_fixture(project: context.project, name: "Production")
+      variable_fixture(environment, %{key: "BASE_URL", value: "https://example.com"})
+      variable_fixture(environment, %{key: "API_TOKEN", value: "s3cret-token", secret: true})
+
+      TestFleet.RegistriesFixtures.registry_fixture(
+        host: "registry.company.com",
+        username: "deploy",
+        password: "registry-password"
+      )
+
+      run = run_fixture(test_definition: test_definition, environment: environment)
+      request = Runs.build_request(run)
+
+      assert %TestFleet.Execution.Request{
+               run_id: run_id,
+               project_id: project_id,
+               environment_name: "production",
+               image: "registry.company.com/customer-a/e2e:1.17",
+               command: ["./run.sh", "-v"],
+               environment: %{"BASE_URL" => "https://example.com", "API_TOKEN" => "s3cret-token"},
+               secret_values: ["s3cret-token"],
+               registry_auth: %{username: "deploy", password: "registry-password"},
+               timeout_seconds: 600,
+               cpu_limit: 2.0,
+               memory_limit: 1_073_741_824,
+               shm_size: 2_147_483_648,
+               pull_policy: :auto,
+               artifact_path: nil
+             } = request
+
+      assert run_id == run.id
+      assert project_id == context.project.id
+
+      inspected = inspect(request)
+      refute inspected =~ "s3cret-token"
+      refute inspected =~ "registry-password"
+    end
+
+    test "pulls anonymously without a matching registry", context do
+      run =
+        run_fixture(test_definition: context.test_definition, environment: context.environment)
+
+      assert %{registry_auth: nil, environment: %{}} = Runs.build_request(run)
+    end
+
+    test "uses the image copied at creation, not the edited one", context do
+      run =
+        run_fixture(test_definition: context.test_definition, environment: context.environment)
+
+      {:ok, _} =
+        TestDefinitions.update_test_definition(context.test_definition, %{image: "e2e:2.0"})
+
+      assert %{image: "e2e:1.17"} = Runs.build_request(run)
+    end
+  end
+
   describe "deleting configuration with runs" do
     setup context do
       %{

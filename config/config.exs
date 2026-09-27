@@ -40,6 +40,12 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 # Preselected in new schedules
 config :testfleet, :default_timezone, "Europe/Vienna"
 
+# Admission control (main spec section 34). The global limit can be set at runtime
+# with MAX_CONCURRENT_RUNS; each environment has its own limit on top.
+config :testfleet, TestFleet.Execution.Dispatcher,
+  max_concurrent_runs: 10,
+  poll_interval: 5_000
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.

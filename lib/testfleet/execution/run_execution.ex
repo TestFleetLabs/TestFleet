@@ -2,16 +2,20 @@ defmodule TestFleet.Execution.RunExecution do
   @moduledoc """
   Owns one run, from image pull to container removal (main spec section 27).
 
-  Instead of writing to the database, the process sends `{:run_event, run_id, event}`
-  messages to a subscriber:
+  The process does not write to the database. It reports events to a
+  `TestFleet.Execution.Handler` (`:handler`), called in this process, or sends them
+  as `{:run_event, run_id, event}` messages to a pid (`:subscriber`):
 
-      {:status, :preparing | :running}
+      {:status, :preparing}
       {:image_digest, digest}
       {:container_created, container_id}
+      {:running, started_at}          # the container's State.StartedAt
       {:output, [%{sequence: n, stream: :stdout | :stderr, timestamp: ns, content: line}]}
       {:finished, %TestFleet.Execution.Result{}}
 
-  `{:finished, result}` is sent after the container has been removed.
+  `{:finished, result}` is reported before the container is removed, so the final
+  status is recorded even if TestFleet dies in between (Milestone 3, section 7). The
+  process exits once the container is removed.
 
   Modes:
 
@@ -60,7 +64,8 @@ defmodule TestFleet.Execution.RunExecution do
 
     state = %{
       run_id: Keyword.fetch!(opts, :run_id),
-      subscriber: Keyword.fetch!(opts, :subscriber),
+      handler: opts[:handler],
+      subscriber: opts[:subscriber],
       request: request,
       image: request && request.image,
       artifact_path: if(request, do: request.artifact_path, else: opts[:artifact_path]),
@@ -331,7 +336,7 @@ defmodule TestFleet.Execution.RunExecution do
   defp watch(state, info) do
     {:ok, started_at, _offset} = DateTime.from_iso8601(info["State"]["StartedAt"])
     state = arm_deadline(%{state | started_at: started_at, phase: :running})
-    notify(state, {:status, :running})
+    notify(state, {:running, started_at})
 
     since = state.resume_after && LogDecoder.format_since(state.resume_after)
 
@@ -461,8 +466,6 @@ defmodule TestFleet.Execution.RunExecution do
     {facts, artifacts} = inspect_container(state)
     {status, error_message} = Status.decide(facts)
 
-    if state.owns_container, do: remove_container(state)
-
     notify(
       state,
       {:finished,
@@ -480,6 +483,10 @@ defmodule TestFleet.Execution.RunExecution do
          artifacts: artifacts
        }}
     )
+
+    # After reporting: a finished run with a leftover container is recoverable, a
+    # removed container of a run that still looks active is not.
+    if state.owns_container, do: remove_container(state)
 
     state
   end
@@ -583,7 +590,10 @@ defmodule TestFleet.Execution.RunExecution do
     end
   end
 
-  defp notify(state, event), do: send(state.subscriber, {:run_event, state.run_id, event})
+  defp notify(%{handler: nil} = state, event),
+    do: send(state.subscriber, {:run_event, state.run_id, event})
+
+  defp notify(state, event), do: state.handler.handle_event(state.run_id, event)
 
   defp stop(state), do: {:stop, :normal, state}
 end

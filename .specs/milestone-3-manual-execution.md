@@ -293,7 +293,7 @@ Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec secti
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slice A is built (200 tests).
+**Status (2026-09-27):** slices A and B are built (214 tests, plus 41 Docker integration tests).
 
 ---
 

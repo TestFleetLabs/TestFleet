@@ -31,6 +31,9 @@ config :testfleet, TestFleet.Vault,
        iv_length: 12}
   ]
 
+# Tests start the dispatcher themselves (start_supervised!), usually with a fake engine
+config :testfleet, TestFleet.Execution.Dispatcher, start: false
+
 # Jobs are inserted but not executed; tests run them explicitly with Oban.Testing
 config :testfleet, Oban, testing: :manual
 

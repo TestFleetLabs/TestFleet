@@ -3,19 +3,24 @@ defmodule TestFleet.Execution do
   Runs test suite containers (main spec sections 13–27).
 
   Each run is owned by one `TestFleet.Execution.RunExecution` process, registered by
-  run id. Callers receive `{:run_event, run_id, event}` messages; see `RunExecution`.
+  run id. Its events go to a `TestFleet.Execution.Handler` (`:handler`), or as
+  `{:run_event, run_id, event}` messages to `:subscriber` (default: the caller); see
+  `RunExecution`.
   """
 
   alias TestFleet.Execution.{Request, RunExecution}
 
   @doc """
-  Starts a run and returns immediately. Events go to `opts[:subscriber]` (default: the caller).
+  Starts a run and returns immediately.
+
+  Options: `:handler` (a `TestFleet.Execution.Handler` module) or `:subscriber`.
   """
   def start(%Request{} = request, opts \\ []) do
     start_child(
       mode: :start,
       run_id: request.run_id,
       request: request,
+      handler: opts[:handler],
       subscriber: Keyword.get(opts, :subscriber, self())
     )
   end
@@ -23,13 +28,14 @@ defmodule TestFleet.Execution do
   @doc """
   Takes over the container of a run whose process is gone (main spec section 32).
 
-  Options: `:subscriber`, `:artifact_path`, `:last_log_timestamp` (nanoseconds of the
-  last line already received) and `:next_sequence`.
+  Options: `:handler`, `:subscriber`, `:artifact_path`, `:last_log_timestamp`
+  (nanoseconds of the last line already received) and `:next_sequence`.
   """
   def attach(run_id, opts \\ []) do
     start_child(
       mode: :attach,
       run_id: run_id,
+      handler: opts[:handler],
       subscriber: Keyword.get(opts, :subscriber, self()),
       artifact_path: opts[:artifact_path],
       last_log_timestamp: opts[:last_log_timestamp],

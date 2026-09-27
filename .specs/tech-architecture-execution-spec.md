@@ -1105,19 +1105,21 @@ run:1842
 Events include:
 
 ```elixir
-{:run_started, run}
+{:run_created, run}
+
+{:run_updated, run}      # status or recorded facts changed, e.g. running, image digest
 
 {:run_output, [
   %{stream: :stdout, sequence: 42, content: "Running checkout test..."},
   %{stream: :stdout, sequence: 43, content: "✓ Checkout"}
 ]}
 
-{:run_status_changed, :running}
-
 {:run_test_result, result}
 
 {:run_finished, run}
 ```
+
+Run events carry the whole run, so subscribers need no extra query. They are also broadcast on the global topic `runs`, which the runs list, the dashboard, and the dispatcher subscribe to; `{:run_output, _}` is only broadcast on `run:<id>`. See [milestone-3-manual-execution.md](milestone-3-manual-execution.md), section 4.
 
 ---
 

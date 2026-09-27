@@ -31,6 +31,11 @@ defmodule TestFleet.DockerCase do
   end
 
   setup_all do
+    ensure_docker!()
+  end
+
+  @doc "Raises unless the socket proxy answers and the fixture image exists."
+  def ensure_docker! do
     case Command.ping() do
       {:ok, _} ->
         :ok
@@ -94,7 +99,27 @@ defmodule TestFleet.DockerCase do
   Waits for the result. Returns `{result, lines}` with all output received meanwhile.
   `timeout` is the longest silence allowed between two events.
   """
-  def await_finished(run_id, timeout \\ 30_000), do: await_finished(run_id, timeout, [])
+  def await_finished(run_id, timeout \\ 30_000) do
+    # The result is reported before the container is removed; the process exits
+    # after removing it.
+    ref =
+      case Registry.lookup(TestFleet.Execution.Registry, run_id) do
+        [{pid, _}] -> Process.monitor(pid)
+        [] -> nil
+      end
+
+    result = await_finished(run_id, timeout, [])
+
+    if ref do
+      receive do
+        {:DOWN, ^ref, :process, _pid, _reason} -> :ok
+      after
+        timeout -> ExUnit.Assertions.flunk("run #{run_id}: process did not exit")
+      end
+    end
+
+    result
+  end
 
   defp await_finished(run_id, timeout, batches) do
     receive do

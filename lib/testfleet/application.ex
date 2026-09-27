@@ -15,10 +15,17 @@ defmodule TestFleet.Application do
       {DNSCluster, query: Application.get_env(:testfleet, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TestFleet.PubSub},
       {Registry, keys: :unique, name: TestFleet.Execution.Registry},
-      {DynamicSupervisor, name: TestFleet.Execution.Supervisor, strategy: :one_for_one},
-      # Start to serve requests, typically the last entry
-      TestFleetWeb.Endpoint
+      {DynamicSupervisor, name: TestFleet.Execution.Supervisor, strategy: :one_for_one}
     ]
+
+    # Tests start their own dispatcher, with a fake engine.
+    dispatcher =
+      if Application.get_env(:testfleet, TestFleet.Execution.Dispatcher)[:start] == false,
+        do: [],
+        else: [TestFleet.Execution.Dispatcher]
+
+    # Start to serve requests, typically the last entry
+    children = children ++ dispatcher ++ [TestFleetWeb.Endpoint]
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options

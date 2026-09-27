@@ -27,6 +27,12 @@ config :testfleet, TestFleetWeb.Endpoint,
 config :testfleet, TestFleet.Execution.Docker,
   host: System.get_env("DOCKER_HOST", "tcp://localhost:2375")
 
+# The global limit of concurrently executing runs (main spec section 34)
+if max_concurrent_runs = System.get_env("MAX_CONCURRENT_RUNS") do
+  config :testfleet, TestFleet.Execution.Dispatcher,
+    max_concurrent_runs: String.to_integer(max_concurrent_runs)
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :testfleet, TestFleetWeb.Endpoint,
