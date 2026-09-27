@@ -106,13 +106,14 @@ A final status is set together with `finished_at`, `exit_code`, `oom_killed`, an
 ## 4. `TestFleet.Runs`
 
 ```elixir
-create_manual_run(test_definition, environment)   # {:ok, run} | {:error, changeset}
+create_manual_run(test_definition, environment)   # {:ok, run} | {:error, :test_definition_disabled | :environment_mismatch}
 get_run!(id)                                      # preloads test definition (with project) and environment
 list_runs(opts)                                   # newest first; :limit, :project, :test_definition, :statuses
 cancel_run(run)                                   # :ok, idempotent
+has_runs?(project | test_definition | environment)
 ```
 
-- `create_manual_run` rejects a disabled test definition, and an environment of another project.
+- `create_manual_run` reads the test definition again, so a definition disabled after the page was loaded is rejected. It also rejects an environment of another project. Nothing is user input here, so the errors are atoms, not changesets.
 - **PubSub.** Every change broadcasts the run, with its test definition, project, and environment preloaded, on `run:<id>` and on the global topic `runs`:
 
   ```elixir
@@ -248,7 +249,7 @@ Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec secti
   - Disabled test definition: the buttons are disabled, with a note.
   - No environments: an empty state that links to "New environment".
 - **Recent runs** of this test definition (20).
-- The project page's test definition rows now link here instead of to the edit form.
+- The project page's test definition rows now link here instead of to the edit form. Saving the edit form returns here; a new test definition still returns to the project.
 
 ### Run page (`/runs/:id`)
 
@@ -291,6 +292,8 @@ Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec secti
 | D | Dashboard figures, recent and queued runs, recent runs on the project page. | A (live with B) |
 
 Each slice passes `mix precommit` on its own.
+
+**Status (2026-09-27):** slice A is built (200 tests).
 
 ---
 

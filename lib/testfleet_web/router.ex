@@ -25,6 +25,7 @@ defmodule TestFleetWeb.Router do
       live "/projects/:slug", ProjectLive.Show, :show
       live "/projects/:slug/edit", ProjectLive.Form, :edit
       live "/projects/:slug/test-definitions/new", TestDefinitionLive.Form, :new
+      live "/projects/:slug/test-definitions/:id", TestDefinitionLive.Show, :show
       live "/projects/:slug/test-definitions/:id/edit", TestDefinitionLive.Form, :edit
       live "/projects/:slug/schedules/new", ScheduleLive.Form, :new
       live "/projects/:slug/schedules/:id/edit", ScheduleLive.Form, :edit
@@ -32,6 +33,7 @@ defmodule TestFleetWeb.Router do
       live "/projects/:slug/environments/:env", EnvironmentLive.Show, :show
       live "/projects/:slug/environments/:env/edit", EnvironmentLive.Form, :edit
       live "/runs", RunLive.Index, :index
+      live "/runs/:id", RunLive.Show, :show
       live "/registries", RegistryLive.Index, :index
       live "/registries/new", RegistryLive.Form, :new
       live "/registries/:id/edit", RegistryLive.Form, :edit

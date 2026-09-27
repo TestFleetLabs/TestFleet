@@ -18,7 +18,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
       assert has_element?(view, "#test-definitions-empty-state")
     end
 
-    test "lists test definitions linking to their form", %{conn: conn, project: project} do
+    test "lists test definitions linking to their page", %{conn: conn, project: project} do
       test_definition =
         test_definition_fixture(project: project, name: "Checkout", timeout_seconds: 2700)
 
@@ -33,7 +33,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
       assert has_element?(
                view,
-               "#{row} a[href='/projects/customer-portal/test-definitions/#{test_definition.id}/edit']"
+               "#{row} a[href='/projects/customer-portal/test-definitions/#{test_definition.id}']"
              )
 
       assert has_element?(view, "#test_definitions-#{disabled.id}", "disabled")
@@ -96,11 +96,11 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
       assert TestDefinitions.list_test_definitions(project) == []
     end
 
-    test "edits a test definition", %{conn: conn, project: project} do
+    test "edits a test definition and returns to its page", %{conn: conn, project: project} do
       test_definition = test_definition_fixture(project: project, command: ["./run.sh"])
+      path = ~p"/projects/customer-portal/test-definitions/#{test_definition.id}"
 
-      {:ok, view, _html} =
-        live(conn, ~p"/projects/customer-portal/test-definitions/#{test_definition.id}/edit")
+      {:ok, view, _html} = live(conn, "#{path}/edit")
 
       assert has_element?(view, "#test_definition_command_text", "./run.sh")
 
@@ -110,7 +110,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
           test_definition: %{image: "alpine:3", command_text: "", enabled: "false"}
         )
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal")
+        |> follow_redirect(conn, path)
 
       assert %{image: "alpine:3", command: [], enabled: false, timeout_seconds: 1800} =
                TestDefinitions.get_test_definition!(project, test_definition.id)

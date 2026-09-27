@@ -108,12 +108,24 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
 
   def handle_event("delete", _params, socket) do
     %{project: project, environment: environment} = socket.assigns
-    {:ok, _} = Environments.delete_environment(environment)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, gettext("Environment %{name} deleted.", name: environment.name))
-     |> push_navigate(to: ~p"/projects/#{project.slug}")}
+    case Environments.delete_environment(environment) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Environment %{name} deleted.", name: environment.name))
+         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+
+      {:error, :has_runs} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext(
+             "This environment has runs and cannot be deleted; its run history would be lost."
+           )
+         )}
+    end
   end
 
   # Re-renders the row that was highlighted as being edited.

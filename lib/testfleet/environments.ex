@@ -47,8 +47,15 @@ defmodule TestFleet.Environments do
     |> Repo.update()
   end
 
-  @doc "Deletes an environment with its variables."
-  def delete_environment(%Environment{} = environment), do: Repo.delete(environment)
+  @doc """
+  Deletes an environment with its variables and schedules. One with runs cannot be
+  deleted: `{:error, :has_runs}`.
+  """
+  def delete_environment(%Environment{} = environment) do
+    if TestFleet.Runs.has_runs?(environment),
+      do: {:error, :has_runs},
+      else: Repo.delete(environment)
+  end
 
   def change_environment(%Environment{} = environment, attrs \\ %{}) do
     Environment.changeset(environment, attrs)

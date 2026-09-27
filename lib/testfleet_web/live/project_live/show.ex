@@ -19,22 +19,23 @@ defmodule TestFleetWeb.ProjectLive.Show do
   defp overlap_label(:queue), do: gettext("queues overlaps")
   defp overlap_label(:allow), do: gettext("runs in parallel")
 
-  defp format_timeout(seconds) when rem(seconds, 3600) == 0,
-    do: gettext("%{count} h", count: div(seconds, 3600))
-
-  defp format_timeout(seconds) when rem(seconds, 60) == 0,
-    do: gettext("%{count} min", count: div(seconds, 60))
-
-  defp format_timeout(seconds), do: gettext("%{count} s", count: seconds)
-
   @impl true
   def handle_event("delete", _params, socket) do
-    {:ok, project} = Projects.delete_project(socket.assigns.project)
+    case Projects.delete_project(socket.assigns.project) do
+      {:ok, project} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Project %{name} deleted.", name: project.name))
+         |> push_navigate(to: ~p"/projects")}
 
-    {:noreply,
-     socket
-     |> put_flash(:info, gettext("Project %{name} deleted.", name: project.name))
-     |> push_navigate(to: ~p"/projects")}
+      {:error, :has_runs} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("This project has runs and cannot be deleted; its run history would be lost.")
+         )}
+    end
   end
 
   @impl true
@@ -96,9 +97,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
               </li>
               <li :for={{id, test_definition} <- @streams.test_definitions} id={id}>
                 <.link
-                  navigate={
-                    ~p"/projects/#{@project.slug}/test-definitions/#{test_definition.id}/edit"
-                  }
+                  navigate={~p"/projects/#{@project.slug}/test-definitions/#{test_definition.id}"}
                   class={[
                     "group flex items-center justify-between gap-3 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40",
                     !test_definition.enabled && "opacity-60 hover:opacity-100"

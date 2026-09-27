@@ -34,6 +34,25 @@ defmodule TestFleetWeb.AppComponents do
     """
   end
 
+  @doc "Formats a configured timeout, e.g. `30 min` or `2 h`."
+  def format_timeout(seconds) when rem(seconds, 3600) == 0,
+    do: gettext("%{count} h", count: div(seconds, 3600))
+
+  def format_timeout(seconds) when rem(seconds, 60) == 0,
+    do: gettext("%{count} min", count: div(seconds, 60))
+
+  def format_timeout(seconds), do: gettext("%{count} s", count: seconds)
+
+  @doc "Formats a size in bytes as MiB or GiB, e.g. `512 MiB` or `2 GiB`."
+  @gib 1024 * 1024 * 1024
+  @mib 1024 * 1024
+
+  def format_bytes(bytes) when rem(bytes, @gib) == 0, do: "#{div(bytes, @gib)} GiB"
+  def format_bytes(bytes), do: "#{trim_float(Float.round(bytes / @mib, 1))} MiB"
+
+  defp trim_float(value) when value == trunc(value), do: trunc(value)
+  defp trim_float(value), do: value
+
   @doc """
   Renders the slug input of a form whose changeset generates an empty slug from
   another field (see `TestFleet.Slug`).

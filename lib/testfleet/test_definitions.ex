@@ -34,8 +34,15 @@ defmodule TestFleet.TestDefinitions do
     |> Repo.update()
   end
 
-  def delete_test_definition(%TestDefinition{} = test_definition),
-    do: Repo.delete(test_definition)
+  @doc """
+  Deletes a test definition with its schedules. One with runs cannot be deleted:
+  `{:error, :has_runs}`.
+  """
+  def delete_test_definition(%TestDefinition{} = test_definition) do
+    if TestFleet.Runs.has_runs?(test_definition),
+      do: {:error, :has_runs},
+      else: Repo.delete(test_definition)
+  end
 
   @doc "A changeset for the form, with the form fields (minutes, MiB, lines) filled in."
   def change_test_definition(%TestDefinition{} = test_definition, attrs \\ %{}) do

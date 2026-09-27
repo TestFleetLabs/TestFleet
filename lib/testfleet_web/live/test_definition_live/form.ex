@@ -87,7 +87,8 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
            :info,
            gettext("Test definition %{name} saved.", name: test_definition.name)
          )
-         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+         # The assigned definition, not the saved one: a new one returns to the project.
+         |> push_navigate(to: return_path(project, socket.assigns.test_definition))}
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, changeset)}
@@ -96,13 +97,34 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
 
   def handle_event("delete", _params, socket) do
     %{project: project, test_definition: test_definition} = socket.assigns
-    {:ok, _} = TestDefinitions.delete_test_definition(test_definition)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, gettext("Test definition %{name} deleted.", name: test_definition.name))
-     |> push_navigate(to: ~p"/projects/#{project.slug}")}
+    case TestDefinitions.delete_test_definition(test_definition) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           gettext("Test definition %{name} deleted.", name: test_definition.name)
+         )
+         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+
+      {:error, :has_runs} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext(
+             "This test definition has runs and cannot be deleted. Disable it instead to stop new runs."
+           )
+         )}
+    end
   end
+
+  # A new definition returns to the project, an edited one to its own page.
+  defp return_path(project, %TestDefinition{id: nil}), do: ~p"/projects/#{project.slug}"
+
+  defp return_path(project, test_definition),
+    do: ~p"/projects/#{project.slug}/test-definitions/#{test_definition.id}"
 
   @impl true
   def render(assigns) do
@@ -113,8 +135,14 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
           <.breadcrumbs>
             <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
             <:crumb navigate={~p"/projects/#{@project.slug}"}>{@project.name}</:crumb>
+            <:crumb
+              :if={@test_definition.id}
+              navigate={~p"/projects/#{@project.slug}/test-definitions/#{@test_definition.id}"}
+            >
+              {@test_definition.name}
+            </:crumb>
             <:crumb>
-              {if @test_definition.id, do: @test_definition.name, else: gettext("New test definition")}
+              {if @test_definition.id, do: gettext("Edit"), else: gettext("New test definition")}
             </:crumb>
           </.breadcrumbs>
 
@@ -228,7 +256,9 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
             />
 
             <:footer>
-              <.button navigate={~p"/projects/#{@project.slug}"}>{gettext("Cancel")}</.button>
+              <.button navigate={return_path(@project, @test_definition)}>
+                {gettext("Cancel")}
+              </.button>
               <.button
                 id="save-test-definition"
                 variant="primary"

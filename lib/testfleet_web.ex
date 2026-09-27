@@ -88,6 +88,7 @@ defmodule TestFleetWeb do
       import TestFleetWeb.CoreComponents
       # TestFleet page building blocks
       import TestFleetWeb.AppComponents
+      import TestFleetWeb.RunComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
