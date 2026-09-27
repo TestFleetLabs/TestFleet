@@ -188,6 +188,7 @@ defmodule TestFleetWeb.CoreComponents do
   attr :name, :any
   attr :label, :string, default: nil
   attr :hint, :string, default: nil, doc: "help text shown below the input"
+  attr :mono, :boolean, default: false, doc: "monospace text, for image names or commands"
   attr :value, :any
 
   attr :type, :string,
@@ -289,6 +290,7 @@ defmodule TestFleetWeb.CoreComponents do
         name={@name}
         class={[
           @class || [field_classes(), "min-h-24"],
+          @mono && "font-mono",
           @errors != [] && (@error_class || field_error_classes())
         ]}
         {@rest}
@@ -311,6 +313,7 @@ defmodule TestFleetWeb.CoreComponents do
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
           @class || field_classes(),
+          @mono && "font-mono",
           @errors != [] && (@error_class || field_error_classes())
         ]}
         {@rest}

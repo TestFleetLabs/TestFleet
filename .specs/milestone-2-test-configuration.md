@@ -115,12 +115,14 @@ mix run -e "32 |> :crypto.strong_rand_bytes() |> Base.encode64() |> IO.puts()"
 
 ## 9. Test Definitions
 
-- `image`: validated with `TestFleet.Execution.Docker.ImageRef.parse/1`.
-- `command`: argv array (main spec section 6). The form has a textarea with one argument per line; empty means the image's own entrypoint.
-- `timeout_seconds`: required, default 1800, 1..86400. The form shows minutes.
-- `cpu_limit`: optional, > 0 (fractional CPUs allowed).
-- `memory_limit`, `shm_size_bytes`: stored in bytes; the form uses MiB. `shm_size_bytes` defaults to 2 GiB.
-- `enabled`: default true. Disabled definitions cannot be run or scheduled.
+- `image`: trimmed, validated with `TestFleet.Execution.Docker.ImageRef.parse/1`. Below the input, the form shows live which registry's credentials a pull will use (with a link to it), or that the image is pulled anonymously (with a link to add credentials).
+- `command`: argv array (main spec section 6), at most 100 arguments of at most 4096 characters. The form has a textarea with one argument per line; lines are trimmed and empty lines dropped, so an empty string cannot be passed as an argument. Empty means the image's own entrypoint.
+- `timeout_seconds`: required, default 1800, 1..86400. The form shows whole minutes (1..1440); a stored value that is not a whole number of minutes is rounded up in the form.
+- `cpu_limit`: optional, > 0 and ≤ 256 (fractional CPUs allowed).
+- `memory_limit`, `shm_size_bytes`: stored in bytes; the form uses MiB. `memory_limit` is optional and at least 6 MiB (Docker's minimum). `shm_size_bytes` is required, at least 1 MiB, and defaults to 2 GiB.
+- `enabled`: default true. Disabled definitions cannot be run or scheduled. The project page shows them dimmed with a "disabled" badge.
+- The form units are virtual fields of the schema (`timeout_minutes`, `memory_limit_mib`, `shm_size_mib`, `command_text`). They set the stored fields only when submitted, so later callers such as the API can use seconds and bytes directly. Their errors appear on the form field, in its unit.
+- There is no separate page per test definition yet: the project page lists them, and each links to its edit form, which also holds "Delete". A detail page arrives with runs (Milestone 3).
 
 ---
 

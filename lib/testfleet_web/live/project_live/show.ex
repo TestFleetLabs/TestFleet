@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.ProjectLive.Show do
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Environments, Projects}
+  alias TestFleet.{Environments, Projects, TestDefinitions}
 
   @impl true
   def mount(%{"slug" => slug}, _session, socket) do
@@ -11,8 +11,17 @@ defmodule TestFleetWeb.ProjectLive.Show do
      socket
      |> assign(:page_title, project.name)
      |> assign(:project, project)
+     |> stream(:test_definitions, TestDefinitions.list_test_definitions(project))
      |> stream(:environments, Environments.list_environments(project))}
   end
+
+  defp format_timeout(seconds) when rem(seconds, 3600) == 0,
+    do: gettext("%{count} h", count: div(seconds, 3600))
+
+  defp format_timeout(seconds) when rem(seconds, 60) == 0,
+    do: gettext("%{count} min", count: div(seconds, 60))
+
+  defp format_timeout(seconds), do: gettext("%{count} s", count: seconds)
 
   @impl true
   def handle_event("delete", _params, socket) do
@@ -59,14 +68,63 @@ defmodule TestFleetWeb.ProjectLive.Show do
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <.panel id="test-definitions" title={gettext("Test definitions")}>
-            <.empty_state
-              id="test-definitions-empty"
-              icon="hero-beaker"
-              title={gettext("No test definitions yet")}
-              compact
-            >
-              {gettext("A test definition names the image that contains the test suite.")}
-            </.empty_state>
+            <:actions>
+              <.button
+                id="new-test-definition"
+                variant="ghost"
+                size="sm"
+                navigate={~p"/projects/#{@project.slug}/test-definitions/new"}
+              >
+                <.icon name="hero-plus-mini" class="size-4" /> {gettext("New")}
+              </.button>
+            </:actions>
+
+            <ul id="test-definition-list" phx-update="stream" class="divide-y divide-base-300">
+              <li id="test-definitions-empty" class="hidden only:block">
+                <.empty_state
+                  id="test-definitions-empty-state"
+                  icon="hero-beaker"
+                  title={gettext("No test definitions yet")}
+                  compact
+                >
+                  {gettext("A test definition names the image that contains the test suite.")}
+                </.empty_state>
+              </li>
+              <li :for={{id, test_definition} <- @streams.test_definitions} id={id}>
+                <.link
+                  navigate={
+                    ~p"/projects/#{@project.slug}/test-definitions/#{test_definition.id}/edit"
+                  }
+                  class={[
+                    "group flex items-center justify-between gap-3 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40",
+                    !test_definition.enabled && "opacity-60 hover:opacity-100"
+                  ]}
+                >
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium">{test_definition.name}</p>
+                    <p
+                      class="truncate font-mono text-xs text-base-content/50"
+                      title={test_definition.image}
+                    >
+                      {test_definition.image}
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <.badge :if={!test_definition.enabled} tone={:warning}>
+                      {gettext("disabled")}
+                    </.badge>
+                    <.badge title={gettext("Timeout")}>
+                      <.icon name="hero-clock-mini" class="size-3.5" />
+                      {format_timeout(test_definition.timeout_seconds)}
+                    </.badge>
+                    <.icon
+                      name="hero-chevron-right-mini"
+                      class="size-4 text-base-content/30 transition group-hover:translate-x-0.5 group-hover:text-primary"
+                    />
+                  </div>
+                </.link>
+              </li>
+            </ul>
           </.panel>
 
           <.panel id="environments" title={gettext("Environments")}>

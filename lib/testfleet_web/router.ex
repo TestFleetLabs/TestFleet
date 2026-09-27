@@ -24,6 +24,8 @@ defmodule TestFleetWeb.Router do
       live "/projects/new", ProjectLive.Form, :new
       live "/projects/:slug", ProjectLive.Show, :show
       live "/projects/:slug/edit", ProjectLive.Form, :edit
+      live "/projects/:slug/test-definitions/new", TestDefinitionLive.Form, :new
+      live "/projects/:slug/test-definitions/:id/edit", TestDefinitionLive.Form, :edit
       live "/projects/:slug/environments/new", EnvironmentLive.Form, :new
       live "/projects/:slug/environments/:env", EnvironmentLive.Show, :show
       live "/projects/:slug/environments/:env/edit", EnvironmentLive.Form, :edit

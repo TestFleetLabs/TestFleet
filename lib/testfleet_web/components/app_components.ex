@@ -143,17 +143,21 @@ defmodule TestFleetWeb.AppComponents do
   """
   attr :tone, :atom, default: :neutral, values: [:neutral, :primary, :warning]
   attr :class, :any, default: nil
+  attr :title, :string, default: nil
   slot :inner_block, required: true
 
   def badge(assigns) do
     ~H"""
-    <span class={[
-      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
-      @tone == :neutral && "bg-base-200 text-base-content/70",
-      @tone == :primary && "bg-primary/10 text-primary",
-      @tone == :warning && "bg-warning/15 text-warning",
-      @class
-    ]}>
+    <span
+      class={[
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
+        @tone == :neutral && "bg-base-200 text-base-content/70",
+        @tone == :primary && "bg-primary/10 text-primary",
+        @tone == :warning && "bg-warning/15 text-warning",
+        @class
+      ]}
+      title={@title}
+    >
       {render_slot(@inner_block)}
     </span>
     """
