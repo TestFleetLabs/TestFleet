@@ -2386,6 +2386,8 @@ Docker Engine API (authenticated pull, create, start, wait)
 final status (section 24)
 ```
 
+Details: [milestone-3-manual-execution.md](milestone-3-manual-execution.md). Cancellation and a startup-only form of recovery are brought forward from Milestone 7, because without them a hanging or orphaned run would block its environment.
+
 ---
 
 ## Milestone 4 — Live Output
@@ -2443,10 +2445,10 @@ Implement:
 
 Implement:
 
-- cancellation
+- cancellation (built in Milestone 3; hardening here)
 - timeout
 - cleanup
-- reconciliation and reattaching
+- reconciliation and reattaching (startup recovery built in Milestone 3; periodic here)
 - orphan detection
 - Docker failure handling
 - image cleanup
