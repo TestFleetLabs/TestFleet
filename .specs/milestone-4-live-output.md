@@ -208,7 +208,7 @@ The masking test after a reattach uses `alpine:3` with an inline loop that print
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** all slices are built (250 tests, plus 54 Docker integration tests). The manual walkthrough (section 12) is pending.
+**Status (2026-09-27): done.** All three slices are built and tested (250 tests, plus 54 Docker integration tests), and the manual walkthrough of section 12 worked: live lines, follow and "Jump to latest", masked secrets on the page, in the download, and in `run_logs`, a log that continued across a restart, and the stored log of a finished run.
 
 ---
 

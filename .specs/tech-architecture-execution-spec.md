@@ -408,6 +408,8 @@ queue  → a new run is queued and waits
 allow  → runs may execute in parallel
 ```
 
+Under `queue`, at most one run waits: a tick while one is already queued is skipped. The waiting run starts only after the previous run of its schedule finished, even if the environment's limit would allow both. See [milestone-5-scheduling.md](milestone-5-scheduling.md), section 5.
+
 Schedules have minute-level precision.
 
 ---
@@ -2431,6 +2433,8 @@ Execution.Dispatcher
 ```
 
 including timezone/DST handling, missed-slot coalescing, and overlap policy.
+
+Details: [milestone-5-scheduling.md](milestone-5-scheduling.md).
 
 ---
 
