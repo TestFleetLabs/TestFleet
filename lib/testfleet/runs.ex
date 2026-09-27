@@ -24,6 +24,7 @@ defmodule TestFleet.Runs do
   alias TestFleet.Registries
   alias TestFleet.Repo
   alias TestFleet.Runs.{LogLine, Run}
+  alias TestFleet.Schedules.Schedule
   alias TestFleet.TestDefinitions.TestDefinition
 
   @topic "runs"
@@ -167,6 +168,75 @@ defmodule TestFleet.Runs do
     end
   end
 
+  @doc """
+  Creates the queued run of a schedule's slot, unless the overlap policy or a
+  disabled test definition says to skip it (Milestone 5, sections 5 and 6):
+
+      {:ok, run} | {:ok, :exists} | {:skipped, :overlap | :test_definition_disabled}
+
+  Meant to run inside the schedule tick's transaction, with the schedule locked; it
+  does not broadcast. The caller broadcasts with `broadcast_created/1` after the commit.
+  """
+  def create_scheduled(
+        %Schedule{} = schedule,
+        %DateTime{} = scheduled_for,
+        now \\ DateTime.utc_now()
+      ) do
+    test_definition = Repo.get!(TestDefinition, schedule.test_definition_id)
+
+    cond do
+      !test_definition.enabled ->
+        {:skipped, :test_definition_disabled}
+
+      overlap?(schedule) ->
+        {:skipped, :overlap}
+
+      true ->
+        run = %Run{
+          trigger: :schedule,
+          status: :queued,
+          schedule_id: schedule.id,
+          scheduled_for: usec(scheduled_for),
+          test_definition_id: test_definition.id,
+          environment_id: schedule.environment_id,
+          image: test_definition.image,
+          command: test_definition.command,
+          queued_at: usec(now)
+        }
+
+        # The unique index on (schedule_id, scheduled_for) guards against a slot
+        # created twice, whatever the cause.
+        case Repo.insert(run,
+               on_conflict: :nothing,
+               conflict_target: [:schedule_id, :scheduled_for]
+             ) do
+          {:ok, %Run{id: nil}} -> {:ok, :exists}
+          {:ok, run} -> {:ok, preload(run)}
+        end
+    end
+  end
+
+  # A schedule's own unfinished runs; manual runs do not count.
+  defp overlap?(%Schedule{overlap_policy: :allow}), do: false
+
+  defp overlap?(%Schedule{id: id, overlap_policy: policy}) do
+    statuses =
+      Repo.all(
+        from r in Run,
+          where: r.schedule_id == ^id and r.status in ^[:queued | Run.active_statuses()],
+          select: r.status
+      )
+
+    case policy do
+      :skip -> statuses != []
+      # At most one run waits.
+      :queue -> :queued in statuses
+    end
+  end
+
+  @doc "Announces a run created without broadcasting, e.g. by `create_scheduled/3` after its commit."
+  def broadcast_created(%Run{} = run), do: broadcast(run, :run_created)
+
   ## Cancelling
 
   @doc """
@@ -188,14 +258,28 @@ defmodule TestFleet.Runs do
 
   ## Dispatching
 
-  @doc "Queued runs, oldest first, with their environment (for its limit)."
+  @doc """
+  Queued runs, oldest first, with their environment (for its limit) and schedule
+  (for its overlap policy).
+  """
   def list_queued do
     Repo.all(
       from r in Run,
         where: r.status == :queued,
         order_by: [asc: r.id],
-        preload: :environment
+        preload: [:environment, :schedule]
     )
+  end
+
+  @doc "The ids of schedules that have a `preparing` or `running` run."
+  def active_schedule_ids do
+    Repo.all(
+      from r in Run,
+        where: r.status in ^Run.active_statuses() and not is_nil(r.schedule_id),
+        distinct: true,
+        select: r.schedule_id
+    )
+    |> MapSet.new()
   end
 
   @doc """

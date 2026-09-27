@@ -1,12 +1,15 @@
 defmodule TestFleet.Schedules do
   @moduledoc """
   Schedules: when a test definition runs against an environment (main spec
-  section 28). Creating runs from due schedules is the schedule tick (Milestone 5).
+  section 28). `tick/1` creates the runs of due schedules (Milestone 5).
   """
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias TestFleet.Environments.Environment
+  alias TestFleet.Runs
   alias TestFleet.Projects.Project
   alias TestFleet.Repo
   alias TestFleet.Schedules.{Cron, Schedule}
@@ -88,6 +91,134 @@ defmodule TestFleet.Schedules do
   end
 
   def preview(_expression, _timezone, _count, _now), do: []
+
+  ## The schedule tick (Milestone 5, section 4)
+
+  @doc """
+  Creates the runs of all due schedules and moves each to its next occurrence
+  after `now`. Called every minute by `TestFleet.Schedules.TickWorker`.
+
+  Each schedule is handled in its own transaction, with its row locked (`SKIP
+  LOCKED`: a schedule another tick holds is left to it). Missed slots are coalesced
+  into one run. Returns `[{schedule_id, outcome}]` for the schedules it handled.
+  """
+  def tick(%DateTime{} = now) do
+    Repo.all(
+      from s in Schedule,
+        where: s.enabled and s.next_run_at <= ^now,
+        order_by: [asc: s.next_run_at, asc: s.id],
+        select: s.id
+    )
+    |> Enum.flat_map(fn id ->
+      case tick_schedule(id, now) do
+        :not_due -> []
+        outcome -> [{id, outcome}]
+      end
+    end)
+  end
+
+  defp tick_schedule(id, now) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        schedule =
+          Repo.one(
+            from s in Schedule,
+              where: s.id == ^id and s.enabled and s.next_run_at <= ^now,
+              lock: "FOR UPDATE SKIP LOCKED"
+          )
+
+        if schedule, do: fire(schedule, now), else: :not_due
+      end)
+
+    # After the commit, so the dispatcher never wakes up before the run is visible.
+    case result do
+      {:created, run} ->
+        Runs.broadcast_created(run)
+        :created
+
+      outcome ->
+        outcome
+    end
+  end
+
+  defp fire(schedule, now) do
+    case next_occurrence(schedule, now) do
+      {:ok, next_run_at} ->
+        log_missed_slots(schedule, now)
+        slot = schedule.next_run_at
+
+        {outcome, changes, result} =
+          case Runs.create_scheduled(schedule, slot, now) do
+            {:ok, :exists} ->
+              {:created, [], :created}
+
+            {:ok, run} ->
+              {:created, [last_run_id: run.id], {:created, run}}
+
+            {:skipped, :overlap} ->
+              Logger.info(
+                "schedule #{schedule.id}: skipped #{slot}, its previous run is unfinished"
+              )
+
+              {:skipped_overlap, [], :skipped_overlap}
+
+            {:skipped, :test_definition_disabled} ->
+              {:skipped_disabled, [], :skipped_disabled}
+          end
+
+        update_tick(
+          schedule,
+          [next_run_at: next_run_at, last_tick_at: slot, last_tick_outcome: outcome] ++ changes
+        )
+
+        result
+
+      {:error, reason} ->
+        Logger.error("schedule #{schedule.id}: disabled, #{reason}")
+        update_tick(schedule, enabled: false)
+        :disabled
+    end
+  end
+
+  # The form prevents broken schedules; data changed by hand, or a time zone removed
+  # from the database, must not fail every minute.
+  defp next_occurrence(schedule, now) do
+    with {:tz, true} <- {:tz, TestFleet.Schedules.Timezones.valid?(schedule.timezone)},
+         {:ok, cron} <- Cron.parse(schedule.cron_expression),
+         {:ok, next_run_at} <- Cron.next_run(cron, schedule.timezone, now) do
+      {:ok, next_run_at}
+    else
+      {:tz, false} -> {:error, "unknown time zone #{inspect(schedule.timezone)}"}
+      {:error, :never} -> {:error, "#{inspect(schedule.cron_expression)} never matches again"}
+      {:error, message} -> {:error, "#{inspect(schedule.cron_expression)} #{message}"}
+    end
+  end
+
+  # One run covers all missed slots; the log says how many there were.
+  @max_counted_slots 1_000
+
+  defp log_missed_slots(schedule, now) do
+    {:ok, cron} = Cron.parse(schedule.cron_expression)
+
+    missed =
+      cron
+      |> Cron.next_runs(schedule.timezone, schedule.next_run_at, @max_counted_slots)
+      |> Enum.count(&(DateTime.compare(&1, now) != :gt))
+
+    if missed > 0 do
+      count = if missed == @max_counted_slots, do: "#{missed}+", else: "#{missed}"
+
+      Logger.warning(
+        "schedule #{schedule.id}: one run for #{schedule.next_run_at}, " <>
+          "covering #{count} missed later slot(s)"
+      )
+    end
+  end
+
+  # Not through a changeset: `updated_at` means "configuration changed".
+  defp update_tick(schedule, changes) do
+    Repo.update_all(from(s in Schedule, where: s.id == ^schedule.id), set: changes)
+  end
 
   defp changeset(%Project{id: project_id}, schedule, attrs, opts) do
     test_definition_ids =

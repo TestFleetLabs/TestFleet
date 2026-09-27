@@ -54,7 +54,7 @@ New columns on `schedules`:
 |--------|------|---------|
 | `last_tick_at` | `utc_datetime`, nullable | The slot (`scheduled_for`) the schedule last fired for |
 | `last_tick_outcome` | text, nullable (`Ecto.Enum`) | `created`, `skipped_overlap`, or `skipped_disabled` |
-| `last_run_id` | FK `runs`, nullable, `on_delete: :nilify_all` | The run created by the last tick |
+| `last_run_id` | FK `runs`, nullable, `on_delete: :nilify_all` | The run created by the last tick that created one. A skip keeps it, so a skipped row can still point to the run that blocked it. |
 
 The tick writes them with a direct update, so `schedules.updated_at` keeps meaning "configuration changed".
 
@@ -165,7 +165,7 @@ config :testfleet, Oban,
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** specified; not started.
+**Status (2026-09-27):** slice A is built (267 tests, plus 55 Docker integration tests).
 
 ---
 

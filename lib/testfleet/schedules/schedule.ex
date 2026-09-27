@@ -19,8 +19,13 @@ defmodule TestFleet.Schedules.Schedule do
     field :overlap_policy, Ecto.Enum, values: [:skip, :queue, :allow], default: :skip
     field :enabled, :boolean, default: true
 
+    # Written by the schedule tick only (`TestFleet.Schedules.tick/1`), never cast.
+    field :last_tick_at, :utc_datetime
+    field :last_tick_outcome, Ecto.Enum, values: [:created, :skipped_overlap, :skipped_disabled]
+
     belongs_to :test_definition, TestFleet.TestDefinitions.TestDefinition
     belongs_to :environment, TestFleet.Environments.Environment
+    belongs_to :last_run, TestFleet.Runs.Run
 
     timestamps(type: :utc_datetime)
   end

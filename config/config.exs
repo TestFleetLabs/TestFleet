@@ -30,6 +30,12 @@ config :testfleet, Oban,
   engine: Oban.Engines.Basic,
   repo: TestFleet.Repo,
   queues: [default: 10, schedules: 1, notifications: 5, cleanup: 1],
+  # One static entry drives all user-defined schedules (Milestone 5, section 4).
+  cron: [
+    crontab: [
+      {"* * * * *", TestFleet.Schedules.TickWorker}
+    ]
+  ],
   pruner: [max_age: 7 * 24 * 60 * 60],
   # Rescues TestFleet's own jobs; runs are recovered by the reconciler, never by Oban.
   lifeline: [rescue_after: :timer.minutes(30)]

@@ -127,6 +127,55 @@ defmodule TestFleet.Execution.DispatcherTest do
     assert message =~ "docker_down"
   end
 
+  describe "a schedule's runs" do
+    defp scheduled_run(context, schedule, attrs) do
+      run_fixture(
+        [
+          test_definition: context.test_definition,
+          environment: schedule.environment,
+          schedule_id: schedule.id,
+          scheduled_for: DateTime.utc_now()
+        ] ++ attrs
+      )
+    end
+
+    defp schedule(context, policy) do
+      TestFleet.SchedulesFixtures.schedule_fixture(
+        project: context.project,
+        test_definition: context.test_definition,
+        environment: environment(context, 5),
+        overlap_policy: policy
+      )
+    end
+
+    test "under queue, a run waits for its schedule's previous run", context do
+      schedule = schedule(context, :queue)
+      previous = scheduled_run(context, schedule, status: :running)
+      waiting = scheduled_run(context, schedule, [])
+      other = queued(context, schedule.environment)
+
+      start_dispatcher()
+      # Waiting does not block other runs.
+      assert started_ids() == [other.id]
+      assert %{status: :queued} = Runs.get_run!(waiting.id)
+
+      {:ok, _} = Runs.fail(previous.id, "done")
+      :ok = Dispatcher.dispatch()
+
+      waiting_id = waiting.id
+      assert_received {:engine_started, %{run_id: ^waiting_id}, _opts}
+    end
+
+    test "under allow, runs of a schedule run in parallel", context do
+      schedule = schedule(context, :allow)
+      scheduled_run(context, schedule, status: :running)
+      parallel = scheduled_run(context, schedule, [])
+
+      start_dispatcher()
+      assert started_ids() == [parallel.id]
+    end
+  end
+
   test "wakes up when a run is created", context do
     environment = environment(context, 1)
     start_dispatcher()

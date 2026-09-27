@@ -17,6 +17,9 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
   alias TestFleet.Runs.Run
 
   @moduletag :docker
+  # Run processes may still write when a test ends (a Postgrex disconnect is logged),
+  # and the scheduled run logs its coalesced slot. Shown if a test fails.
+  @moduletag :capture_log
 
   setup_all do
     ensure_docker!()
@@ -134,6 +137,30 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
 
     assert statuses == [:queued, :preparing, :error]
     assert is_binary(message)
+  end
+
+  test "a due schedule runs through the same pipeline", context do
+    environment = environment_fixture(project: context.project, max_concurrent_runs: 1)
+    variable_fixture(environment, %{key: "SPIKE_MODE", value: "pass"})
+
+    schedule =
+      TestFleet.SchedulesFixtures.schedule_fixture(
+        project: context.project,
+        test_definition: context.test_definition,
+        environment: environment,
+        cron_expression: "* * * * *",
+        now: DateTime.add(DateTime.utc_now(), -120, :second)
+      )
+
+    Runs.subscribe()
+    assert [{_, :created}] = TestFleet.Schedules.tick(DateTime.utc_now())
+
+    assert_receive {:run_created, %Run{trigger: :schedule, id: run_id}}, 5_000
+    on_exit(fn -> Command.remove(RunExecution.container_name(run_id)) end)
+
+    assert {%Run{status: :passed, schedule_id: schedule_id}, statuses} = await_finished(run_id)
+    assert schedule_id == schedule.id
+    assert statuses == [:preparing, :running, :passed]
   end
 
   test "output is stored and broadcast with secrets masked", context do

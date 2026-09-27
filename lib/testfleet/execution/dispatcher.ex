@@ -96,27 +96,40 @@ defmodule TestFleet.Execution.Dispatcher do
 
   defp dispatch_pass(state) do
     {total, by_environment} = Runs.active_counts()
+    acc = {total, by_environment, Runs.active_schedule_ids()}
 
-    Enum.reduce_while(Runs.list_queued(), {total, by_environment}, fn run, {total, counts} ->
+    Enum.reduce_while(Runs.list_queued(), acc, fn run, {total, counts, schedules} = acc ->
       environment_count = Map.get(counts, run.environment_id, 0)
 
       cond do
         total >= state.max_concurrent_runs ->
-          {:halt, {total, counts}}
+          {:halt, acc}
 
         environment_count >= run.environment.max_concurrent_runs ->
-          {:cont, {total, counts}}
+          {:cont, acc}
+
+        waits_for_previous_run?(run, schedules) ->
+          {:cont, acc}
 
         admit(run, state) == :started ->
-          {:cont, {total + 1, Map.put(counts, run.environment_id, environment_count + 1)}}
+          {:cont,
+           {total + 1, Map.put(counts, run.environment_id, environment_count + 1),
+            if(run.schedule_id, do: MapSet.put(schedules, run.schedule_id), else: schedules)}}
 
         true ->
-          {:cont, {total, counts}}
+          {:cont, acc}
       end
     end)
 
     :ok
   end
+
+  # Under `queue`, a schedule's run starts only after its previous run finished,
+  # even if the environment would allow both (Milestone 5, section 5).
+  defp waits_for_previous_run?(%{schedule: %{overlap_policy: :queue, id: id}}, schedules),
+    do: MapSet.member?(schedules, id)
+
+  defp waits_for_previous_run?(_run, _schedules), do: false
 
   # The run is marked `preparing` before its process starts, so the counts include it
   # and no later pass can admit it twice.
