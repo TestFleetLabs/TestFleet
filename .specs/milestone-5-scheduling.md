@@ -126,11 +126,11 @@ create_scheduled(schedule, scheduled_for)
 
 ```elixir
 config :testfleet, Oban,
-  # pruner and lifeline stay as they are (top-level services in this Oban version)
-  plugins: [{Oban.Plugins.Cron, crontab: [{"* * * * *", TestFleet.Schedules.TickWorker}]}]
+  # A top-level service in this Oban version, like pruner and lifeline.
+  cron: [crontab: [{"* * * * *", TestFleet.Schedules.TickWorker}]]
 ```
 
-- The cron plugin runs only on the leader node; with one node, that is the node.
+- Cron runs only on the leader node; with one node, that is the node.
 - The test environment runs Oban with `testing: :manual`, so no cron fires in tests. Tests call `Schedules.tick/1` directly, and one test checks with `Oban.Testing` that the worker calls it.
 - `max_attempts: 1`: a failed tick is not retried; the next minute's tick picks up everything that is still due.
 
@@ -140,19 +140,23 @@ config :testfleet, Oban,
 
 ### Schedule rows (project page)
 
-- The last outcome next to the next run time:
-  - created: "Last run #1842 · Sat 06:00" with a link to the run
-  - `skipped_overlap`: "Skipped at 06:00: the previous run was still running", with a warning tone
-  - `skipped_disabled`: "Skipped at 06:00: the test definition is disabled"
-- Updated live: the project page already subscribes to `runs`. A schedule's row is refreshed when one of its runs is created. Skips are only visible after a reload; a skip changes no run.
+- The last outcome below the cron expression:
+  - created: "Last run #1842 [status] · Sat 27 Sep 2026, 06:00 CEST"
+  - `skipped_overlap`: "Skipped … because the previous run was unfinished", with a warning tone
+  - `skipped_disabled`: "Skipped … because the test definition is disabled", with a warning tone
+- The run number is not a link: the row already links to the schedule's edit form, and links cannot be nested. The run is in "Recent runs" on the same page.
+- Updated live: the project page already subscribes to `runs`. A schedule's row is refreshed whenever one of its runs changes, so the last run's status stays current. Skips are only visible after a reload; a skip changes no run.
 
 ### Run page
 
-- For a scheduled run, the trigger reads "Schedule" with the slot in the schedule's time zone ("Schedule · 06:00 CEST") and links to the schedule's edit form. If the schedule was deleted, only "Schedule" and the slot remain.
+- For a scheduled run, the trigger reads "Schedule" with the cron expression and links to the schedule's edit form.
+- A separate "Scheduled for" row shows the slot (`scheduled_for`) in the schedule's time zone. It differs from the queued and started times after downtime (coalesced slots) or a `queue` wait.
+- If the schedule was deleted, the trigger is plain "Schedule", and "Scheduled for" remains.
 
 ### Dashboard
 
 - "Upcoming schedules" marks a schedule as **overdue** when its `next_run_at` is more than 2 minutes in the past. While the tick works this never happens, so an overdue badge means scheduling is stuck (main spec section 48, "missed schedules"). Alerts for it come with Milestone 8.
+- The panel is reloaded every minute (with the figures) and when a scheduled run is created, so it shows each schedule's next time, and a stuck tick becomes visible without a reload. Until now it was loaded only on mount.
 
 ---
 
@@ -165,7 +169,7 @@ config :testfleet, Oban,
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slice A is built (267 tests, plus 55 Docker integration tests).
+**Status (2026-09-27):** all slices are built (273 tests, plus 55 Docker integration tests). The manual walkthrough (section 11) is pending.
 
 ---
 

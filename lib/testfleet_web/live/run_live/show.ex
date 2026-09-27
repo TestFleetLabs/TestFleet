@@ -5,7 +5,7 @@ defmodule TestFleetWeb.RunLive.Show do
   """
   use TestFleetWeb, :live_view
 
-  alias TestFleet.Runs
+  alias TestFleet.{Runs, Schedules}
   alias TestFleet.Runs.Run
   alias TestFleet.Schedules.Timezones
 
@@ -32,6 +32,8 @@ defmodule TestFleetWeb.RunLive.Show do
      |> assign(:first_sequence, (List.first(lines) || %{sequence: 1}).sequence)
      |> assign(:line_count, max(run.last_log_sequence, length(lines)))
      |> assign(:max_lines, @max_lines)
+     # Loaded once: a run never changes its schedule. Nil if it was deleted.
+     |> assign(:schedule, run.schedule_id && Schedules.get_schedule(run.schedule_id))
      |> stream_configure(:log_lines, dom_id: &"log-#{&1.sequence}")
      |> stream(:log_lines, lines)
      |> assign_run(run)}
@@ -304,7 +306,36 @@ defmodule TestFleetWeb.RunLive.Show do
 
         <.panel id="run-execution" title={gettext("Execution")}>
           <dl class="divide-y divide-base-300 text-sm">
-            <.detail label={gettext("Trigger")}>{trigger_label(@run.trigger)}</.detail>
+            <.detail label={gettext("Trigger")}>
+              <span id="run-trigger" class="flex flex-wrap items-center gap-1.5">
+                <%= if @schedule do %>
+                  <.link
+                    id="run-schedule"
+                    navigate={
+                      ~p"/projects/#{@run.test_definition.project.slug}/schedules/#{@schedule.id}/edit"
+                    }
+                    class="font-medium transition-colors hover:text-primary"
+                  >
+                    {trigger_label(@run.trigger)}
+                    <span class="font-mono text-xs text-base-content/60">
+                      {@schedule.cron_expression}
+                    </span>
+                  </.link>
+                <% else %>
+                  {trigger_label(@run.trigger)}
+                <% end %>
+              </span>
+            </.detail>
+            <%!-- The slot the run belongs to: after downtime or a queue wait, it differs
+                  from when the run was queued or started. --%>
+            <.detail :if={@run.scheduled_for} label={gettext("Scheduled for")}>
+              <span id="run-scheduled-for">
+                <.local_time
+                  at={@run.scheduled_for}
+                  timezone={(@schedule && @schedule.timezone) || @timezone}
+                />
+              </span>
+            </.detail>
             <.detail label={gettext("Image")}>
               <span class="font-mono text-xs break-all">{@run.image}</span>
             </.detail>

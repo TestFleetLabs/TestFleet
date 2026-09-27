@@ -29,7 +29,16 @@ defmodule TestFleetWeb.DashboardLive do
      |> assign_stats()
      |> assign_queue()
      |> RunFeed.init(:recent, Runs.list_runs(limit: @recent_limit))
-     |> stream(:upcoming, Schedules.list_upcoming(@upcoming_limit))}
+     |> assign_upcoming()}
+  end
+
+  # A schedule this late means the tick is not running (Milestone 5, section 8).
+  @overdue_after_seconds 120
+
+  defp assign_upcoming(socket) do
+    socket
+    |> assign(:overdue_before, DateTime.add(DateTime.utc_now(), -@overdue_after_seconds))
+    |> stream(:upcoming, Schedules.list_upcoming(@upcoming_limit), reset: true)
   end
 
   defp assign_stats(socket),
@@ -53,13 +62,18 @@ defmodule TestFleetWeb.DashboardLive do
         do: assign_queue(socket),
         else: socket
 
+    # A scheduled run means its schedule moved to its next time.
+    socket =
+      if event == :run_created and run.schedule_id, do: assign_upcoming(socket), else: socket
+
     {:noreply,
      socket
      |> assign_stats()
      |> RunFeed.apply_event(:recent, message, @recent_limit)}
   end
 
-  def handle_info(:refresh_stats, socket), do: {:noreply, assign_stats(socket)}
+  def handle_info(:refresh_stats, socket),
+    do: {:noreply, socket |> assign_stats() |> assign_upcoming()}
 
   @impl true
   def render(assigns) do
@@ -179,6 +193,18 @@ defmodule TestFleetWeb.DashboardLive do
                     <p class="mt-1 flex items-center gap-1.5 text-xs text-base-content/60">
                       <.icon name="hero-clock-mini" class="size-3.5" />
                       <.local_time at={schedule.next_run_at} timezone={schedule.timezone} />
+                      <.badge
+                        :if={DateTime.before?(schedule.next_run_at, @overdue_before)}
+                        id={"schedule-#{schedule.id}-overdue"}
+                        tone={:warning}
+                        title={
+                          gettext(
+                            "Scheduling is not running: the schedule tick has not picked this up."
+                          )
+                        }
+                      >
+                        {gettext("overdue")}
+                      </.badge>
                     </p>
                   </.link>
                 </li>

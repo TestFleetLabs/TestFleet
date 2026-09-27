@@ -25,9 +25,66 @@ defmodule TestFleetWeb.ProjectLive.Show do
   @impl true
   def handle_info({event, run} = message, socket)
       when event in [:run_created, :run_updated, :run_finished] do
-    if run.test_definition.project_id == socket.assigns.project.id,
-      do: {:noreply, RunFeed.apply_event(socket, :runs, message, @recent_runs)},
-      else: {:noreply, socket}
+    if run.test_definition.project_id == socket.assigns.project.id do
+      {:noreply,
+       socket
+       |> RunFeed.apply_event(:runs, message, @recent_runs)
+       |> refresh_schedule(run)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # A scheduled run's row shows its last run and that run's status. Skips change no
+  # run, so they appear on the next load.
+  defp refresh_schedule(socket, %{schedule_id: nil}), do: socket
+
+  defp refresh_schedule(socket, %{schedule_id: id}) do
+    stream_insert(socket, :schedules, Schedules.get_schedule!(socket.assigns.project, id))
+  rescue
+    # Deleted meanwhile.
+    Ecto.NoResultsError -> socket
+  end
+
+  # What the schedule tick last did (Milestone 5, section 8). The row itself links
+  # to the edit form, so the run is not a link here; it is in "Recent runs".
+  attr :schedule, TestFleet.Schedules.Schedule, required: true
+
+  defp last_tick(%{schedule: %{last_tick_outcome: nil}} = assigns), do: ~H""
+
+  defp last_tick(assigns) do
+    ~H"""
+    <p
+      id={"schedule-#{@schedule.id}-last-tick"}
+      data-outcome={@schedule.last_tick_outcome}
+      class={[
+        "mt-1 flex flex-wrap items-center gap-1.5 text-xs",
+        if(@schedule.last_tick_outcome == :created,
+          do: "text-base-content/60",
+          else: "text-warning"
+        )
+      ]}
+    >
+      <%= case @schedule.last_tick_outcome do %>
+        <% :created -> %>
+          <span>{gettext("Last run")}</span>
+          <span :if={@schedule.last_run} class="tabular-nums">#{@schedule.last_run.id}</span>
+          <.run_status :if={@schedule.last_run} status={@schedule.last_run.status} />
+          <span>·</span>
+          <.local_time at={@schedule.last_tick_at} timezone={@schedule.timezone} />
+        <% :skipped_overlap -> %>
+          <.icon name="hero-forward-mini" class="size-3.5" />
+          <span>{gettext("Skipped")}</span>
+          <.local_time at={@schedule.last_tick_at} timezone={@schedule.timezone} />
+          <span>{gettext("because the previous run was unfinished")}</span>
+        <% :skipped_disabled -> %>
+          <.icon name="hero-forward-mini" class="size-3.5" />
+          <span>{gettext("Skipped")}</span>
+          <.local_time at={@schedule.last_tick_at} timezone={@schedule.timezone} />
+          <span>{gettext("because the test definition is disabled")}</span>
+      <% end %>
+    </p>
+    """
   end
 
   defp overlap_label(:queue), do: gettext("queues overlaps")
@@ -233,6 +290,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                       {schedule.cron_expression}
                       <span class="font-sans">· {schedule.timezone}</span>
                     </p>
+                    <.last_tick schedule={schedule} />
                   </div>
                   <div class="flex shrink-0 items-center gap-2">
                     <.badge :if={schedule.overlap_policy != :skip}>

@@ -15,15 +15,19 @@ defmodule TestFleet.Schedules do
   alias TestFleet.Schedules.{Cron, Schedule}
   alias TestFleet.TestDefinitions.TestDefinition
 
-  @doc "A project's schedules, soonest first, with test definition and environment."
+  @doc """
+  A project's schedules, soonest first, with test definition, environment, and the
+  run the last tick created.
+  """
   def list_schedules(%Project{id: project_id}) do
     Repo.all(
       from s in Schedule,
         join: t in assoc(s, :test_definition),
         join: e in assoc(s, :environment),
+        left_join: r in assoc(s, :last_run),
         where: t.project_id == ^project_id,
         order_by: [desc: s.enabled, asc: s.next_run_at],
-        preload: [test_definition: t, environment: e]
+        preload: [test_definition: t, environment: e, last_run: r]
     )
   end
 
@@ -41,15 +45,20 @@ defmodule TestFleet.Schedules do
     )
   end
 
+  @doc "A project's schedule, preloaded like `list_schedules/1`."
   def get_schedule!(%Project{id: project_id}, id) do
     Repo.one!(
       from s in Schedule,
         join: t in assoc(s, :test_definition),
         join: e in assoc(s, :environment),
+        left_join: r in assoc(s, :last_run),
         where: s.id == ^id and t.project_id == ^project_id,
-        preload: [test_definition: t, environment: e]
+        preload: [test_definition: t, environment: e, last_run: r]
     )
   end
+
+  @doc "A schedule by id, or nil if it was deleted."
+  def get_schedule(id), do: Repo.get(Schedule, id)
 
   @doc "Options: `:now`, the time `next_run_at` is computed from (default: now)."
   def create_schedule(%Project{} = project, attrs, opts \\ []) do
