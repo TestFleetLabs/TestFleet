@@ -312,7 +312,7 @@ defmodule TestFleet.Runs do
     max_bytes = Keyword.get_lazy(opts, :max_log_bytes, &max_log_bytes/0)
     lines = Enum.map(lines, &sanitize_line/1)
 
-    {:ok, :ok} =
+    {:ok, cut?} =
       Repo.transaction(fn ->
         %{log_bytes: log_bytes, log_truncated: truncated} =
           Repo.one!(
@@ -354,10 +354,15 @@ defmodule TestFleet.Runs do
           []
         )
 
-        :ok
+        cut?
       end)
 
     Phoenix.PubSub.broadcast(TestFleet.PubSub, run_topic(run_id), {:run_output, lines})
+
+    # Once per run: the run page shows that later output is not stored.
+    if cut?, do: broadcast(get_run!(run_id), :run_updated)
+
+    :ok
   end
 
   # PostgreSQL text cannot hold NUL bytes.
@@ -382,8 +387,30 @@ defmodule TestFleet.Runs do
       else: {Enum.reverse(acc), true}
   end
 
-  defp max_log_bytes,
+  @doc "The stored log size per run (`config :testfleet, TestFleet.Runs, max_log_bytes: ...`)."
+  def max_log_bytes,
     do: Application.get_env(:testfleet, __MODULE__, [])[:max_log_bytes] || @max_log_bytes
+
+  @doc """
+  Reduces over a run's stored log in order, in chunks of up to 1,000 lines, without
+  loading it into memory: `fun.(lines, acc)` returns the new acc.
+  """
+  def reduce_log(%Run{id: id}, acc, fun) do
+    query = from l in LogLine, where: l.run_id == ^id, order_by: l.sequence
+
+    {:ok, acc} =
+      Repo.transaction(
+        fn ->
+          query
+          |> Repo.stream(max_rows: 1_000)
+          |> Stream.chunk_every(1_000)
+          |> Enum.reduce(acc, fun)
+        end,
+        timeout: :infinity
+      )
+
+    acc
+  end
 
   @doc "The last `limit` stored lines of a run, in order."
   def list_log_tail(%Run{id: id}, limit) do

@@ -9,11 +9,19 @@ defmodule TestFleetWeb.RunLive.Show do
   alias TestFleet.Runs.Run
   alias TestFleet.Schedules.Timezones
 
+  # Lines loaded on mount, and the most kept in the page (Milestone 4, section 8).
+  @history_lines 1_000
+  @max_lines 2_000
+
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     run = Runs.get_run!(id)
 
+    # Subscribed before the history is loaded: a batch that overlaps it updates
+    # the same lines (DOM id `log-<sequence>`) instead of repeating them.
     if connected?(socket), do: Runs.subscribe(run.id)
+
+    lines = Runs.list_log_tail(run, @history_lines)
 
     {:ok,
      socket
@@ -21,6 +29,11 @@ defmodule TestFleetWeb.RunLive.Show do
      |> assign(:timezone, Timezones.default())
      |> assign(:ticking, false)
      |> assign(:cancelling, false)
+     |> assign(:first_sequence, (List.first(lines) || %{sequence: 1}).sequence)
+     |> assign(:line_count, max(run.last_log_sequence, length(lines)))
+     |> assign(:max_lines, @max_lines)
+     |> stream_configure(:log_lines, dom_id: &"log-#{&1.sequence}")
+     |> stream(:log_lines, lines)
      |> assign_run(run)}
   end
 
@@ -55,6 +68,13 @@ defmodule TestFleetWeb.RunLive.Show do
   def handle_info({event, %Run{id: id} = run}, %{assigns: %{run: %Run{id: id}}} = socket)
       when event in [:run_created, :run_updated, :run_finished] do
     {:noreply, assign_run(socket, run)}
+  end
+
+  def handle_info({:run_output, lines}, socket) do
+    {:noreply,
+     socket
+     |> update(:line_count, &max(&1, List.last(lines).sequence))
+     |> stream(:log_lines, lines, limit: -@max_lines)}
   end
 
   @impl true
@@ -159,6 +179,128 @@ defmodule TestFleetWeb.RunLive.Show do
             <span class="tabular-nums">{format_duration(run_duration(@run, @now))}</span>
           </.fact>
         </div>
+
+        <.panel id="run-output" title={gettext("Output")} class="overflow-hidden">
+          <:actions>
+            <span
+              :if={@run.status == :running}
+              id="run-output-live"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-info"
+            >
+              <span class="relative flex size-2">
+                <span class="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60"></span>
+                <span class="relative inline-flex size-2 rounded-full bg-current"></span>
+              </span>
+              {gettext("live")}
+            </span>
+            <span :if={@line_count > 0} id="run-output-count" class="text-xs text-base-content/60">
+              {ngettext("1 line", "%{count} lines", @line_count)}
+            </span>
+            <.button
+              :if={@line_count > 0}
+              id="download-log"
+              variant="ghost"
+              size="sm"
+              href={~p"/runs/#{@run.id}/log"}
+              download
+            >
+              <.icon name="hero-arrow-down-tray-mini" class="size-4" /> {gettext("Download")}
+            </.button>
+          </:actions>
+
+          <div class="relative bg-zinc-950 text-zinc-200">
+            <p
+              :if={@first_sequence > 1 or @line_count > @max_lines}
+              id="run-output-earlier"
+              class="border-b border-white/10 px-4 py-2 text-xs text-zinc-400"
+            >
+              {gettext("Earlier lines are not shown here.")}
+              <.link
+                href={~p"/runs/#{@run.id}/log"}
+                class="font-medium text-zinc-200 underline underline-offset-2 hover:text-white"
+              >
+                {gettext("Download the full log")}
+              </.link>
+            </p>
+
+            <div
+              id="run-log"
+              phx-hook=".LogFollow"
+              data-jump="run-log-jump"
+              class="max-h-[70vh] min-h-32 overflow-y-auto py-3 font-mono text-xs leading-5"
+            >
+              <ol id="log-lines" phx-update="stream" data-log-lines>
+                <li
+                  id="log-empty"
+                  class="hidden px-4 py-6 text-center font-sans text-sm text-zinc-500 only:block"
+                >
+                  {cond do
+                    Run.final?(@run) -> gettext("The suite produced no output.")
+                    @run.status == :running -> gettext("Waiting for output…")
+                    true -> gettext("Output appears here once the suite starts.")
+                  end}
+                </li>
+                <.log_line :for={{id, line} <- @streams.log_lines} id={id} line={line} />
+              </ol>
+
+              <p
+                :if={@run.log_truncated}
+                id="run-output-truncated"
+                class="mx-2 mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 font-sans text-xs text-amber-200"
+              >
+                {gettext(
+                  "Log limit of %{limit} reached. Later output is shown while you watch, but not stored.",
+                  limit: format_bytes(Runs.max_log_bytes())
+                )}
+              </p>
+            </div>
+
+            <div id="run-log-jump-container" phx-update="ignore" class="absolute right-4 bottom-4">
+              <button
+                id="run-log-jump"
+                type="button"
+                class="hidden items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900 shadow-lg transition hover:bg-white"
+              >
+                <.icon name="hero-arrow-down-mini" class="size-4" /> {gettext("Jump to latest")}
+              </button>
+            </div>
+          </div>
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".LogFollow">
+            // Keeps the log scrolled to the newest line while the reader is at the
+            // bottom. Scrolling up pauses following; "Jump to latest" resumes it.
+            export default {
+              mounted() {
+                this.list = this.el.querySelector("[data-log-lines]")
+                this.jump = document.getElementById(this.el.dataset.jump)
+                this.following = true
+                this.scrollToEnd()
+
+                this.el.addEventListener("scroll", () => {
+                  const atEnd = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 24
+                  this.following = atEnd
+                  this.jump.classList.toggle("hidden", atEnd)
+                  this.jump.classList.toggle("flex", !atEnd)
+                })
+
+                this.jump.addEventListener("click", () => {
+                  this.following = true
+                  this.scrollToEnd()
+                })
+
+                this.observer = new MutationObserver(() => {
+                  if (this.following) this.scrollToEnd()
+                })
+                this.observer.observe(this.list, { childList: true })
+              },
+              destroyed() {
+                this.observer && this.observer.disconnect()
+              },
+              scrollToEnd() {
+                this.el.scrollTop = this.el.scrollHeight
+              }
+            }
+          </script>
+        </.panel>
 
         <.panel id="run-execution" title={gettext("Execution")}>
           <dl class="divide-y divide-base-300 text-sm">

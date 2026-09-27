@@ -38,6 +38,8 @@ defmodule TestFleetWeb.Router do
       live "/registries/new", RegistryLive.Form, :new
       live "/registries/:id/edit", RegistryLive.Form, :edit
     end
+
+    get "/runs/:id/log", RunLogController, :show
   end
 
   # Other scopes may use custom stacks.

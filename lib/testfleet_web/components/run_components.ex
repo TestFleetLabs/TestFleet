@@ -103,6 +103,46 @@ defmodule TestFleetWeb.RunComponents do
 
   defp pad(value), do: value |> Integer.to_string() |> String.pad_leading(2, "0")
 
+  # CSI sequences (colours, cursor movement) and OSC sequences (titles, links).
+  @ansi ~r/\e\[[0-?]*[ -\/]*[@-~]|\e\][^\a\e]*(?:\a|\e\\)|\e[@-Z\\-_]/
+
+  @doc """
+  Renders one log line: its number, and its content with `[MASKED]` shown as a
+  badge. ANSI escape sequences are stripped for display; the stored line keeps them.
+  """
+  attr :id, :string, required: true
+  attr :line, :map, required: true
+
+  def log_line(assigns) do
+    assigns = assign(assigns, :segments, log_segments(assigns.line.content))
+
+    ~H"""
+    <li
+      id={@id}
+      data-stream={@line.stream}
+      class={[
+        "group grid grid-cols-[4.5rem_minmax(0,1fr)] px-2 hover:bg-white/[0.03]",
+        @line.stream == :stderr && "bg-amber-400/[0.06] text-amber-200/90"
+      ]}
+    >
+      <span class="select-none pr-4 text-right tabular-nums text-zinc-600 group-hover:text-zinc-400">
+        {@line.sequence}
+      </span>
+      <%!-- phx-no-format: whitespace inside is visible (pre-wrap) --%>
+      <span class="whitespace-pre-wrap break-all" phx-no-format><%= for segment <- @segments do %><%= if segment == :masked do %><span class="mx-px rounded bg-zinc-700/80 px-1 text-[0.7rem] font-semibold tracking-wide text-zinc-300">MASKED</span><% else %>{segment}<% end %><% end %></span>
+    </li>
+    """
+  end
+
+  @doc "Splits displayed content into text and `:masked` segments."
+  def log_segments(content) do
+    content
+    |> String.replace(@ansi, "")
+    |> String.split(TestFleet.Execution.Masker.mask_text())
+    |> Enum.intersperse(:masked)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   @doc """
   Renders a run as a list row linking to the run page. Expects the run with its
   test definition (and project) and environment preloaded.

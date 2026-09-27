@@ -166,17 +166,20 @@ Milestone 3's startup recovery attaches with `last_log_timestamp`. It now also p
   - `[MASKED]` is shown as a small badge, so masked values are easy to recognise
   - ANSI escape sequences are stripped for display (stored unchanged)
 - **States:**
-  - queued or preparing without output: "Waiting for output…"
-  - running: a subtle live indicator in the panel header
-  - finished without output: "The suite produced no output."
-  - `log_truncated`: a final line "Log limit of 50 MB reached. Later output was shown live but not stored."
+  - queued or preparing: "Output appears here once the suite starts."
+  - running without output: "Waiting for output…"
+  - running: a live indicator and the line count in the panel header
+  - finished without output: "The suite produced no output." (no download button)
+  - `log_truncated`: a notice below the lines, "Log limit of 50 MiB reached. Later output is shown while you watch, but not stored." It appears live: `append_log` broadcasts `{:run_updated, run}` once, when a batch reaches the limit.
+- **Earlier lines** are pointed to the download when the history starts after line 1, or when the page has received more lines than it keeps (2,000).
+- The panel sits between the timing facts and the execution details.
 - **Reconnect:** LiveView mounts again and reloads the history from PostgreSQL (main spec section 23).
 
 ### Download
 
 `GET /runs/:id/log` returns the stored log as `text/plain; charset=utf-8`, with `Content-Disposition: attachment; filename="run-<id>.log"`.
 
-- One line per row, in sequence order. It is streamed from PostgreSQL in chunks (`Repo.stream` in a transaction), so a 50 MB log never sits in memory.
+- One line per row, in sequence order, as stored (ANSI sequences included). It is streamed from PostgreSQL in chunks of 1,000 lines (`Runs.reduce_log/3`, `Repo.stream` in a transaction), so a 50 MB log never sits in memory.
 - A truncated log ends with the truncation line.
 - The content is already masked. Like everything else, the endpoint is not authenticated until authentication is built.
 
@@ -205,7 +208,7 @@ The masking test after a reattach uses `alpine:3` with an inline loop that print
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slices A and B are built (239 tests, plus 54 Docker integration tests).
+**Status (2026-09-27):** all slices are built (250 tests, plus 54 Docker integration tests). The manual walkthrough (section 12) is pending.
 
 ---
 
