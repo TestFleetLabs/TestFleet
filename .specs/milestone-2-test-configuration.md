@@ -156,4 +156,4 @@ Decisions made while building:
 
 Milestone 2 is done when all five slices are merged, `mix precommit` passes, and a project with a registry, a test definition, an environment with secret and non-secret variables, and a schedule can be configured entirely through the UI.
 
-**Status (2026-09-27):** all five slices are built and tested (173 tests, plus 37 Docker integration tests). The last check, configuring everything through the UI end to end, is pending a manual walkthrough.
+**Status (2026-09-27): done.** All five slices are built and tested (173 tests, plus 37 Docker integration tests), and a manual walkthrough configured a project with a registry, a test definition, an environment with secret and non-secret variables, and a schedule entirely through the UI.
