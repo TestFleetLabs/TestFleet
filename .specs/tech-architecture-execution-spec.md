@@ -1120,10 +1120,10 @@ Events include:
   %{stream: :stdout, sequence: 43, content: "✓ Checkout"}
 ]}
 
-{:run_test_result, result}
-
 {:run_finished, run}
 ```
+
+There is no per-test event: JUnit exists only after the suite finished, so test results are stored with the final status and arrive with `{:run_finished, run}`. See [milestone-6-results-and-artifacts.md](milestone-6-results-and-artifacts.md), section 5.
 
 Run events carry the whole run, so subscribers need no extra query. They are also broadcast on the global topic `runs`, which the runs list, the dashboard, and the dispatcher subscribe to; `{:run_output, _}` is only broadcast on `run:<id>`. See [milestone-3-manual-execution.md](milestone-3-manual-execution.md), section 4.
 
@@ -2175,7 +2175,7 @@ test_results kept indefinitely (needed for per-test history)
 
 Exceptions:
 
-- The artifacts and logs of the **most recent failed run** of each test definition and environment are always kept, regardless of age, so the latest failure can always be investigated.
+- The artifacts and logs of the **most recent failed run** of each test definition and environment are always kept, regardless of age, so the latest failure can always be investigated. "Failed" here includes `timeout` and `error` ([milestone-6-results-and-artifacts.md](milestone-6-results-and-artifacts.md), section 8).
 - A run can be **pinned** manually from the UI, which exempts it from retention.
 
 When artifacts or logs are removed, the run page shows that they expired instead of showing an empty list.
@@ -2450,6 +2450,8 @@ Implement:
 - artifact downloads
 - artifact size limit
 - retention
+
+Details: [milestone-6-results-and-artifacts.md](milestone-6-results-and-artifacts.md).
 
 ---
 
