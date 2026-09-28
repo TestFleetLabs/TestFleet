@@ -25,6 +25,7 @@ defmodule TestFleet.Runs do
   alias TestFleet.Projects.Project
   alias TestFleet.Registries
   alias TestFleet.Repo
+  alias TestFleet.Results
   alias TestFleet.Runs.{LogLine, Run}
   alias TestFleet.Schedules.Schedule
   alias TestFleet.TestDefinitions.TestDefinition
@@ -362,7 +363,12 @@ defmodule TestFleet.Runs do
     transition(run_id, [:preparing], status: :running, started_at: started_at)
   end
 
-  @doc "Records the final status of a run from the execution result."
+  @doc """
+  Records the final status of a run from the execution result, with its test
+  counts, warnings, artifacts, and test results, in one transaction (Milestone 6,
+  section 6). A run is never visible as finished without its results; a repeated
+  finish changes and inserts nothing.
+  """
   def finish(run_id, %Result{} = result) do
     changes =
       [
@@ -370,8 +376,10 @@ defmodule TestFleet.Runs do
         finished_at: result.finished_at,
         exit_code: result.exit_code,
         oom_killed: result.oom_killed,
-        error_message: result.error_message
+        error_message: result.error_message,
+        warnings: result.warnings
       ] ++
+        Keyword.new(Results.counts(result.test_results)) ++
         for {field, value} <- [
               image_digest: result.image_digest,
               container_id: result.container_id,
@@ -380,7 +388,23 @@ defmodule TestFleet.Runs do
             value != nil,
             do: {field, value}
 
-    transition(run_id, [:queued | Run.active_statuses()], changes)
+    transaction =
+      Repo.transaction(fn ->
+        case update_status(run_id, [:queued | Run.active_statuses()], changes) do
+          {:ok, run} ->
+            Artifacts.insert_all(run, result.artifacts)
+            Results.insert_all(run, result.test_results)
+            run
+
+          :error ->
+            Repo.rollback(:not_active)
+        end
+      end)
+
+    case transaction do
+      {:ok, run} -> {:ok, broadcast_transition(run)}
+      {:error, :not_active} -> :error
+    end
   end
 
   @doc """
@@ -524,6 +548,12 @@ defmodule TestFleet.Runs do
   # Updates the run only while its status is one of `from`, so a late or repeated
   # event cannot reopen a finished run.
   defp transition(id, from, changes) do
+    with {:ok, run} <- update_status(id, from, changes) do
+      {:ok, broadcast_transition(run)}
+    end
+  end
+
+  defp update_status(id, from, changes) do
     changes =
       changes
       |> Keyword.put(:updated_at, DateTime.utc_now())
@@ -535,14 +565,15 @@ defmodule TestFleet.Runs do
     query = from r in Run, where: r.id == ^id and r.status in ^from, select: r
 
     case Repo.update_all(query, set: changes) do
-      {1, [run]} ->
-        run = preload(run)
-        broadcast(run, if(Run.final?(run), do: :run_finished, else: :run_updated))
-        {:ok, run}
-
-      {0, _} ->
-        :error
+      {1, [run]} -> {:ok, run}
+      {0, _} -> :error
     end
+  end
+
+  defp broadcast_transition(run) do
+    run = preload(run)
+    broadcast(run, if(Run.final?(run), do: :run_finished, else: :run_updated))
+    run
   end
 
   defp broadcast(%Run{} = run, event) do

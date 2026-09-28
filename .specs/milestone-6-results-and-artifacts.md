@@ -56,7 +56,7 @@ The main spec ([tech-architecture-execution-spec.md](tech-architecture-execution
 | `size_bytes` | bigint | |
 | `storage_backend` | text | `local` |
 | `storage_key` | text | `<run_id>/<name>` |
-| `inserted_at` | `utc_datetime` | |
+| `inserted_at` | `utc_datetime_usec` | Like every other timestamp in the schema |
 
 Unique index on `(run_id, name)`. No `updated_at`: artifacts never change.
 
@@ -65,14 +65,14 @@ Unique index on `(run_id, name)`. No `updated_at`: artifacts never change.
 | Column | Type | Notes |
 |--------|------|-------|
 | `run_id` | FK `runs`, `on_delete: :delete_all` | |
-| `test_definition_id` | FK `test_definitions` | Copied from the run, for the identity below |
+| `test_definition_id` | FK `test_definitions`, `on_delete: :delete_all` | Copied from the run, for the identity below. A test definition with runs cannot be deleted anyway (`runs` restricts it). |
 | `suite`, `classname`, `name` | text | `suite` is the enclosing `<testsuite name>`; `classname` may be empty |
 | `status` | text | `passed`, `failed`, `error`, `skipped` |
 | `duration_ms` | integer, nullable | From `time` (seconds) |
 | `failure_message` | text, nullable | The `message` attribute of `<failure>` / `<error>` |
 | `failure_details` | text, nullable | The element's text (stack trace), cut at 64 KiB |
 | `file` | text | The JUnit file it came from, e.g. `junit/shard-2.xml` |
-| `inserted_at` | `utc_datetime` | |
+| `inserted_at` | `utc_datetime_usec` | |
 
 - Index on `(test_definition_id, suite, classname, name)`: a test's identity across runs (main spec section 10), for per-test history later.
 - Index on `(run_id, status)`: the run page lists failed tests first.
@@ -171,6 +171,8 @@ Until now, `Result.finished_at` was TestFleet's clock at finalizing (spike spec 
 
 Then it broadcasts `{:run_finished, run}`. A run is never visible as finished without its results. The guarded transition (Milestone 3) still decides: a late second finish changes nothing, and inserts nothing.
 
+The rows are written by `Artifacts.insert_all/2` and `Results.insert_all/2`, which `Runs.finish/2` calls inside its transaction; `content_type` comes from `MIME.from_path/1` (so `junit.xml` is `text/xml`). If an insert fails, the whole transaction rolls back and the run stays active, as when its execution process crashes; recovery (Milestone 3) handles it from there.
+
 ---
 
 ## 7. UI
@@ -260,7 +262,7 @@ The image must be rebuilt and pushed afterwards (spike spec section 9).
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-27):** slice A is built (288 tests, plus 64 Docker integration tests).
+**Status (2026-09-28):** slices A and B are built (293 tests, plus 65 Docker integration tests). Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
 
 ---
 

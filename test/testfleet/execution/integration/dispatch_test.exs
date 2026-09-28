@@ -129,6 +129,27 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
     assert {%Run{status: :failed, exit_code: 1, error_message: nil}, _} = await_finished(run.id)
   end
 
+  test "a failing JUnit suite stores its test results and artifacts", context do
+    run = run_now(context, "junit_fail")
+
+    assert {%Run{status: :failed, exit_code: 1} = finished, _} = await_finished(run.id)
+    assert %{tests_passed: 1, tests_failed: 2, tests_skipped: 0, warnings: []} = finished
+
+    assert [
+             %{name: "pays", status: :failed, failure_message: "expected 200, got 500"},
+             %{name: "crashes", status: :error},
+             %{name: "adds", status: :passed, duration_ms: 1_000}
+           ] = TestFleet.Results.list_test_results(finished)
+
+    artifacts = TestFleet.Artifacts.list_artifacts(finished)
+    assert Enum.map(artifacts, & &1.name) == ["junit.xml", "screenshots/checkout.png"]
+
+    for artifact <- artifacts do
+      path = TestFleet.Artifacts.Storage.path(artifact.storage_key)
+      assert File.stat!(path).size == artifact.size_bytes
+    end
+  end
+
   test "an image that does not exist is an error", context do
     run = run_now(context, "pass", "localhost:5055/does-not-exist:1")
 

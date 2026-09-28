@@ -36,9 +36,22 @@ defmodule TestFleet.Runs.Run do
     field :oom_killed, :boolean, default: false
     field :error_message, :string
 
+    # From JUnit, nil without it; tests_failed includes errors (Milestone 6 section 3)
+    field :tests_passed, :integer
+    field :tests_failed, :integer
+    field :tests_skipped, :integer
+    field :warnings, {:array, :string}, default: []
+
+    field :pinned, :boolean, default: false
+    field :artifacts_expired_at, :utc_datetime_usec
+    field :logs_expired_at, :utc_datetime_usec
+
     belongs_to :test_definition, TestFleet.TestDefinitions.TestDefinition
     belongs_to :environment, TestFleet.Environments.Environment
     belongs_to :schedule, TestFleet.Schedules.Schedule
+
+    has_many :artifacts, TestFleet.Artifacts.Artifact
+    has_many :test_results, TestFleet.Results.TestResult
 
     timestamps(type: :utc_datetime_usec)
   end
