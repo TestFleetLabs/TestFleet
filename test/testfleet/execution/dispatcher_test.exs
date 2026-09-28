@@ -22,7 +22,12 @@ defmodule TestFleet.Execution.DispatcherTest do
     start_supervised!(
       {Dispatcher,
        Keyword.merge(
-         [engine: TestFleet.FakeEngine, poll_interval: :timer.hours(1), max_concurrent_runs: 10],
+         [
+           engine: TestFleet.FakeEngine,
+           ping: fn -> {:ok, "fake"} end,
+           poll_interval: :timer.hours(1),
+           max_concurrent_runs: 10
+         ],
          Keyword.put(opts, :engine_opts, engine_opts)
        )}
     )
@@ -173,6 +178,96 @@ defmodule TestFleet.Execution.DispatcherTest do
 
       start_dispatcher()
       assert started_ids() == [parallel.id]
+    end
+  end
+
+  test "a handler in the engine options replaces the recorder", context do
+    queued(context, environment(context, 1))
+    start_dispatcher(engine_opts: [handler: TestFleet.FlakyRecorder])
+
+    assert_received {:engine_started, _request, opts}
+    assert opts[:handler] == TestFleet.FlakyRecorder
+  end
+
+  describe "Docker check" do
+    # Milestone 7, section 7: a fake ping the test switches.
+    setup do
+      docker = start_supervised!({Agent, fn -> {:error, %{message: "connection refused"}} end})
+      TestFleet.Execution.subscribe_system()
+      %{docker: docker, ping: fn -> Agent.get(docker, & &1) end}
+    end
+
+    defp docker_back(context), do: Agent.update(context.docker, fn _ -> {:ok, "1.44"} end)
+
+    @tag :capture_log
+    test "while Docker is unreachable, runs stay queued until it is back", context do
+      run = queued(context, environment(context, 1))
+      start_dispatcher(ping: context.ping, docker_check_interval: 0)
+
+      assert started_ids() == []
+      assert %{status: :queued} = Runs.get_run!(run.id)
+
+      assert_received {:docker_status,
+                       %{reachable: false, message: "connection refused", since: %DateTime{}}}
+
+      assert %{reachable: false, message: "connection refused"} = Dispatcher.docker_status()
+
+      docker_back(context)
+      :ok = Dispatcher.dispatch()
+
+      run_id = run.id
+      assert_received {:engine_started, %{run_id: ^run_id}, _opts}
+      assert_received {:docker_status, %{reachable: true, message: nil}}
+      assert %{reachable: true} = Dispatcher.docker_status()
+    end
+
+    @tag :capture_log
+    test "is checked at startup, and until it is back, also without queued runs", context do
+      start_dispatcher(ping: context.ping, docker_check_interval: 0)
+      assert_received {:docker_status, %{reachable: false}}
+
+      docker_back(context)
+      :ok = Dispatcher.dispatch()
+      assert_received {:docker_status, %{reachable: true}}
+
+      # Reachable and nothing queued: no more checks, no more messages.
+      :ok = Dispatcher.dispatch()
+      refute_received {:docker_status, _}
+    end
+
+    test "a reachable Docker is not announced", context do
+      docker_back(context)
+      start_dispatcher(ping: context.ping)
+
+      refute_received {:docker_status, _}
+      assert %{reachable: true, since: nil} = Dispatcher.docker_status()
+    end
+
+    test "a result is reused for the check interval", context do
+      queued(context, environment(context, 1))
+      test = self()
+
+      ping = fn ->
+        send(test, :pinged)
+        {:ok, "1.44"}
+      end
+
+      # The run stays queued, so every pass would check.
+      start_dispatcher(ping: ping, max_concurrent_runs: 0, docker_check_interval: :timer.hours(1))
+      :ok = Dispatcher.dispatch()
+      :ok = Dispatcher.dispatch()
+
+      assert_received :pinged
+      refute_received :pinged
+    end
+
+    @tag :capture_log
+    test "the status is cleared when the dispatcher stops", context do
+      start_dispatcher(ping: context.ping)
+      assert %{reachable: false} = Dispatcher.docker_status()
+
+      stop_supervised!(Dispatcher)
+      assert %{reachable: true} = Dispatcher.docker_status()
     end
   end
 

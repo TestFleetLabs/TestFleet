@@ -24,6 +24,51 @@ defmodule TestFleetWeb.DashboardLiveTest do
     assert has_element?(view, "#upcoming-schedules #upcoming-schedules-empty")
   end
 
+  describe "Docker status" do
+    defp docker_status(reachable, message \\ nil) do
+      TestFleet.Execution.broadcast_docker_status(%{
+        reachable: reachable,
+        since: DateTime.utc_now(),
+        message: message
+      })
+    end
+
+    test "the banner appears and disappears live", %{conn: conn} do
+      project = project_fixture()
+
+      run_fixture(
+        test_definition: test_definition_fixture(project: project),
+        environment: environment_fixture(project: project)
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/")
+      refute has_element?(view, "#docker-unreachable")
+
+      docker_status(false, "Docker Engine unreachable: connection refused")
+
+      assert has_element?(
+               view,
+               "#docker-unreachable-message",
+               "Docker Engine unreachable: connection refused"
+             )
+
+      assert has_element?(view, "#queued-runs #queued-waiting-for-docker")
+
+      docker_status(true)
+      refute has_element?(view, "#docker-unreachable")
+      refute has_element?(view, "#queued-waiting-for-docker")
+    end
+
+    test "without queued runs, the queue shows no Docker note", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      docker_status(false)
+
+      assert has_element?(view, "#docker-unreachable")
+      refute has_element?(view, "#docker-unreachable-message")
+      refute has_element?(view, "#queued-waiting-for-docker")
+    end
+  end
+
   describe "with runs" do
     setup do
       project = project_fixture()

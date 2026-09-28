@@ -328,6 +328,54 @@ defmodule TestFleet.Execution.Integration.ReconcilerTest do
     end
   end
 
+  describe "database failure" do
+    # Milestone 7, section 7: the recorder raises, the process crashes with its
+    # container running, and the next pass reattaches.
+    setup do
+      on_exit(&TestFleet.FlakyRecorder.disarm/0)
+    end
+
+    test "a failed write crashes the process; the next pass resumes the log in full",
+         context do
+      TestFleet.FlakyRecorder.arm()
+
+      start_supervised!(
+        {Dispatcher,
+         poll_interval: :timer.hours(1), engine_opts: [handler: TestFleet.FlakyRecorder]}
+      )
+
+      Runs.subscribe()
+      {:ok, run} = Runs.create_manual_run(context.test_definition, context.environment)
+      Runs.subscribe(run.id)
+      on_exit(fn -> Command.remove(RunExecution.container_name(run.id)) end)
+
+      await_status(run.id, :running)
+      [{pid, _}] = Registry.lookup(TestFleet.Execution.Registry, run.id)
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, {%DBConnection.ConnectionError{}, _}}, 15_000
+      await_unregistered(run.id)
+
+      # The failed batch was never stored, and the suite keeps running.
+      assert %Run{status: :running, last_log_sequence: 0} = Runs.get_run!(run.id)
+
+      assert {:ok, %{"State" => %{"Running" => true}}} =
+               Command.inspect(RunExecution.container_name(run.id))
+
+      assert [{:attach, %Run{}, false}] = Reconciler.run(:periodic)
+      await_output(run.id, "tick 3")
+
+      :ok = Runs.cancel_run(Runs.get_run!(run.id))
+      assert %Run{status: :cancelled} = await_finished(run.id)
+
+      lines = Runs.list_log_tail(run, 1_000)
+      ticks = lines |> Enum.map(& &1.content) |> Enum.filter(&String.starts_with?(&1, "tick "))
+
+      assert ["tick 1", "tick 2", "tick 3" | _] = ticks
+      assert ticks == Enum.map(1..length(ticks), &"tick #{&1}")
+      assert Enum.map(lines, & &1.sequence) == Enum.to_list(1..length(lines))
+    end
+  end
+
   describe "orphans" do
     test "a container of this instance without a run is stopped and removed" do
       id = foreign_container(%{"TestFleet.instance" => TestFleet.Instance.id()})

@@ -44,6 +44,34 @@ defmodule TestFleet.Execution.StatusTest do
     assert Status.decide(%{cancelled: true, started: false}) == {:cancelled, nil}
   end
 
+  describe "rule 5a: interrupted by Docker" do
+    @interrupted %{started: true, interrupted: true}
+
+    test "a non-zero exit code is an error, whatever JUnit says" do
+      message = "Docker was interrupted while the suite was running (exit code 143)"
+
+      assert Status.decide(Map.put(@interrupted, :exit_code, 143)) == {:error, message}
+
+      assert Status.decide(Map.merge(@interrupted, %{exit_code: 143, junit: %{failed: 2}})) ==
+               {:error, message}
+    end
+
+    test "a suite that exited 0 passed all the same" do
+      assert Status.decide(Map.put(@interrupted, :exit_code, 0)) == {:passed, nil}
+    end
+
+    test "cancel, timeout, OOM, and a missing container win" do
+      facts = Map.put(@interrupted, :exit_code, 137)
+
+      assert Status.decide(Map.put(facts, :cancelled, true)) == {:cancelled, nil}
+      assert Status.decide(Map.put(facts, :timed_out, true)) == {:timeout, nil}
+      assert Status.decide(Map.put(facts, :oom_killed, true)) == {:error, "memory limit exceeded"}
+
+      assert Status.decide(Map.put(@interrupted, :container_missing, true)) ==
+               {:error, "container disappeared"}
+    end
+  end
+
   describe "JUnit" do
     defp with_junit(exit_code, failed),
       do: Map.merge(@started, %{exit_code: exit_code, junit: %{failed: failed}})

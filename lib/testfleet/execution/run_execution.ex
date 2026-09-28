@@ -38,13 +38,31 @@ defmodule TestFleet.Execution.RunExecution do
 
   The process does not remove its container when it crashes: a running suite that
   outlives its process can still be reattached (main spec section 32).
+
+  A `logs` or `wait` stream that breaks, or a `logs` stream that ends while the
+  container still runs, does not end the run (Milestone 7, section 7). The process
+  inspects the container every `:reconnect_interval` (5 s) and follows it again
+  (`TestFleet.Execution.Reconnect`), resuming the logs after the last line it
+  reported. If Docker does not answer within `:reconnect_window` (2 min), the process
+  stops without finalizing, and the reconciler reattaches once Docker is back. A
+  container found exited after a broken stream was stopped by Docker, not by its
+  tests: the fact `interrupted` goes to `Status.decide/1` (rule 5a).
   """
 
   use GenServer, restart: :temporary
 
   require Logger
 
-  alias TestFleet.Execution.{Collector, LineBuffer, Masker, PullCoordinator, Result, Status}
+  alias TestFleet.Execution.{
+    Collector,
+    LineBuffer,
+    Masker,
+    PullCoordinator,
+    Reconnect,
+    Result,
+    Status
+  }
+
   alias TestFleet.Execution.Docker.{Command, ImageRef, LogDecoder}
 
   @network "TestFleet-runs"
@@ -58,6 +76,9 @@ defmodule TestFleet.Execution.RunExecution do
   @batch_interval 100
   @batch_max_lines 500
   @batch_max_bytes 1_048_576
+  # Asking Docker again after a broken stream (Milestone 7, section 7)
+  @reconnect_window 120_000
+  @reconnect_interval 5_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: via(Keyword.fetch!(opts, :run_id)))
@@ -108,6 +129,13 @@ defmodule TestFleet.Execution.RunExecution do
       batch_bytes: 0,
       batch_timer: nil,
       resume_after: opts[:last_log_timestamp],
+      # The newest timestamp of the lines reported, to resume after a broken stream
+      last_timestamp: opts[:last_log_timestamp],
+      # Set while the streams are lost: %{since: monotonic ms, docker_lost: boolean}
+      reconnect: nil,
+      reconnect_window: opts[:reconnect_window] || @reconnect_window,
+      reconnect_interval: opts[:reconnect_interval] || @reconnect_interval,
+      interrupted: false,
       # A cancel that arrived while no process owned the run (Milestone 7, section 5)
       cancel_on_attach: Keyword.get(opts, :cancel, false),
       stopping: false,
@@ -231,9 +259,35 @@ defmodule TestFleet.Execution.RunExecution do
 
   def handle_info(:drain_timeout, state) do
     Logger.warning("run #{state.run_id}: log stream did not end after the container exited")
-    if state.logs, do: Req.cancel_async_response(state.logs)
+    cancel_stream(state.logs)
     stop(finalize(%{state | logs_done: true}))
   end
+
+  def handle_info(:reinspect, %{reconnect: %{} = reconnect} = state) do
+    elapsed = System.monotonic_time(:millisecond) - reconnect.since
+
+    case Reconnect.decide(Command.inspect(state.container_id), elapsed, state.reconnect_window) do
+      :follow ->
+        follow_again(state, false)
+
+      :exited ->
+        follow_again(%{state | interrupted: reconnect.docker_lost}, true)
+
+      :missing ->
+        stop(finalize(%{state | reconnect: nil, exited: true}))
+
+      # A daemon going down may end the log stream cleanly; not answering then
+      # shows it was Docker all the same.
+      :retry ->
+        Process.send_after(self(), :reinspect, state.reconnect_interval)
+        {:noreply, %{state | reconnect: %{reconnect | docker_lost: true}}}
+
+      :give_up ->
+        give_up(state)
+    end
+  end
+
+  def handle_info(:reinspect, state), do: {:noreply, state}
 
   def handle_info(message, state) do
     case parse_stream(state, message) do
@@ -489,12 +543,24 @@ defmodule TestFleet.Execution.RunExecution do
     end
   end
 
-  defp handle_logs(state, {:ok, chunks}),
-    do: Enum.reduce(chunks, state, &handle_log_chunk(&2, &1))
+  defp handle_logs(state, {:ok, chunks}) do
+    state = Enum.reduce(chunks, state, &handle_log_chunk(&2, &1))
+
+    # Docker ends the log stream when the container stops, but also when the
+    # daemon or the proxy in between goes away.
+    if state.logs_done and not state.exited,
+      do: lose_streams(state, false),
+      else: state
+  end
+
+  defp handle_logs(%{exited: true} = state, {:error, reason}) do
+    Logger.warning("run #{state.run_id}: log stream failed: #{inspect(reason)}")
+    flush_lines(%{state | logs_done: true})
+  end
 
   defp handle_logs(state, {:error, reason}) do
     Logger.warning("run #{state.run_id}: log stream failed: #{inspect(reason)}")
-    flush_lines(%{state | logs_done: true})
+    lose_streams(state, true)
   end
 
   defp handle_log_chunk(state, {:data, data}) do
@@ -528,7 +594,88 @@ defmodule TestFleet.Execution.RunExecution do
   end
 
   defp handle_wait(state, {:error, reason}) do
-    %{state | exited: true, error: "lost the wait stream: #{inspect(reason)}"}
+    Logger.warning("run #{state.run_id}: wait stream failed: #{inspect(reason)}")
+    lose_streams(state, true)
+  end
+
+  ## Following again (Milestone 7, section 7)
+
+  # Drops both streams and asks Docker what became of the container. A partial line
+  # is reported as it is: the resumed stream starts after its timestamp.
+  defp lose_streams(state, docker_lost?) do
+    cancel_stream(state.logs)
+    cancel_stream(state.wait)
+    send(self(), :reinspect)
+
+    state = flush_lines(%{state | logs: nil, wait: nil, logs_done: false})
+
+    %{
+      state
+      | decoder: LogDecoder.new(),
+        reconnect: %{since: System.monotonic_time(:millisecond), docker_lost: docker_lost?}
+    }
+  end
+
+  # For an exited container only the rest of the logs is read; its end is known.
+  defp follow_again(state, exited?) do
+    since = state.last_timestamp && LogDecoder.format_since(state.last_timestamp)
+
+    with {:ok, logs} <- Command.logs(state.container_id, since: since),
+         {:ok, wait} <- open_wait(state, exited?, logs) do
+      # The log stream ending just before the wait stream is how most runs end.
+      if state.reconnect.docker_lost or not exited?,
+        do: Logger.info("run #{state.run_id}: following the container again")
+
+      state = %{
+        state
+        | reconnect: nil,
+          resume_after: state.last_timestamp,
+          logs: logs,
+          wait: wait,
+          exited: exited?
+      }
+
+      # A stop sent while Docker was away may never have arrived.
+      state =
+        if not exited? and (state.cancelled or state.timed_out),
+          do: begin_stop(state),
+          else: state
+
+      maybe_complete(state)
+    else
+      {:error, _error} ->
+        Process.send_after(self(), :reinspect, state.reconnect_interval)
+        {:noreply, state}
+    end
+  end
+
+  defp open_wait(_state, true, _logs), do: {:ok, nil}
+
+  defp open_wait(state, false, logs) do
+    with {:error, _} = error <- Command.wait(state.container_id) do
+      cancel_stream(logs)
+      error
+    end
+  end
+
+  # The container may still run; the reconciler reattaches once Docker answers.
+  defp give_up(state) do
+    Logger.warning(
+      "run #{state.run_id}: Docker has not answered for #{format_ms(state.reconnect_window)}; " <>
+        "leaving the run to the reconciler"
+    )
+
+    if state.deadline_timer, do: Process.cancel_timer(state.deadline_timer)
+    stop(flush_batch(state))
+  end
+
+  defp cancel_stream(nil), do: :ok
+
+  defp cancel_stream(response) do
+    Req.cancel_async_response(response)
+  catch
+    # The connection is already gone.
+    _kind, _reason -> :ok
   end
 
   defp flush_lines(state) do
@@ -560,6 +707,7 @@ defmodule TestFleet.Execution.RunExecution do
     state = %{
       state
       | sequence: state.sequence + 1,
+        last_timestamp: newest(state.last_timestamp, line.timestamp),
         batch: [line | state.batch],
         batch_lines: state.batch_lines + 1,
         batch_bytes: state.batch_bytes + byte_size(line.content)
@@ -569,6 +717,12 @@ defmodule TestFleet.Execution.RunExecution do
       do: flush_batch(state),
       else: state
   end
+
+  # stdout and stderr are reported in the order their lines complete, not by
+  # timestamp; resuming after anything but the newest would repeat lines.
+  defp newest(nil, timestamp), do: timestamp
+  defp newest(last, nil), do: last
+  defp newest(last, timestamp), do: max(last, timestamp)
 
   defp flush_batch(%{batch: []} = state), do: state
 
@@ -637,6 +791,7 @@ defmodule TestFleet.Execution.RunExecution do
       cancelled: state.cancelled,
       timed_out: state.timed_out,
       started: state.started_at != nil,
+      interrupted: state.interrupted,
       error: state.error
     }
 

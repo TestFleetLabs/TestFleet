@@ -8,13 +8,18 @@ defmodule TestFleet.Execution do
   `RunExecution`.
   """
 
-  alias TestFleet.Execution.{Request, RunExecution}
+  alias TestFleet.Execution.{Dispatcher, Request, RunExecution}
   alias TestFleet.Execution.Docker.Command
+
+  @system_topic "system"
 
   @doc """
   Starts a run and returns immediately.
 
   Options: `:handler` (a `TestFleet.Execution.Handler` module) or `:subscriber`.
+  `:reconnect_window` and `:reconnect_interval` (milliseconds) change how long, and
+  how often, the process asks Docker again after losing its streams (default 2 min
+  and 5 s; see `RunExecution`).
   """
   def start(%Request{} = request, opts \\ []) do
     start_child(
@@ -22,9 +27,28 @@ defmodule TestFleet.Execution do
       run_id: request.run_id,
       request: request,
       handler: opts[:handler],
-      subscriber: Keyword.get(opts, :subscriber, self())
+      subscriber: Keyword.get(opts, :subscriber, self()),
+      reconnect_window: opts[:reconnect_window],
+      reconnect_interval: opts[:reconnect_interval]
     )
   end
+
+  @doc "Checks that Docker answers and is recent enough."
+  def ping, do: Command.ping()
+
+  @doc """
+  Whether the dispatcher can reach Docker: `%{reachable: boolean, since: DateTime,
+  message: String.t() | nil}` (Milestone 7, section 7). Changes are broadcast on the
+  `system` topic, see `subscribe_system/0`.
+  """
+  def docker_status, do: Dispatcher.docker_status()
+
+  @doc "Subscribes to `{:docker_status, status}` messages."
+  def subscribe_system, do: Phoenix.PubSub.subscribe(TestFleet.PubSub, @system_topic)
+
+  @doc false
+  def broadcast_docker_status(status),
+    do: Phoenix.PubSub.broadcast(TestFleet.PubSub, @system_topic, {:docker_status, status})
 
   @doc """
   Takes over the container of a run whose process is gone (main spec section 32).

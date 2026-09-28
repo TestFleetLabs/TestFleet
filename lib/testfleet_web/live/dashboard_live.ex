@@ -1,11 +1,12 @@
 defmodule TestFleetWeb.DashboardLive do
   @moduledoc """
   The dashboard (main spec section 42): today's figures, recent and queued runs, and
-  upcoming schedules. Runs update live from the `runs` topic.
+  upcoming schedules. Runs update live from the `runs` topic, Docker's reachability
+  from the `system` topic (Milestone 7, section 9).
   """
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Runs, Schedules}
+  alias TestFleet.{Execution, Runs, Schedules}
   alias TestFleet.Schedules.Timezones
   alias TestFleetWeb.RunFeed
 
@@ -19,6 +20,7 @@ defmodule TestFleetWeb.DashboardLive do
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Runs.subscribe()
+      Execution.subscribe_system()
       :timer.send_interval(@stats_refresh, :refresh_stats)
     end
 
@@ -26,6 +28,7 @@ defmodule TestFleetWeb.DashboardLive do
      socket
      |> assign(:page_title, gettext("Dashboard"))
      |> assign(:timezone, Timezones.default())
+     |> assign(:docker, Execution.docker_status())
      |> assign_stats()
      |> assign_queue()
      |> RunFeed.init(:recent, Runs.list_runs(limit: @recent_limit))
@@ -75,6 +78,41 @@ defmodule TestFleetWeb.DashboardLive do
   def handle_info(:refresh_stats, socket),
     do: {:noreply, socket |> assign_stats() |> assign_upcoming()}
 
+  def handle_info({:docker_status, status}, socket),
+    do: {:noreply, assign(socket, :docker, status)}
+
+  attr :status, :map, required: true
+  attr :timezone, :string, required: true
+
+  defp docker_banner(assigns) do
+    ~H"""
+    <div
+      id="docker-unreachable"
+      role="alert"
+      class="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-5 py-4"
+    >
+      <.icon name="hero-exclamation-triangle" class="mt-0.5 size-5 shrink-0 text-warning" />
+      <div class="min-w-0 space-y-1">
+        <p class="text-sm font-semibold">
+          {gettext("Docker is not reachable since %{time}.",
+            time: Calendar.strftime(DateTime.shift_zone!(@status.since, @timezone), "%H:%M")
+          )}
+          <span class="font-normal text-base-content/70">
+            {gettext("Queued runs wait until it is back.")}
+          </span>
+        </p>
+        <p
+          :if={@status.message}
+          id="docker-unreachable-message"
+          class="break-words font-mono text-xs text-base-content/60"
+        >
+          {@status.message}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -84,6 +122,8 @@ defmodule TestFleetWeb.DashboardLive do
           title={gettext("Dashboard")}
           description={gettext("What is running, what failed, and what is coming up.")}
         />
+
+        <.docker_banner :if={not @docker.reachable} status={@docker} timezone={@timezone} />
 
         <div id="dashboard-stats" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <.stat_tile
@@ -142,6 +182,14 @@ defmodule TestFleetWeb.DashboardLive do
           <div class="space-y-6">
             <.panel id="queued-runs" title={gettext("Queued runs")}>
               <:actions>
+                <.badge
+                  :if={@stats.queued > 0 and not @docker.reachable}
+                  id="queued-waiting-for-docker"
+                  tone={:warning}
+                >
+                  <.icon name="hero-pause-mini" class="size-3.5" />
+                  {gettext("waiting for Docker")}
+                </.badge>
                 <.badge :if={@stats.queued > 0} id="queued-count">{@stats.queued}</.badge>
               </:actions>
 

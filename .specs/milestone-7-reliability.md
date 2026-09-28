@@ -149,9 +149,10 @@ Main spec section 44 says a run that cannot reach Docker ends `error`. That is r
 
 **Deviation:** the dispatcher checks Docker before admitting.
 
-- Before a pass that has queued runs, the dispatcher uses the result of `Command.ping/0`, cached for 5 seconds.
+- Before a pass that has queued runs, the dispatcher uses the result of `Command.ping/0`, cached for 5 seconds. It also checks on its first pass, and on every pass while Docker is unreachable, queued runs or not: otherwise an outage without queued runs would never show, and a banner would never go away.
 - Unreachable: nothing is admitted; runs stay `queued`. The dispatcher logs once when Docker goes down and once when it is back.
-- The state is broadcast on the `system` topic as `{:docker_status, %{reachable: boolean, since: DateTime, message: String.t() | nil}}`, and `Execution.docker_status/0` returns the current one (the dispatcher's).
+- The state is broadcast on the `system` topic as `{:docker_status, %{reachable: boolean, since: DateTime, message: String.t() | nil}}`, and `Execution.docker_status/0` returns the current one (the dispatcher's). The dispatcher keeps it in `:persistent_term`, written only on a change, so the dashboard reads it without waiting for a pass. Without a dispatcher, Docker counts as reachable.
+- The ping is a dispatcher option (`:ping`), so the tests use a fake one.
 
 ### A broken stream is not the end of the run
 
@@ -167,6 +168,15 @@ Today, a failed `wait` stream finalizes the run: it ends `error` if Docker is go
 
 A `logs` stream that ends normally (`:done`) while the container runs is followed again the same way. Today that loses the rest of the output.
 
+As implemented:
+
+- The decision per answer is `TestFleet.Execution.Reconnect.decide/3`, a pure function: `:follow`, `:exited`, `:missing`, `:retry`, `:give_up`.
+- On a break, both streams are dropped and reopened together. For an exited container only the logs are reopened; they end on their own.
+- Logs resume after the **newest** timestamp reported, not the last one: stdout and stderr lines are reported in the order they complete, so the last line can be older than one before it. The stored `last_log_timestamp` already works this way (`GREATEST`).
+- The logs stream normally ends a moment before the wait stream. That now takes one extra `inspect`, which finds the container exited; the process reads the rest of the logs and finalizes as before, without logging a reconnect.
+- A stop (cancel or timeout) sent while Docker was away is sent again once the container is followed again.
+- `:reconnect_window` and `:reconnect_interval` are options of `Execution.start/2`, for the tests.
+
 ### Interrupted suites
 
 A Docker daemon restart without `live-restore` stops every container: the suite gets `SIGTERM` and exits with 143, or 137 after the grace period. By exit code alone, that is rule 10: `failed`. But no test failed; the infrastructure did.
@@ -175,9 +185,17 @@ A Docker daemon restart without `live-restore` stops every container: the suite 
 
 | # | Condition | Status |
 |---|-----------|--------|
-| 5a | The `wait` stream broke with a transport error before the container exited | `error`: "Docker was interrupted while the suite was running (exit code N)" |
+| 5a | The `wait` stream broke with a transport error before the container exited, and the exit code is non-zero | `error`: "Docker was interrupted while the suite was running (exit code N)" |
 
-Rules 1–5 (cancel, timeout, not started, OOM, missing) still win. **Known limit:** when the process was not attached during the interruption (TestFleet was down too), the reconciler finds an exited container and cannot know why; the exit code decides, as today.
+Rules 1–5 (cancel, timeout, not started, OOM, missing) still win.
+
+**Deviations, as implemented:**
+
+- The fact is `interrupted`: the process lost Docker (a stream broke with a transport error, or an `inspect` got no answer), and the next answer found the container exited. A daemon going down may end the log stream cleanly before anything breaks; the unanswered `inspect` still marks it.
+- Rule 5a applies only to a **non-zero** exit code. A suite that exited 0 while the socket proxy was down passed, and says so.
+- It cannot tell a daemon restart from a suite that failed on its own while the socket proxy was down: both are an exited container after a lost connection. The second is rare and ends `error` with an honest message, so this is accepted.
+
+**Known limit:** when the process was not attached during the interruption (TestFleet was down too), the reconciler finds an exited container and cannot know why; the exit code decides, as today.
 
 ### Database failures while a run executes
 
@@ -188,6 +206,8 @@ When a write fails, the recorder raises and `RunExecution` crashes (Milestone 3,
 - A failed `finish` is retried the same way: the reattach finds the exited container and finalizes again.
 
 No retries inside the process: a database outage longer than a few seconds would block the process either way, and one recovery path is easier to trust than two.
+
+A `:handler` in the dispatcher's `:engine_opts` now replaces the recorder, so a test can run a recorder that fails once (`TestFleet.FlakyRecorder`).
 
 ---
 
@@ -253,7 +273,9 @@ Directories under the artifacts root whose name is not the id of a run in this d
 
 Each slice passes `mix precommit` and the Docker tests on its own.
 
-**Status (2026-09-28):** slices A and B are built (341 tests, plus 75 Docker integration tests).
+**Status (2026-09-28):** slices A, B, and C are built (357 tests, plus 80 Docker integration tests).
+
+Notes from slice C: see sections 7 and 12 ("As implemented", "Deviations").
 
 Notes from slice B:
 
@@ -279,6 +301,7 @@ Notes from slice A:
 - **`PullCoordinator`:** concurrent callers of one reference cause one pull and all get its result; different references pull in parallel; an error reaches every waiter; a waiter that leaves does not affect the others.
 - **Docker check:** with an unreachable Docker, the dispatcher admits nothing, broadcasts the status, and admits again when Docker is back (a fake engine and a fake ping).
 - **Broken streams:** `Status.decide/1` for rule 5a and its precedence; the follow-again logic with a fake `Command` answering running, exited, missing, and unreachable; giving up leaves the run active.
+  - As implemented: `Reconnect.decide/3` is tested without Docker. The Docker tests run the process through a TCP proxy (`TestFleet.DockerProxy`) that the test cuts and restores, like a restarted socket proxy: the log continues without gaps or duplicates; a container killed meanwhile ends with the rule 5a message; one removed meanwhile ends "container disappeared"; without an answer in time the process stops, the container keeps running, and a reattach finishes the run. These tests are not async: they switch the Docker host for the whole application.
 - **Database failure:** a handler that raises once makes `RunExecution` crash with the container running; the next reconciler pass reattaches and the run finishes with all its lines exactly once.
 - **Image cleanup:** the candidate query (kept and removed pairs); `Command.remove_image/1` against Docker with a fixture tag; `409` skipped.
 - **Orphaned directories:** removed; active runs', existing runs', and non-numeric names kept.

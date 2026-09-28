@@ -1198,6 +1198,7 @@ The final status is decided in this order. The first matching rule wins.
 | 3 | Failure before the container started (registry, pull, create, start) | `error` |
 | 4 | Container state `OOMKilled = true` | `error` (message: memory limit exceeded) |
 | 5 | Container disappeared while running | `error` |
+| 5a | TestFleet lost Docker while the suite ran, the container exited meanwhile, and the exit code is non-zero | `error` (Docker was interrupted) |
 | 6 | Exit code `0` and JUnit reports failures or errors | `failed` |
 | 7 | Exit code `0` | `passed` |
 | 8 | Exit code non-zero and JUnit reports at least one failure | `failed` |
@@ -1210,6 +1211,7 @@ Notes:
 - Rule 9 catches crashes in setup/teardown, reporters, or the runner itself, which are not test failures.
 - Rule 10 is deliberately `failed`, not `error`: without structured results TestFleet cannot tell the difference, and a false "infrastructure error" is worse than a false "test failure".
 - Exit codes `137` without `OOMKilled` (killed by TestFleet during timeout or cancellation) are already covered by rules 1 and 2.
+- Rule 5a (Milestone 7, section 7) catches a Docker daemon restart, which stops every suite with `143` or `137`. Without it, rule 10 would call that `failed`.
 
 ---
 
@@ -2064,6 +2066,8 @@ preparing → error
 ```text
 preparing → error
 ```
+
+As implemented (Milestone 7, section 7): while Docker is unreachable, the dispatcher admits nothing, so queued runs stay `queued` instead of becoming errors. A `running` run that loses Docker is followed again once Docker answers.
 
 ### Container cannot start
 
