@@ -61,6 +61,10 @@ config :testfleet, TestFleet.Artifacts,
   root: "tmp/artifacts",
   max_bytes: 500 * 1024 * 1024
 
+# Image pulls have their own timeout, separate from the run's (Milestone 7 section 6;
+# PULL_TIMEOUT_SECONDS at runtime)
+config :testfleet, TestFleet.Execution, pull_timeout: :timer.minutes(10)
+
 # Retention (Milestone 6 section 8; ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
 config :testfleet, TestFleet.Retention,
   artifacts_days: 30,

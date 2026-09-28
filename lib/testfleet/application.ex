@@ -15,6 +15,9 @@ defmodule TestFleet.Application do
       {DNSCluster, query: Application.get_env(:testfleet, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TestFleet.PubSub},
       {Registry, keys: :unique, name: TestFleet.Execution.Registry},
+      # Before the run processes that use them, so they stop after them.
+      {Task.Supervisor, name: TestFleet.Execution.TaskSupervisor},
+      TestFleet.Execution.PullCoordinator,
       {DynamicSupervisor, name: TestFleet.Execution.Supervisor, strategy: :one_for_one}
     ]
 

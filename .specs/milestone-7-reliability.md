@@ -134,7 +134,8 @@ Every failure below ends in the same place: a run that is active in PostgreSQL w
 `TestFleet.Execution.PullCoordinator` (a GenServer) runs at most one pull per image reference at a time.
 
 - `PullCoordinator.pull(ref, auth)` starts a task for the first caller of a reference; later callers for the same reference wait for that task's result. Everyone gets the same result, including an error.
-- The key is the reference as configured (`localhost:5055/suite:dev`, or with a digest). Credentials come from the registry of the image's host, so callers of one reference send the same credentials.
+- The key is the reference as configured (`localhost:5055/suite:dev`, or with a digest) **plus a hash of the credentials** (`:erlang.phash2/1`; the credentials themselves are not kept). Callers of one reference normally send the same credentials, from the registry of the image's host; with the hash in the key, a pull with wrong credentials can never answer one with the right ones, or the other way round.
+- The pulls run under `TestFleet.Execution.TaskSupervisor`, not in the caller: a caller's task is shut down on timeout or cancel, and the pull must outlive it. The coordinator and the task supervisor start before the run processes' supervisor, so they stop after them.
 - A waiting caller that is shut down (its run's pull timeout, a cancel) only leaves the waiters; the pull goes on for the others. When the last waiter leaves, the pull is not cancelled: Docker cannot cancel a pull through the API anyway.
 - It deduplicates the pull only. Each run inspects the image and records its own digest afterwards.
 
@@ -252,7 +253,13 @@ Directories under the artifacts root whose name is not the id of a run in this d
 
 Each slice passes `mix precommit` and the Docker tests on its own.
 
-**Status (2026-09-28):** slice A is built (335 tests, plus 72 Docker integration tests).
+**Status (2026-09-28):** slices A and B are built (341 tests, plus 75 Docker integration tests).
+
+Notes from slice B:
+
+- The pull timeout message formats the configured value: "image pull exceeded 10 min", "… 5 s".
+- The Docker test for the timeout pulls from a non-routable address (`10.255.255.1`), which hangs until Docker's own connect timeout, far beyond the test's 1 s.
+- Duration assertions in the Docker tests allow 500 ms of clock skew: durations are measured on Docker's clock (Milestone 6, section 5), deadlines on TestFleet's, and Docker Desktop's VM clock can be a few hundred milliseconds off. This made `stop_test` flaky once the suite grew.
 
 Notes from slice A:
 

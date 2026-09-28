@@ -373,6 +373,7 @@ defmodule TestFleet.Runs do
       memory_limit: test_definition.memory_limit,
       shm_size: test_definition.shm_size_bytes,
       pull_policy: :auto,
+      pull_timeout_ms: Execution.pull_timeout(),
       stop_grace_seconds: @stop_grace_seconds,
       artifact_path: Storage.run_dir(run.id),
       max_artifact_bytes: Artifacts.max_bytes()

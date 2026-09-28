@@ -30,6 +30,8 @@ defmodule TestFleet.Execution.Request do
     stop_grace_seconds: 30,
     shm_size: 2_147_483_648,
     pull_policy: :auto,
+    # The whole preparation (network, pull, inspect); not part of the run's timeout
+    pull_timeout_ms: 600_000,
     secret_keys: []
   ]
 
@@ -50,6 +52,7 @@ defmodule TestFleet.Execution.Request do
           stop_grace_seconds: non_neg_integer(),
           shm_size: pos_integer(),
           pull_policy: :auto | :always | :if_missing | :never,
+          pull_timeout_ms: pos_integer(),
           secret_keys: [String.t()]
         }
 

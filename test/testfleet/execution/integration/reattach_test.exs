@@ -39,7 +39,8 @@ defmodule TestFleet.Execution.Integration.ReattachTest do
 
     assert result.status == :timeout
     duration = DateTime.diff(result.finished_at, result.started_at, :millisecond)
-    assert duration >= 5_000 and duration <= 5_000 + 2_000, "took #{duration} ms"
+    # Measured on Docker's clock, the deadline on TestFleet's: allow for VM clock skew.
+    assert duration >= 5_000 - 500 and duration <= 5_000 + 2_000, "took #{duration} ms"
   end
 
   test "reattaching after the deadline stops the container right away" do

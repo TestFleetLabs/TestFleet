@@ -2,6 +2,10 @@ defmodule TestFleet.Execution.Integration.StopTest do
   # Spike steps 3 and 4: timeout and cancellation.
   use TestFleet.DockerCase, async: true
 
+  # Durations are measured on Docker's clock (StartedAt to FinishedAt), the deadline
+  # on TestFleet's. Docker Desktop's VM clock can be a few hundred ms off.
+  @clock_skew 500
+
   describe "timeout" do
     @tag :tmp_dir
     test "a hanging suite is stopped at its deadline, and its artifacts are kept", %{
@@ -12,7 +16,7 @@ defmodule TestFleet.Execution.Integration.StopTest do
 
       assert result.status == :timeout
       assert "terminated" in contents(lines)
-      assert_duration(result, 3_000, 3_000 + 2_000)
+      assert_duration(result, 3_000 - @clock_skew, 3_000 + 2_000)
       assert Enum.any?(result.artifacts, &(&1.path == "summary.txt"))
     end
 
@@ -21,8 +25,9 @@ defmodule TestFleet.Execution.Integration.StopTest do
 
       assert result.status == :timeout
       refute "terminated" in contents(lines)
-      # Deadline + grace period, plus a margin for Docker.
-      assert_duration(result, 3_000 + 2_000, 3_000 + 2_000 + 3_000)
+      # Deadline + grace period, plus a margin for Docker. Without the grace period
+      # it would be about 3 s.
+      assert_duration(result, 3_000 + 2_000 - @clock_skew, 3_000 + 2_000 + 3_000)
     end
   end
 

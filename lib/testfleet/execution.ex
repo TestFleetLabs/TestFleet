@@ -48,6 +48,13 @@ defmodule TestFleet.Execution do
     )
   end
 
+  @doc """
+  How long preparing a run (network, image pull, inspect) may take, in milliseconds
+  (`config :testfleet, TestFleet.Execution, pull_timeout: ...`, default 10 minutes).
+  """
+  def pull_timeout,
+    do: Application.get_env(:testfleet, __MODULE__, [])[:pull_timeout] || :timer.minutes(10)
+
   @doc "Cancels a run. Idempotent: cancelling a finished or unknown run returns `:ok`."
   def cancel(run_id) do
     case Registry.lookup(TestFleet.Execution.Registry, run_id) do

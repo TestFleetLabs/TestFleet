@@ -31,6 +31,11 @@ defmodule TestFleet.Execution.RunExecution do
   timer. The timeout and grace period are stored as container labels, so an attaching
   process can enforce the original deadline.
 
+  Preparing (network, image pull, inspect) is bounded by the request's
+  `pull_timeout_ms`, separately from the run's timeout; past it, the run ends
+  `error`. Pulls go through `TestFleet.Execution.PullCoordinator`, so runs of the
+  same image share one pull (Milestone 7, section 6).
+
   The process does not remove its container when it crashes: a running suite that
   outlives its process can still be reattached (main spec section 32).
   """
@@ -39,7 +44,7 @@ defmodule TestFleet.Execution.RunExecution do
 
   require Logger
 
-  alias TestFleet.Execution.{Collector, LineBuffer, Masker, Result, Status}
+  alias TestFleet.Execution.{Collector, LineBuffer, Masker, PullCoordinator, Result, Status}
   alias TestFleet.Execution.Docker.{Command, ImageRef, LogDecoder}
 
   @network "TestFleet-runs"
@@ -83,6 +88,7 @@ defmodule TestFleet.Execution.RunExecution do
       stop_grace_seconds: (request && request.stop_grace_seconds) || @default_stop_grace_seconds,
       phase: :preparing,
       prepare_task: nil,
+      pull_timer: nil,
       container_id: nil,
       owns_container: false,
       image_digest: nil,
@@ -127,8 +133,10 @@ defmodule TestFleet.Execution.RunExecution do
   def handle_continue(:start, state) do
     notify(state, {:status, :preparing})
     request = state.request
-    # The pull runs in a task so that a cancel does not wait for it.
-    {:noreply, %{state | prepare_task: Task.async(fn -> prepare_image(request) end)}}
+    # The pull runs in a task so that a cancel or the pull timeout does not wait for it.
+    task = Task.async(fn -> prepare_image(request) end)
+    timer = Process.send_after(self(), :pull_timeout, request.pull_timeout_ms)
+    {:noreply, %{state | prepare_task: task, pull_timer: timer}}
   end
 
   def handle_continue(:attach, state) do
@@ -166,8 +174,8 @@ defmodule TestFleet.Execution.RunExecution do
 
   @impl true
   def handle_call(:cancel, _from, %{phase: :preparing} = state) do
-    if state.prepare_task, do: Task.shutdown(state.prepare_task, :brutal_kill)
-    {:stop, :normal, :ok, finalize(%{state | prepare_task: nil, cancelled: true})}
+    state = stop_preparing(state)
+    {:stop, :normal, :ok, finalize(%{state | cancelled: true})}
   end
 
   def handle_call(:cancel, _from, %{stopping: true} = state), do: {:reply, :ok, state}
@@ -180,7 +188,8 @@ defmodule TestFleet.Execution.RunExecution do
   @impl true
   def handle_info({ref, result}, %{prepare_task: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
-    state = %{state | prepare_task: nil}
+    if state.pull_timer, do: Process.cancel_timer(state.pull_timer)
+    state = %{state | prepare_task: nil, pull_timer: nil}
 
     case result do
       {:ok, digest} ->
@@ -191,6 +200,15 @@ defmodule TestFleet.Execution.RunExecution do
         stop(finalize(%{state | error: message}))
     end
   end
+
+  def handle_info(:pull_timeout, %{prepare_task: %Task{}} = state) do
+    message = "image pull exceeded #{format_ms(state.request.pull_timeout_ms)}"
+    Logger.warning("run #{state.run_id}: #{message}")
+    stop(finalize(%{stop_preparing(state) | error: message}))
+  end
+
+  # The pull finished just before the timer fired.
+  def handle_info(:pull_timeout, state), do: {:noreply, state}
 
   def handle_info(:deadline, state) do
     if state.exited or state.stopping do
@@ -251,12 +269,12 @@ defmodule TestFleet.Execution.RunExecution do
   defp ensure_image(request, ref) do
     case pull_policy(request, ref) do
       :always ->
-        Command.pull(ref, request.registry_auth)
+        pull(request, ref)
 
       :if_missing ->
         case Command.inspect_image(request.image) do
           {:ok, _} -> :ok
-          {:error, %{status: 404}} -> Command.pull(ref, request.registry_auth)
+          {:error, %{status: 404}} -> pull(request, ref)
           error -> error
         end
 
@@ -264,6 +282,26 @@ defmodule TestFleet.Execution.RunExecution do
         :ok
     end
   end
+
+  # One pull per reference and credentials; runs of the same image wait for it
+  # (Milestone 7, section 6). The credentials are part of the key, as a hash, so a
+  # pull with wrong credentials never answers one with the right ones.
+  defp pull(request, ref) do
+    key = {request.image, :erlang.phash2(request.registry_auth)}
+    PullCoordinator.pull(key, fn -> Command.pull(ref, request.registry_auth) end)
+  end
+
+  # Shutting the task down does not stop a pull another run waits for: the pull
+  # runs in the coordinator, this task only waits.
+  defp stop_preparing(state) do
+    if state.prepare_task, do: Task.shutdown(state.prepare_task, :brutal_kill)
+    if state.pull_timer, do: Process.cancel_timer(state.pull_timer)
+    %{state | prepare_task: nil, pull_timer: nil}
+  end
+
+  defp format_ms(ms) when rem(ms, 60_000) == 0, do: "#{div(ms, 60_000)} min"
+  defp format_ms(ms) when rem(ms, 1_000) == 0, do: "#{div(ms, 1_000)} s"
+  defp format_ms(ms), do: "#{ms} ms"
 
   defp pull_policy(%{pull_policy: :auto}, ref),
     do: if(ImageRef.digest?(ref), do: :if_missing, else: :always)
