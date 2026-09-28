@@ -10,6 +10,12 @@ defmodule TestFleetWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  # Artifacts are requested by <img>, <video>, and new tabs, which do not all accept
+  # HTML, and need no session yet. Authentication will add its plug here too.
+  pipeline :artifacts do
+    plug :put_secure_browser_headers
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -40,6 +46,12 @@ defmodule TestFleetWeb.Router do
     end
 
     get "/runs/:id/log", RunLogController, :show
+  end
+
+  scope "/", TestFleetWeb do
+    pipe_through :artifacts
+
+    get "/runs/:id/artifacts/*name", ArtifactController, :show
   end
 
   # Other scopes may use custom stacks.

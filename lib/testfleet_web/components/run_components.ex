@@ -144,6 +144,212 @@ defmodule TestFleetWeb.RunComponents do
   end
 
   @doc """
+  Renders a run's JUnit counts compactly, e.g. "42 ✓ 2 ✗ 1 skipped". Nothing
+  for a run without JUnit.
+  """
+  attr :run, Run, required: true
+  attr :id, :string, default: nil
+
+  def test_counts(assigns) do
+    ~H"""
+    <span
+      :if={@run.tests_passed != nil}
+      id={@id}
+      class="inline-flex items-center gap-2 tabular-nums"
+      title={
+        gettext("%{passed} passed · %{failed} failed · %{skipped} skipped",
+          passed: @run.tests_passed,
+          failed: @run.tests_failed,
+          skipped: @run.tests_skipped
+        )
+      }
+    >
+      <span class="inline-flex items-center gap-0.5 text-success" data-count="passed">
+        {@run.tests_passed}<.icon name="hero-check-mini" class="size-3.5" />
+      </span>
+      <span
+        :if={@run.tests_failed > 0}
+        class="inline-flex items-center gap-0.5 text-error"
+        data-count="failed"
+      >
+        {@run.tests_failed}<.icon name="hero-x-mark-mini" class="size-3.5" />
+      </span>
+      <span
+        :if={@run.tests_skipped > 0}
+        class="inline-flex items-center gap-0.5 text-base-content/50"
+        data-count="skipped"
+      >
+        {@run.tests_skipped}<.icon name="hero-minus-mini" class="size-3.5" />
+      </span>
+    </span>
+    """
+  end
+
+  @doc """
+  Renders one test result. Failed and errored tests show their message, and the
+  details (stack trace) in a `<details>` element.
+  """
+  attr :id, :string, required: true
+  attr :result, TestFleet.Results.TestResult, required: true
+
+  def test_result_row(assigns) do
+    ~H"""
+    <li id={@id} data-status={@result.status} class="px-5 py-3">
+      <div class="flex items-start gap-3">
+        <.icon
+          name={test_status_icon(@result.status)}
+          class={["mt-0.5 size-4 shrink-0", test_status_class(@result.status)]}
+        />
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p class="min-w-0 text-sm font-medium break-words">{@result.name}</p>
+            <span
+              :if={@result.duration_ms}
+              class="shrink-0 text-xs text-base-content/50 tabular-nums"
+            >
+              {format_ms(@result.duration_ms)}
+            </span>
+          </div>
+          <p
+            :if={@result.suite != "" or @result.classname != ""}
+            class="mt-0.5 truncate text-xs text-base-content/60"
+          >
+            {[@result.suite, @result.classname] |> Enum.reject(&(&1 == "")) |> Enum.join(" › ")}
+          </p>
+          <p
+            :if={@result.status == :error}
+            class="mt-1.5 text-xs font-medium text-base-content/70"
+          >
+            {gettext("Error, not an assertion failure")}
+          </p>
+          <%!-- phx-no-format: whitespace inside is visible (pre-wrap) --%>
+          <p
+            :if={@result.failure_message}
+            data-failure-message
+            class={[
+              "mt-1.5 font-mono text-xs break-words whitespace-pre-wrap",
+              test_status_class(@result.status)
+            ]}
+            phx-no-format
+          >{@result.failure_message}</p>
+          <details :if={@result.failure_details} class="group mt-2">
+            <summary class="inline-flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-base-content/60 transition-colors hover:text-base-content">
+              <.icon
+                name="hero-chevron-right-mini"
+                class="size-4 transition-transform group-open:rotate-90"
+              />
+              {gettext("Details")}
+            </summary>
+            <pre class="mt-2 max-h-96 overflow-auto rounded-lg bg-zinc-950 p-3 font-mono text-xs leading-5 text-zinc-200">{@result.failure_details}</pre>
+          </details>
+        </div>
+      </div>
+    </li>
+    """
+  end
+
+  defp test_status_icon(:passed), do: "hero-check-circle-mini"
+  defp test_status_icon(:failed), do: "hero-x-circle-mini"
+  defp test_status_icon(:error), do: "hero-exclamation-triangle-mini"
+  defp test_status_icon(:skipped), do: "hero-minus-circle-mini"
+
+  defp test_status_class(:passed), do: "text-success"
+  defp test_status_class(:failed), do: "text-error"
+  # Like the run statuses: an error is not a failed assertion.
+  defp test_status_class(:error), do: "text-warning"
+  defp test_status_class(:skipped), do: "text-base-content/40"
+
+  @doc "Formats milliseconds as `85 ms`, `12.3s`, or `4m 17s`."
+  def format_ms(ms) when ms < 1_000, do: "#{ms} ms"
+  def format_ms(ms) when ms < 60_000, do: "#{Float.round(ms / 1_000, 1)}s"
+  def format_ms(ms), do: format_duration(div(ms, 1_000))
+
+  @doc "Formats a file size, e.g. `812 B`, `20 KiB`, or `1.4 MiB`."
+  def format_size(bytes) when bytes < 1_024, do: "#{bytes} B"
+  def format_size(bytes) when bytes < 1_024 * 1_024, do: "#{round_unit(bytes / 1_024)} KiB"
+
+  def format_size(bytes) when bytes < 1_024 * 1_024 * 1_024,
+    do: "#{round_unit(bytes / (1_024 * 1_024))} MiB"
+
+  def format_size(bytes), do: "#{round_unit(bytes / (1_024 * 1_024 * 1_024))} GiB"
+
+  defp round_unit(value) when value >= 10, do: round(value)
+  defp round_unit(value), do: Float.round(value, 1)
+
+  @doc """
+  The URL of a run's artifact. Each segment of the name is encoded on its own, so
+  the directory structure stays in the URL and relative links in a report work.
+  """
+  def artifact_url(run_id, name) do
+    path =
+      name
+      |> String.split("/")
+      |> Enum.map_join("/", fn segment -> URI.encode(segment, &URI.char_unreserved?/1) end)
+
+    ~p"/runs/#{run_id}/artifacts" <> "/" <> path
+  end
+
+  @image_types ~w(image/png image/jpeg image/gif image/webp)
+  @video_types ~w(video/webm video/mp4)
+
+  @doc "`:image`, `:video`, `:html`, or `:file`: how the artifacts panel shows it."
+  def artifact_kind(%{content_type: type}) when type in @image_types, do: :image
+  def artifact_kind(%{content_type: type}) when type in @video_types, do: :video
+  def artifact_kind(%{content_type: "text/html"}), do: :html
+  def artifact_kind(_artifact), do: :file
+
+  @doc """
+  Turns a run's artifacts into the rows of a tree: a `:dir` row before the
+  contents of each directory, directories before files at each level. Each row has
+  a `depth`; a directory with an `index.html` has it as `index`.
+  """
+  def artifact_tree(artifacts) do
+    by_name = Map.new(artifacts, &{&1.name, &1})
+
+    {rows, _open} =
+      artifacts
+      |> Enum.sort_by(&tree_key(&1.name))
+      |> Enum.flat_map_reduce([], fn artifact, open ->
+        dirs = artifact.name |> String.split("/") |> Enum.drop(-1)
+        common = common_length(open, dirs)
+
+        dir_rows =
+          for depth <- common..(length(dirs) - 1)//1 do
+            path = dirs |> Enum.take(depth + 1) |> Enum.join("/")
+
+            %{
+              kind: :dir,
+              name: Enum.at(dirs, depth),
+              path: path,
+              depth: depth,
+              index: by_name[path <> "/index.html"]
+            }
+          end
+
+        file_row = %{
+          kind: :file,
+          name: Path.basename(artifact.name),
+          artifact: artifact,
+          depth: length(dirs)
+        }
+
+        {dir_rows ++ [file_row], dirs}
+      end)
+
+    rows
+    |> Enum.with_index()
+    |> Enum.map(fn {row, index} -> Map.put(row, :id, "artifact-row-#{index}") end)
+  end
+
+  defp tree_key(name) do
+    {dirs, [file]} = name |> String.split("/") |> Enum.split(-1)
+    Enum.map(dirs, &{0, &1}) ++ [{1, file}]
+  end
+
+  defp common_length([same | a], [same | b]), do: 1 + common_length(a, b)
+  defp common_length(_a, _b), do: 0
+
+  @doc """
   Renders a run as a list row linking to the run page. Expects the run with its
   test definition (and project) and environment preloaded.
 
@@ -172,10 +378,13 @@ defmodule TestFleetWeb.RunComponents do
               {@run.environment.name}
             </span>
           </p>
-          <p class="truncate text-xs text-base-content/60">
-            <span :if={@context == nil}>{@run.test_definition.project.name} · </span>
-            <span :if={@context != :test_definition}>{@run.environment.name} · </span>
-            {trigger_label(@run.trigger)}
+          <p class="flex items-center gap-3 text-xs text-base-content/60">
+            <span class="truncate">
+              <span :if={@context == nil}>{@run.test_definition.project.name} · </span>
+              <span :if={@context != :test_definition}>{@run.environment.name} · </span>
+              {trigger_label(@run.trigger)}
+            </span>
+            <.test_counts id={"#{@id}-tests"} run={@run} />
           </p>
         </div>
         <div class="hidden shrink-0 text-right text-xs text-base-content/60 sm:block">

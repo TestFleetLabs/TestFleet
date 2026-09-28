@@ -195,7 +195,10 @@ The rows are written by `Artifacts.insert_all/2` and `Results.insert_all/2`, whi
 - "Artifacts expired on …" when retention removed them; the tests stay.
 - A run without artifacts shows nothing, not an empty panel.
 
-**Pin:** a "Pin" toggle in the header exempts the run from retention.
+- Images and videos are previewed in a grid above the list, at most 24; the rest are in the list.
+- Results and artifacts are loaded once the run is final, also when it finishes while the page is open.
+
+**Pin:** a "Pin" toggle in the header exempts the run from retention. Built with retention in slice D, together with the "expired" states.
 
 ### Downloads
 
@@ -205,8 +208,11 @@ The rows are written by `Artifacts.insert_all/2` and `Results.insert_all/2`, whi
 - `Content-Type` from the row, `X-Content-Type-Options: nosniff`.
 - Images, videos, PDF, and text are served inline; other types as attachments.
 - **HTML is served with `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms`** (no `allow-same-origin`). A report is someone else's HTML: with this header it runs in an opaque origin and cannot reach TestFleet's cookies or pages, but scripts still run. Relative links within a report work, because the route keeps the directory structure.
+  - **Deviation:** the header is sent with every artifact except PDF, not only with HTML. SVG and XML (XHTML) run scripts when opened directly too, and the header does not affect images or videos. PDF is exempt because browsers refuse to show a PDF in a sandboxed document.
   - **Known limit:** a report that needs `localStorage` fails in an opaque origin. A separate artifacts origin (`ARTIFACTS_ORIGIN`) is the complete fix, later.
-- Range requests are supported, so videos can seek.
+- Range requests are supported for a single range, so videos can seek. Several ranges, or a malformed header, get the whole file.
+- The route has its own pipeline (`:artifacts`, only the secure browser headers): `<img>` and `<video>` requests do not accept HTML, and no session is needed yet. Authentication adds its plug there.
+- Links encode each segment of the name on its own (`RunComponents.artifact_url/2`), so the directory structure stays in the URL.
 
 ### Run lists
 
@@ -258,11 +264,11 @@ The image must be rebuilt and pushed afterwards (spike spec section 9).
 | A | Collection: artifacts root and storage, size limit with the JUnit fallback, safe extraction, JUnit parser, decision table rules 6, 8, 9, `Result` fields, recovery passes `artifact_path`. | – |
 | B | Persisting: `artifacts` and `test_results` tables, the new `runs` columns, `Runs.finish/2` in one transaction. | A |
 | C | UI: tests panel, artifacts panel with previews, the download route with its headers, counts in run lists. | B |
-| D | Retention: `CleanupWorker`, pinning, expired states. | B |
+| D | Retention: `CleanupWorker`, pinning (with the toggle), expired states. | B |
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-28):** slices A and B are built (293 tests, plus 65 Docker integration tests). Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
+**Status (2026-09-28):** slices A, B, and C are built (317 tests, plus 65 Docker integration tests). Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
 
 ---
 

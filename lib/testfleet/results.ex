@@ -14,16 +14,36 @@ defmodule TestFleet.Results do
 
   @chunk_size 1_000
 
-  @doc "A run's test results: failed and errored first, then in report order."
-  def list_test_results(%Run{id: run_id}) do
-    Repo.all(
+  @failures [:failed, :error]
+
+  @doc """
+  A run's test results: failed and errored first, then in report order.
+
+  `only: :failures` returns the failed and errored ones, `only: :others` the rest;
+  the run page loads the rest on demand.
+  """
+  def list_test_results(%Run{id: run_id}, opts \\ []) do
+    query =
       from t in TestResult,
         where: t.run_id == ^run_id,
         order_by: [
           asc: fragment("CASE WHEN ? IN ('failed', 'error') THEN 0 ELSE 1 END", t.status),
           asc: t.id
         ]
-    )
+
+    query =
+      case opts[:only] do
+        nil -> query
+        :failures -> where(query, [t], t.status in ^@failures)
+        :others -> where(query, [t], t.status not in ^@failures)
+      end
+
+    Repo.all(query)
+  end
+
+  @doc "The sum of a run's test durations in milliseconds; `nil` without any."
+  def total_duration_ms(%Run{id: run_id}) do
+    Repo.one(from t in TestResult, where: t.run_id == ^run_id, select: sum(t.duration_ms))
   end
 
   @doc """

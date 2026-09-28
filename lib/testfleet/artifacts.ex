@@ -26,6 +26,21 @@ defmodule TestFleet.Artifacts do
   end
 
   @doc """
+  The artifact of a run with exactly this name, or `nil`. Downloads look names up
+  here and never build a file path from a request (Milestone 6, section 7).
+  """
+  def get_artifact(run_id, name) when is_binary(name) do
+    with {run_id, ""} <- Integer.parse(to_string(run_id)) do
+      Repo.get_by(Artifact, run_id: run_id, name: name)
+    else
+      _ -> nil
+    end
+  end
+
+  @doc "The file of an artifact."
+  def path(%Artifact{storage_key: key}), do: Storage.path(key)
+
+  @doc """
   Inserts the rows of collected artifacts (`%{path, size_bytes}`, as in
   `TestFleet.Execution.Result`). Names already stored are skipped. Called by
   `Runs.finish/2` inside its transaction.
