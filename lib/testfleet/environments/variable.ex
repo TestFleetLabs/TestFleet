@@ -10,6 +10,7 @@ defmodule TestFleet.Environments.Variable do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import TestFleet.Changesets, only: [update_present: 3]
 
   @key_format ~r/^[A-Za-z_][A-Za-z0-9_]*$/
   @reserved_prefix "testfleet_"
@@ -32,7 +33,7 @@ defmodule TestFleet.Environments.Variable do
     variable
     |> cast(attrs, [:key, :secret])
     |> cast_value(attrs)
-    |> update_change(:key, &String.trim/1)
+    |> update_present(:key, &String.trim/1)
     |> validate_required([:key])
     |> validate_length(:key, max: 255)
     |> validate_format(:key, @key_format,

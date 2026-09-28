@@ -13,6 +13,7 @@ defmodule TestFleet.Notifications.Channel do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import TestFleet.Changesets, only: [update_present: 3]
 
   @type t :: %__MODULE__{}
 
@@ -51,8 +52,7 @@ defmodule TestFleet.Notifications.Channel do
     channel
     |> cast(attrs, [:name, :enabled, :recipients_text, :clear_signing_secret])
     |> cast_kind(attrs)
-    # An emptied field is a nil change.
-    |> update_change(:name, &trim/1)
+    |> update_present(:name, &String.trim/1)
     |> validate_required([:name, :kind])
     |> validate_length(:name, max: 100)
     |> unique_constraint(:name,

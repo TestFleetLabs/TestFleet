@@ -197,27 +197,55 @@ defmodule TestFleet.Notifications do
           "previous_run_id" => previous && previous.id
         }
 
-        {:ok, changes} =
-          event
-          |> channels_for(run)
-          |> Enum.reduce(Multi.new(), fn channel, multi ->
-            enqueue_delivery_multi(
-              multi,
-              {:delivery, channel.id},
-              channel,
-              event,
-              "#{event}:#{run.id}",
-              run_id: run.id,
-              data: data
-            )
-          end)
-          |> Repo.transaction()
-
-        deliveries = for {{:delivery, _id}, %Delivery{} = delivery} <- changes, do: delivery
-        Enum.each(deliveries, &broadcast_delivery/1)
-        {:ok, deliveries}
+        event
+        |> channels_for(run)
+        |> deliver_to(event, "#{event}:#{run.id}", run_id: run.id, data: data)
     end
   end
+
+  ## System events
+
+  @doc """
+  Delivers a system event (Milestone 8, section 7) to every enabled channel with a
+  subscription to it; only subscriptions for all projects can have one.
+  `dedupe_key` names the episode, so an event is delivered once per episode.
+  `data` is stored with the delivery and rendered when it is sent: never secrets.
+  """
+  def notify_system(event, dedupe_key, data) do
+    Repo.all(
+      from c in Channel,
+        join: s in Subscription,
+        on: s.channel_id == c.id,
+        where: c.enabled and is_nil(s.project_id) and fragment("? = ANY(?)", ^event, s.events),
+        distinct: true,
+        order_by: c.id
+    )
+    |> deliver_to(event, dedupe_key, data: data)
+  end
+
+  # One delivery per channel, all in one transaction; returns the new ones.
+  defp deliver_to(channels, event, dedupe_key, opts) do
+    {:ok, changes} =
+      channels
+      |> Enum.reduce(Multi.new(), fn channel, multi ->
+        enqueue_delivery_multi(multi, {:delivery, channel.id}, channel, event, dedupe_key, opts)
+      end)
+      |> Repo.transaction()
+
+    deliveries = for {{:delivery, _id}, %Delivery{} = delivery} <- changes, do: delivery
+    Enum.each(deliveries, &broadcast_delivery/1)
+    {:ok, deliveries}
+  end
+
+  @doc "Deletes deliveries created before `cutoff`. Returns how many."
+  def prune_deliveries(%DateTime{} = cutoff) do
+    {count, _} = Repo.delete_all(from d in Delivery, where: d.inserted_at < ^cutoff)
+    count
+  end
+
+  @doc "Renders a system event delivery from its stored data."
+  def system_message(%Delivery{event: event, data: data, inserted_at: inserted_at}),
+    do: Message.system_event(event, data, inserted_at || DateTime.utc_now())
 
   @doc "Renders a run event delivery from the run as it is now."
   def run_message(%Delivery{event: event, run_id: run_id, data: data}) do

@@ -9,6 +9,7 @@ defmodule TestFleet.Schedules.Schedule do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import TestFleet.Changesets, only: [update_present: 3]
 
   alias TestFleet.Schedules.{Cron, Timezones}
 
@@ -48,8 +49,8 @@ defmodule TestFleet.Schedules.Schedule do
       :overlap_policy,
       :enabled
     ])
-    |> update_change(:cron_expression, &(&1 |> String.split() |> Enum.join(" ")))
-    |> update_change(:timezone, &String.trim/1)
+    |> update_present(:cron_expression, &(&1 |> String.split() |> Enum.join(" ")))
+    |> update_present(:timezone, &String.trim/1)
     |> validate_required([
       :test_definition_id,
       :environment_id,

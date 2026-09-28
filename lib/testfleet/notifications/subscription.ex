@@ -9,6 +9,7 @@ defmodule TestFleet.Notifications.Subscription do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import TestFleet.Changesets, only: [update_present: 3]
 
   alias TestFleet.Environments.Environment
   alias TestFleet.Repo
@@ -36,7 +37,7 @@ defmodule TestFleet.Notifications.Subscription do
   def changeset(subscription, attrs) do
     subscription
     |> cast(attrs, [:project_id, :environment_id, :events])
-    |> update_change(:events, fn events -> events |> Enum.reject(&(&1 == "")) |> Enum.uniq() end)
+    |> update_present(:events, fn events -> events |> Enum.reject(&(&1 == "")) |> Enum.uniq() end)
     |> validate_subset(:events, @run_events ++ @system_events)
     |> validate_some_event()
     |> validate_scope()

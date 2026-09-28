@@ -48,6 +48,12 @@ config :testfleet, TestFleet.Mailer, adapter: Swoosh.Adapters.Test
 config :testfleet, TestFleet.Notifications,
   req_options: [plug: {Req.Test, TestFleet.Notifications}]
 
+# Tests start the watchdog themselves, with a fake clock and Docker status.
+config :testfleet, TestFleet.Notifications.Watchdog, enabled: false
+
+config :testfleet, TestFleet.Notifications.Heartbeat,
+  req_options: [plug: {Req.Test, TestFleet.Notifications.Heartbeat}]
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

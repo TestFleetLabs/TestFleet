@@ -199,6 +199,20 @@ defmodule TestFleet.NotificationsTest do
       assert Repo.aggregate(Delivery, :count) == 1
     end
 
+    test "prune_deliveries deletes those created before the cutoff" do
+      channel = channel_fixture()
+      {:ok, old} = Notifications.enqueue_delivery(channel, "test", "test:old")
+      {:ok, recent} = Notifications.enqueue_delivery(channel, "test", "test:recent")
+
+      old
+      |> Ecto.Changeset.change(inserted_at: DateTime.add(DateTime.utc_now(), -91, :day))
+      |> Repo.update!()
+
+      assert Notifications.prune_deliveries(DateTime.add(DateTime.utc_now(), -90, :day)) == 1
+      assert [%Delivery{id: id}] = Repo.all(Delivery)
+      assert id == recent.id
+    end
+
     test "deleting a channel deletes its deliveries" do
       channel = channel_fixture()
       {:ok, _} = Notifications.enqueue_delivery(channel, "test", "test:1")

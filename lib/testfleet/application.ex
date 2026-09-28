@@ -27,8 +27,11 @@ defmodule TestFleet.Application do
         do: [],
         else: [TestFleet.Execution.Dispatcher, TestFleet.Execution.Reconciler]
 
+    # Reports Docker and scheduling problems; outside Oban, so a stuck cron shows.
+    watchdog = [TestFleet.Notifications.Watchdog]
+
     # Start to serve requests, typically the last entry
-    children = children ++ dispatcher ++ [TestFleetWeb.Endpoint]
+    children = children ++ dispatcher ++ watchdog ++ [TestFleetWeb.Endpoint]
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options

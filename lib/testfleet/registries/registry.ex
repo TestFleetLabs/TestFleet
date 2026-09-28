@@ -11,6 +11,7 @@ defmodule TestFleet.Registries.Registry do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import TestFleet.Changesets, only: [update_present: 3]
 
   @host_format ~r/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]{1,5})?$/
 
@@ -28,9 +29,9 @@ defmodule TestFleet.Registries.Registry do
     registry
     |> cast(attrs, [:name, :host, :username])
     |> cast_password(attrs)
-    |> update_change(:name, &String.trim/1)
-    |> update_change(:host, &normalize_host/1)
-    |> update_change(:username, &String.trim/1)
+    |> update_present(:name, &String.trim/1)
+    |> update_present(:host, &normalize_host/1)
+    |> update_present(:username, &String.trim/1)
     |> validate_required([:name, :host, :username])
     |> validate_length(:name, max: 100)
     |> validate_length(:host, max: 255)

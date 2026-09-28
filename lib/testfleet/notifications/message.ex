@@ -172,6 +172,68 @@ defmodule TestFleet.Notifications.Message do
     "#{div(ms, 3_600_000)} h" <> if(minutes > 0, do: " #{minutes} min", else: "")
   end
 
+  @doc """
+  The message of a system event (Milestone 8, section 7), from the data the
+  watchdog stored with the delivery. Times are shown in the default timezone.
+  """
+  def system_event(event, data, occurred_at) do
+    {title, summary, facts} = system_text(event, data)
+
+    %__MODULE__{
+      event: event,
+      title: title,
+      summary: summary,
+      facts: facts,
+      link: %{label: "Open the dashboard", url: url(~p"/")},
+      payload: %{"system" => data},
+      occurred_at: DateTime.truncate(occurred_at, :second)
+    }
+  end
+
+  defp system_text("system.docker_unreachable", data) do
+    {"Docker is not reachable",
+     "TestFleet cannot reach Docker since #{local_time(data["since"])}. Queued runs wait until it is back.",
+     Enum.filter([data["message"] && {"Error", data["message"]}], & &1)}
+  end
+
+  defp system_text("system.docker_recovered", data) do
+    {"Docker is reachable again",
+     "Docker was not reachable from #{local_time(data["since"])} to #{local_time(data["recovered_at"])}. Queued runs start again.",
+     []}
+  end
+
+  defp system_text("system.scheduling_stalled", data) do
+    count = data["count"] || length(data["schedules"] || [])
+    names = data["schedules"] || []
+    more = count - length(names)
+
+    {"Scheduling is stalled",
+     "#{count} #{if count == 1, do: "schedule is", else: "schedules are"} more than 10 minutes overdue: TestFleet is not creating their runs.",
+     [
+       {"Overdue", Enum.join(names, ", ") <> if(more > 0, do: " and #{more} more", else: "")},
+       {"Due since", local_time(data["oldest_due"])}
+     ]}
+  end
+
+  defp system_text("system.scheduling_recovered", data) do
+    {"Scheduling runs again",
+     "No schedule is overdue any more (stalled since #{local_time(data["since"])}).", []}
+  end
+
+  defp local_time(nil), do: "unknown"
+
+  defp local_time(iso8601) do
+    case DateTime.from_iso8601(iso8601) do
+      {:ok, datetime, _offset} ->
+        datetime
+        |> DateTime.shift_zone!(TestFleet.Schedules.Timezones.default())
+        |> Calendar.strftime("%Y-%m-%d %H:%M %Z")
+
+      {:error, _} ->
+        iso8601
+    end
+  end
+
   @doc "The message of \"Send test\"."
   def test(%Channel{} = channel, now \\ DateTime.utc_now()) do
     %__MODULE__{

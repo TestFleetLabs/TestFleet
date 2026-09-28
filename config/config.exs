@@ -76,6 +76,16 @@ config :testfleet, TestFleet.Notifications,
   # Extra Req options for Slack, Teams, and webhooks; tests stub them here.
   req_options: []
 
+# TestFleet's own problems: Docker unreachable for 5 minutes, schedules more than 10
+# minutes overdue (Milestone 8, section 7). HEARTBEAT_URL pings an external dead
+# man's switch after each schedule tick.
+config :testfleet, TestFleet.Notifications.Watchdog,
+  interval: :timer.minutes(1),
+  docker_alert_after: :timer.minutes(5),
+  schedule_alert_after: :timer.minutes(10)
+
+config :testfleet, TestFleet.Notifications.Heartbeat, url: nil, req_options: []
+
 # Retention (Milestone 6 section 8; ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
 config :testfleet, TestFleet.Retention,
   artifacts_days: 30,

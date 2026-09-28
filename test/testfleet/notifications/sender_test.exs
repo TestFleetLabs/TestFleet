@@ -61,7 +61,9 @@ defmodule TestFleet.Notifications.SenderTest do
       assert :ok =
                Sender.deliver(
                  channel(:webhook, signing_secret: "a-long-signing-secret"),
-                 @message, delivery_id: 81)
+                 @message,
+                 delivery_id: 81
+               )
 
       assert_received {:request, conn, body}
       assert %{"event" => "test", "delivery_id" => 81, "version" => 1} = Jason.decode!(body)

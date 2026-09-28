@@ -10,6 +10,7 @@ defmodule TestFleet.TestDefinitions.TestDefinition do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import TestFleet.Changesets, only: [update_present: 3]
 
   alias TestFleet.Execution.Docker.ImageRef
   alias TestFleet.Slug
@@ -66,7 +67,7 @@ defmodule TestFleet.TestDefinitions.TestDefinition do
       :shm_size_mib,
       :command_text
     ])
-    |> update_change(:image, &String.trim/1)
+    |> update_present(:image, &String.trim/1)
     |> from_form(:timeout_minutes, :timeout_seconds, 60,
       required: true,
       range: [greater_than_or_equal_to: 1, less_than_or_equal_to: div(@max_timeout_seconds, 60)]

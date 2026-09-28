@@ -45,6 +45,23 @@ defmodule TestFleet.Schedules do
     )
   end
 
+  @doc """
+  Enabled schedules of enabled test definitions whose `next_run_at` is before
+  `cutoff`, oldest first, preloaded like `list_upcoming/1`. While the tick works,
+  none is ever more than a minute late (Milestone 8, section 7).
+  """
+  def list_overdue(%DateTime{} = cutoff) do
+    Repo.all(
+      from s in Schedule,
+        join: t in assoc(s, :test_definition),
+        join: p in assoc(t, :project),
+        join: e in assoc(s, :environment),
+        where: s.enabled and t.enabled and s.next_run_at < ^cutoff,
+        order_by: [asc: s.next_run_at],
+        preload: [test_definition: {t, project: p}, environment: e]
+    )
+  end
+
   @doc "A project's schedule, preloaded like `list_schedules/1`."
   def get_schedule!(%Project{id: project_id}, id) do
     Repo.one!(

@@ -1,11 +1,12 @@
 defmodule TestFleet.Artifacts.CleanupWorker do
   @moduledoc """
   Cleans up once per hour (`Oban.Plugins.Cron`, Milestone 6 section 8, Milestone 7
-  section 8), in three independent steps:
+  section 8, Milestone 8 section 8), in four independent steps:
 
     1. `TestFleet.Retention`: expires old artifacts and logs
     2. `TestFleet.ImageCleanup`: removes images no run needs any more
     3. `TestFleet.Artifacts.Orphans`: deletes artifact files no run accounts for
+    4. Notification deliveries older than 90 days are deleted
 
   A step that fails is logged and does not stop the others. Not retried
   (`max_attempts: 1`): the next hour picks up everything still due.
@@ -15,7 +16,9 @@ defmodule TestFleet.Artifacts.CleanupWorker do
   require Logger
 
   alias TestFleet.Artifacts.Orphans
-  alias TestFleet.{ImageCleanup, Retention}
+  alias TestFleet.{ImageCleanup, Notifications, Retention}
+
+  @delivery_retention_days 90
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -43,6 +46,12 @@ defmodule TestFleet.Artifacts.CleanupWorker do
     end)
 
     step("orphaned artifact cleanup", &Orphans.run/0)
+
+    step("delivery cleanup", fn ->
+      cutoff = DateTime.add(DateTime.utc_now(), -@delivery_retention_days, :day)
+      count = Notifications.prune_deliveries(cutoff)
+      if count > 0, do: Logger.info("Deleted #{count} notification deliveries")
+    end)
 
     :ok
   end

@@ -276,7 +276,17 @@ The `CleanupWorker` (Milestone 7, section 8) gets a fourth step: deliveries olde
 
 Each slice passes `mix precommit` on its own. The existing Docker tests keep passing.
 
-**Status (2026-09-28):** slices A and B are built (458 tests, plus 84 Docker integration tests).
+**Status (2026-09-28):** all slices are built (474 tests, plus 84 Docker integration tests). The manual walkthrough (section 13) is pending.
+
+Notes from slice C:
+
+- `Watchdog` options (`config :testfleet, TestFleet.Notifications.Watchdog`): `interval`, `docker_alert_after`, `schedule_alert_after`, `enabled` (false in tests, which start it with a fake clock and Docker status and call `Watchdog.check/1`).
+- The Docker status is the dispatcher's (Milestone 7, section 7); the unreachable episode is named by the dispatcher's `since`. When Docker came back and went away again between two checks, the watchdog reports the first outage recovered and treats the second as a new episode.
+- The first check runs one interval after start. A check that fails (for example, the database is down) is logged and keeps the episode state, so the next one tries again.
+- `system.scheduling_stalled` lists up to 10 schedules as "Checkout on production (Customer Portal)", counts all, and names when the oldest was due. Its episode is named by the time it was noticed.
+- System messages show times in the default time zone (`:default_timezone`) and link to the dashboard. Webhooks get the stored data as `"system"`.
+- The heartbeat is `TestFleet.Notifications.Heartbeat` (`HEARTBEAT_URL`); `TickWorker` starts it in a task after a completed tick.
+- The cleanup's fourth step deletes deliveries older than 90 days (fixed; not configurable).
 
 Notes from slice B:
 

@@ -56,6 +56,11 @@ if days = System.get_env("IMAGE_RETENTION_DAYS") do
   config :testfleet, TestFleet.Execution, image_retention_days: String.to_integer(days)
 end
 
+# An external dead man's switch, pinged after each schedule tick (Milestone 8)
+if heartbeat_url = System.get_env("HEARTBEAT_URL") do
+  config :testfleet, TestFleet.Notifications.Heartbeat, url: heartbeat_url
+end
+
 if days = System.get_env("ARTIFACT_RETENTION_DAYS") do
   config :testfleet, TestFleet.Retention, artifacts_days: String.to_integer(days)
 end
