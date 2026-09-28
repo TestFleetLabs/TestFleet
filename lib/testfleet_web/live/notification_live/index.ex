@@ -1,6 +1,7 @@
 defmodule TestFleetWeb.NotificationLive.Index do
   @moduledoc """
-  Notification channels (Milestone 8, section 9), with "Send test".
+  Notification channels (Milestone 8, section 9), with "Send test", and the recent
+  deliveries, live from the `notifications` topic.
 
   Webhook URLs and signing secrets never reach the browser: channels are redacted
   before they are streamed, and the stored ones are only loaded to send.
@@ -10,19 +11,31 @@ defmodule TestFleetWeb.NotificationLive.Index do
   import TestFleetWeb.NotificationComponents
 
   alias TestFleet.Notifications
+  alias TestFleet.Schedules.Timezones
+
+  @recent_deliveries 50
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket), do: Notifications.subscribe_deliveries()
+
     channels = Enum.map(Notifications.list_channels(), &Notifications.redact/1)
 
     {:ok,
      socket
      |> assign(:page_title, gettext("Notifications"))
+     |> assign(:timezone, Timezones.default())
      |> assign(:channel_count, length(channels))
+     |> assign(:subscription_counts, Notifications.subscription_counts())
      |> assign(:email_unconfigured?, email_unconfigured?(channels))
      |> assign(:testing, MapSet.new())
-     |> stream(:channels, channels)}
+     |> stream(:channels, channels)
+     |> stream(:deliveries, Notifications.list_recent_deliveries(@recent_deliveries))}
   end
+
+  @impl true
+  def handle_info({:delivery, delivery}, socket),
+    do: {:noreply, stream_insert(socket, :deliveries, delivery, at: 0, limit: @recent_deliveries)}
 
   defp email_unconfigured?(channels),
     do: not Notifications.email_configured?() and Enum.any?(channels, &(&1.kind == :email))
@@ -159,6 +172,22 @@ defmodule TestFleetWeb.NotificationLive.Index do
                     <.badge :if={!channel.enabled} id={"channel-#{channel.id}-disabled"} class="ml-2">
                       {gettext("disabled")}
                     </.badge>
+                    <.link
+                      id={"channel-#{channel.id}-subscriptions"}
+                      navigate={~p"/notifications/channels/#{channel.id}/edit"}
+                      class={[
+                        "mt-0.5 block text-xs transition-colors hover:text-primary",
+                        if(Map.get(@subscription_counts, channel.id, 0) == 0,
+                          do: "text-warning",
+                          else: "text-base-content/60"
+                        )
+                      ]}
+                    >
+                      {case Map.get(@subscription_counts, channel.id, 0) do
+                        0 -> gettext("receives nothing yet")
+                        count -> ngettext("1 subscription", "%{count} subscriptions", count)
+                      end}
+                    </.link>
                   </td>
                   <td class="px-5 py-3"><.channel_kind kind={channel.kind} /></td>
                   <td class="max-w-64 truncate px-5 py-3"><.channel_target channel={channel} /></td>
@@ -234,6 +263,49 @@ defmodule TestFleetWeb.NotificationLive.Index do
               </tbody>
             </table>
           </div>
+        </.panel>
+
+        <.panel id="deliveries" title={gettext("Recent deliveries")}>
+          <ul id="delivery-list" phx-update="stream" class="divide-y divide-base-300">
+            <li id="deliveries-empty" class="hidden only:block">
+              <.empty_state
+                id="deliveries-empty-state"
+                icon="hero-paper-airplane"
+                title={gettext("Nothing sent yet")}
+                compact
+              >
+                {gettext("Notifications appear here when a suite fails, recovers, or cannot run.")}
+              </.empty_state>
+            </li>
+            <li
+              :for={{id, delivery} <- @streams.deliveries}
+              id={id}
+              class="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm"
+            >
+              <span class="w-44 shrink-0 text-xs text-base-content/60">
+                <.local_time at={delivery.inserted_at} timezone={@timezone} />
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="font-medium">{event_label(delivery.event)}</span>
+                <span class="text-base-content/60">→ {delivery.channel.name}</span>
+                <.link
+                  :if={delivery.run_id}
+                  navigate={~p"/runs/#{delivery.run_id}"}
+                  class="ml-1 font-mono text-xs text-base-content/60 hover:text-primary"
+                >
+                  #{delivery.run_id}
+                </.link>
+              </span>
+              <span
+                :if={delivery.last_error}
+                class="max-w-72 truncate text-xs text-base-content/60"
+                title={delivery.last_error}
+              >
+                {delivery.last_error}
+              </span>
+              <.delivery_status id={"delivery-#{delivery.id}-status"} delivery={delivery} />
+            </li>
+          </ul>
         </.panel>
       </div>
     </Layouts.app>

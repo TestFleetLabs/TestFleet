@@ -41,6 +41,26 @@ defmodule TestFleet.Results do
     Repo.all(query)
   end
 
+  @doc """
+  The names of a run's first `limit` failed or errored tests, as
+  `"<classname> › <name>"`, and how many failed in all. Names only: failure
+  messages stay on the run page (Milestone 8, section 8).
+  """
+  def failure_summary(%Run{id: run_id}, limit \\ 3) do
+    failures = from t in TestResult, where: t.run_id == ^run_id and t.status in ^@failures
+
+    names =
+      Repo.all(
+        from t in failures, order_by: [asc: t.id], limit: ^limit, select: {t.classname, t.name}
+      )
+      |> Enum.map(fn
+        {classname, name} when classname in [nil, ""] -> name
+        {classname, name} -> "#{classname} › #{name}"
+      end)
+
+    %{names: names, count: Repo.aggregate(failures, :count)}
+  end
+
   @doc "The sum of a run's test durations in milliseconds; `nil` without any."
   def total_duration_ms(%Run{id: run_id}) do
     Repo.one(from t in TestResult, where: t.run_id == ^run_id, select: sum(t.duration_ms))

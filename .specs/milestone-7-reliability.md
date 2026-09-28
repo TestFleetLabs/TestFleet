@@ -172,7 +172,9 @@ As implemented:
 
 - The decision per answer is `TestFleet.Execution.Reconnect.decide/3`, a pure function: `:follow`, `:exited`, `:missing`, `:retry`, `:give_up`.
 - On a break, both streams are dropped and reopened together. For an exited container only the logs are reopened; they end on their own.
-- Logs resume after the **newest** timestamp reported, not the last one: stdout and stderr lines are reported in the order they complete, so the last line can be older than one before it. The stored `last_log_timestamp` already works this way (`GREATEST`).
+- Logs resume after the **newest frame** consumed, not after the last line reported: stdout and stderr lines are reported in the order they complete, so the last line can be older than one before it. Every consumed frame is reported, because a lost stream flushes the partial line.
+  - Frames, not lines (changed during Milestone 8): a line longer than 16 KB spans several frames and carries its first frame's timestamp. Docker gives the frames of one line the same timestamp, so resuming after the line did not repeat them in practice (a Docker test with a 40 KB line passes either way); tracking frames makes that independent of Docker's timestamps.
+  - The stored `last_log_timestamp`, which a reattach resumes from, is still the newest line's; for the same reason that is fine.
 - The logs stream normally ends a moment before the wait stream. That now takes one extra `inspect`, which finds the container exited; the process reads the rest of the logs and finalizes as before, without logging a reconnect.
 - A stop (cancel or timeout) sent while Docker was away is sent again once the container is followed again.
 - `:reconnect_window` and `:reconnect_interval` are options of `Execution.start/2`, for the tests.

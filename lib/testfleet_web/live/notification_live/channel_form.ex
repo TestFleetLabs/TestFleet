@@ -7,13 +7,17 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
   redacted channel, and the stored one is only loaded where it is needed, when
   saving or sending a test. What the user types is echoed back while editing (the
   browser has it anyway).
+
+  An existing channel also has its subscriptions here (section 5): what it receives,
+  from which projects and environments. A new channel opens here after saving.
   """
   use TestFleetWeb, :live_view
 
   import TestFleetWeb.NotificationComponents
 
-  alias TestFleet.Notifications
-  alias TestFleet.Notifications.Channel
+  alias TestFleet.{Environments, Notifications, Projects}
+  alias TestFleet.Notifications.{Channel, Subscription}
+  alias TestFleet.Projects.Project
 
   @impl true
   def mount(params, _session, socket) do
@@ -34,16 +38,55 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
   defp apply_action(socket, :edit, %{"id" => id}) do
     channel = id |> Notifications.get_channel!() |> Notifications.redact()
 
+    subscriptions = Notifications.list_subscriptions(channel)
+
     socket
     |> assign(:page_title, gettext("Edit %{name}", name: channel.name))
     |> assign(:channel, channel)
     |> assign_form(Notifications.change_channel(channel))
+    |> assign(:projects, Projects.list_projects())
+    |> assign(:subscription_count, length(subscriptions))
+    |> stream(:subscriptions, subscriptions)
+    |> assign_subscription_form(new_subscription(channel, %{}))
   end
 
   defp assign_form(socket, changeset, opts \\ []) do
     socket
     |> assign(:form, to_form(changeset, opts))
     |> assign(:kind, Ecto.Changeset.get_field(changeset, :kind))
+  end
+
+  defp new_subscription(channel, params) do
+    params = Map.put_new(params, "events", Subscription.default_events())
+    Notifications.change_subscription(%Subscription{channel_id: channel.id}, params)
+  end
+
+  defp assign_subscription_form(socket, changeset, opts \\ []) do
+    project_id = Ecto.Changeset.get_field(changeset, :project_id)
+
+    socket
+    |> assign(:subscription_form, to_form(changeset, opts))
+    |> assign(:subscription_events, Ecto.Changeset.get_field(changeset, :events) || [])
+    |> assign(:subscription_project_id, project_id)
+    |> assign(
+      :environments,
+      if(project_id, do: Environments.list_environments(%Project{id: project_id}), else: [])
+    )
+  end
+
+  # Choosing another project drops an environment of the previous one, and a
+  # project drops the system events it cannot have.
+  defp normalize_subscription_params(params, socket) do
+    project_id = params["project_id"]
+
+    params =
+      if project_id != to_string(socket.assigns.subscription_project_id || ""),
+        do: Map.put(params, "environment_id", ""),
+        else: params
+
+    if project_id not in [nil, ""],
+      do: Map.update(params, "events", [], &(&1 -- Subscription.system_events())),
+      else: params
   end
 
   @impl true
@@ -67,18 +110,68 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
           id |> Notifications.get_channel!() |> Notifications.update_channel(params)
       end
 
-    case result do
-      {:ok, channel} ->
+    case {result, socket.assigns.channel.id} do
+      # A new channel receives nothing yet: its page asks what it should.
+      {{:ok, channel}, nil} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           gettext("Channel %{name} saved. Now choose what it receives.", name: channel.name)
+         )
+         |> push_navigate(to: ~p"/notifications/channels/#{channel.id}/edit")}
+
+      {{:ok, channel}, _id} ->
         {:noreply,
          socket
          |> put_flash(:info, gettext("Channel %{name} saved.", name: channel.name))
          |> push_navigate(to: ~p"/notifications")}
 
-      {:error, changeset} ->
+      {{:error, changeset}, _id} ->
         # A failed update was built from the stored channel; its secrets must not
         # reach the form.
         changeset = %{changeset | data: Notifications.redact(changeset.data)}
         {:noreply, assign_form(socket, changeset)}
+    end
+  end
+
+  def handle_event("validate_subscription", %{"subscription" => params}, socket) do
+    params = normalize_subscription_params(params, socket)
+    changeset = new_subscription(socket.assigns.channel, params)
+    {:noreply, assign_subscription_form(socket, changeset, action: :validate)}
+  end
+
+  def handle_event("add_subscription", %{"subscription" => params}, socket) do
+    params = normalize_subscription_params(params, socket)
+
+    case Notifications.create_subscription(socket.assigns.channel, params) do
+      {:ok, subscription} ->
+        subscription = TestFleet.Repo.preload(subscription, [:project, :environment])
+
+        {:noreply,
+         socket
+         |> update(:subscription_count, &(&1 + 1))
+         |> stream_insert(:subscriptions, subscription)
+         |> assign_subscription_form(new_subscription(socket.assigns.channel, %{}))}
+
+      {:error, changeset} ->
+        {:noreply, assign_subscription_form(socket, changeset)}
+    end
+  end
+
+  def handle_event("delete_subscription", %{"id" => id}, socket) do
+    subscription = Notifications.get_subscription!(id)
+
+    # Only this channel's subscriptions can be deleted from its page.
+    if subscription.channel_id == socket.assigns.channel.id do
+      {:ok, _} = Notifications.delete_subscription(subscription)
+
+      {:noreply,
+       socket
+       |> update(:subscription_count, &(&1 - 1))
+       |> stream_delete(:subscriptions, subscription)}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -223,8 +316,154 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
             </:footer>
           </.form_card>
         </.form>
+
+        <.panel
+          :if={@channel.id}
+          id="subscriptions"
+          title={gettext("What it receives")}
+          class="max-w-2xl"
+        >
+          <p
+            :if={@subscription_count == 0}
+            id="subscriptions-empty"
+            class="flex items-start gap-2 border-b border-base-300 bg-warning/5 px-5 py-3 text-sm text-base-content/70"
+          >
+            <.icon name="hero-bell-slash-mini" class="mt-0.5 size-4 shrink-0 text-warning" />
+            {gettext(
+              "Nothing yet: this channel receives no notifications until you add a subscription."
+            )}
+          </p>
+
+          <ul id="subscription-list" phx-update="stream" class="divide-y divide-base-300">
+            <li
+              :for={{id, subscription} <- @streams.subscriptions}
+              id={id}
+              class="flex items-start justify-between gap-4 px-5 py-3"
+            >
+              <div class="min-w-0 space-y-1.5 text-sm">
+                <p><.subscription_scope subscription={subscription} /></p>
+                <p class="flex flex-wrap gap-1.5">
+                  <.badge
+                    :for={event <- subscription.events}
+                    tone={if String.starts_with?(event, "system."), do: :warning, else: :neutral}
+                  >
+                    {event_label(event)}
+                  </.badge>
+                </p>
+              </div>
+              <.button
+                id={"delete-subscription-#{subscription.id}"}
+                variant="ghost"
+                size="sm"
+                phx-click="delete_subscription"
+                phx-value-id={subscription.id}
+                aria-label={gettext("Remove this subscription")}
+              >
+                <.icon name="hero-trash-mini" class="size-4" />
+              </.button>
+            </li>
+          </ul>
+
+          <.form
+            for={@subscription_form}
+            id="subscription-form"
+            phx-change="validate_subscription"
+            phx-submit="add_subscription"
+            class="space-y-4 border-t border-base-300 bg-base-200/30 px-5 py-4"
+          >
+            <p class="text-sm font-semibold">{gettext("Add a subscription")}</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <.input
+                field={@subscription_form[:project_id]}
+                type="select"
+                label={gettext("Project")}
+                prompt={gettext("All projects")}
+                options={for project <- @projects, do: {project.name, project.id}}
+              />
+              <.input
+                :if={@subscription_project_id}
+                field={@subscription_form[:environment_id]}
+                type="select"
+                label={gettext("Environment")}
+                prompt={gettext("All environments")}
+                options={for environment <- @environments, do: {environment.name, environment.id}}
+              />
+            </div>
+
+            <fieldset class="space-y-2">
+              <%!-- An empty value, so that unchecking everything sends an empty list. --%>
+              <input type="hidden" name="subscription[events][]" value="" />
+              <legend class="mb-1 text-sm font-medium">{gettext("Run events")}</legend>
+              <.event_checkbox
+                :for={event <- Subscription.run_events()}
+                event={event}
+                checked={event in @subscription_events}
+                disabled={false}
+              />
+            </fieldset>
+
+            <fieldset class="space-y-2">
+              <legend class="mb-1 text-sm font-medium">
+                {gettext("System events")}
+                <span :if={@subscription_project_id} class="font-normal text-base-content/60">
+                  · {gettext("only for all projects")}
+                </span>
+              </legend>
+              <.event_checkbox
+                :for={event <- Subscription.system_events()}
+                event={event}
+                checked={event in @subscription_events}
+                disabled={@subscription_project_id != nil}
+              />
+            </fieldset>
+
+            <p
+              :for={message <- Enum.map(@subscription_form[:events].errors, &translate_error/1)}
+              id="subscription-events-error"
+              class="text-sm text-error"
+            >
+              {message}
+            </p>
+
+            <div class="flex justify-end">
+              <.button id="add-subscription" variant="primary" size="sm">
+                <.icon name="hero-plus-mini" class="size-4" /> {gettext("Add")}
+              </.button>
+            </div>
+          </.form>
+        </.panel>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :event, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :disabled, :boolean, required: true
+
+  defp event_checkbox(assigns) do
+    ~H"""
+    <label
+      for={"subscription-event-#{String.replace(@event, ".", "-")}"}
+      class={[
+        "flex cursor-pointer items-start gap-2.5 text-sm",
+        @disabled && "cursor-not-allowed opacity-50"
+      ]}
+    >
+      <input
+        type="checkbox"
+        id={"subscription-event-#{String.replace(@event, ".", "-")}"}
+        name="subscription[events][]"
+        value={@event}
+        checked={@checked and not @disabled}
+        disabled={@disabled}
+        class="mt-0.5 size-4 cursor-pointer rounded border-base-300 accent-primary"
+      />
+      <span>
+        <span class="font-medium">{event_label(@event)}</span>
+        <span class="block text-xs text-base-content/60">{event_description(@event)}</span>
+      </span>
+    </label>
     """
   end
 

@@ -129,7 +129,7 @@ defmodule TestFleet.Execution.RunExecution do
       batch_bytes: 0,
       batch_timer: nil,
       resume_after: opts[:last_log_timestamp],
-      # The newest timestamp of the lines reported, to resume after a broken stream
+      # The newest timestamp of the frames consumed, to resume after a broken stream
       last_timestamp: opts[:last_log_timestamp],
       # Set while the streams are lost: %{since: monotonic ms, docker_lost: boolean}
       reconnect: nil,
@@ -566,19 +566,23 @@ defmodule TestFleet.Execution.RunExecution do
   defp handle_log_chunk(state, {:data, data}) do
     {frames, decoder} = LogDecoder.feed(state.decoder, data)
 
-    {lines, buffer} =
-      Enum.reduce(frames, {[], state.lines}, fn {stream, payload}, {lines, buffer} ->
+    {lines, buffer, last_timestamp} =
+      Enum.reduce(frames, {[], state.lines, state.last_timestamp}, fn {stream, payload},
+                                                                      {lines, buffer, last} ->
         {timestamp, content} = LogDecoder.split_timestamp(payload)
 
         if seen?(state, timestamp) do
-          {lines, buffer}
+          {lines, buffer, last}
         else
           {new_lines, buffer} = LineBuffer.feed(buffer, stream, timestamp, content)
-          {[new_lines | lines], buffer}
+          {[new_lines | lines], buffer, newest(last, timestamp)}
         end
       end)
 
-    emit(%{state | decoder: decoder, lines: buffer}, lines |> Enum.reverse() |> Enum.concat())
+    emit(
+      %{state | decoder: decoder, lines: buffer, last_timestamp: last_timestamp},
+      lines |> Enum.reverse() |> Enum.concat()
+    )
   end
 
   defp handle_log_chunk(state, :done), do: flush_lines(%{state | logs_done: true})
@@ -707,7 +711,6 @@ defmodule TestFleet.Execution.RunExecution do
     state = %{
       state
       | sequence: state.sequence + 1,
-        last_timestamp: newest(state.last_timestamp, line.timestamp),
         batch: [line | state.batch],
         batch_lines: state.batch_lines + 1,
         batch_bytes: state.batch_bytes + byte_size(line.content)
@@ -718,8 +721,11 @@ defmodule TestFleet.Execution.RunExecution do
       else: state
   end
 
-  # stdout and stderr are reported in the order their lines complete, not by
-  # timestamp; resuming after anything but the newest would repeat lines.
+  # The newest frame consumed, not the newest line: a long line spans several
+  # frames and carries the timestamp of its first, so resuming after a line would
+  # repeat its later frames. And stdout and stderr complete out of timestamp order,
+  # so it is the newest, not the last. Every consumed frame is reported: a lost
+  # stream flushes the partial line.
   defp newest(nil, timestamp), do: timestamp
   defp newest(last, nil), do: last
   defp newest(last, timestamp), do: max(last, timestamp)

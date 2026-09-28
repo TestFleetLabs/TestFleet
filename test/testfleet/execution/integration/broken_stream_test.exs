@@ -67,6 +67,37 @@ defmodule TestFleet.Execution.Integration.BrokenStreamTest do
     assert Enum.map(lines, & &1.sequence) == Enum.to_list(1..length(lines))
   end
 
+  test "a long line right before the break is not repeated", context do
+    # Docker splits a 40 KB line into frames of 16 KB. Resuming after the newest
+    # frame, not after the line (which carries its first frame's timestamp), keeps
+    # the other frames from coming back, whatever timestamps Docker gives them.
+    {request, _pid} =
+      start_run!(
+        context,
+        [
+          image: "alpine:3",
+          pull_policy: :if_missing,
+          command: [
+            "sh",
+            "-c",
+            ~s(head -c 40000 /dev/zero | tr "\\0" x; echo; sleep 3; echo after)
+          ]
+        ],
+        []
+      )
+
+    before = await_output(request.run_id, &(byte_size(&1.content) == 40_000))
+
+    :ok = DockerProxy.interrupt(context.proxy)
+    Process.sleep(500)
+    :ok = DockerProxy.resume(context.proxy)
+
+    {%Result{status: :passed}, rest} = await_finished(request.run_id)
+
+    assert Enum.map(before ++ rest, &byte_size(&1.content)) == [40_000, 5]
+    assert contents(rest) == ["after"]
+  end
+
   test "a suite Docker stopped meanwhile ends as error, not failed (rule 5a)", context do
     {request, _pid, _lines} = hanging_run!(context)
     name = RunExecution.container_name(request.run_id)

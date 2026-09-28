@@ -22,6 +22,7 @@ defmodule TestFleet.Runs do
   alias TestFleet.Environments.Environment
   alias TestFleet.Execution
   alias TestFleet.Execution.{Request, Result}
+  alias TestFleet.Notifications.EvaluateWorker
   alias TestFleet.Projects.Project
   alias TestFleet.Registries
   alias TestFleet.Repo
@@ -334,6 +335,22 @@ defmodule TestFleet.Runs do
     Repo.all(from r in Run, where: r.id in ^ids, select: r.id)
   end
 
+  @doc """
+  The latest run of `run`'s series (its test definition in its environment) that
+  was created before it and ended with one of `statuses`, or `nil`.
+  """
+  def previous_run(%Run{} = run, statuses) do
+    Repo.one(
+      from r in Run,
+        where:
+          r.test_definition_id == ^run.test_definition_id and
+            r.environment_id == ^run.environment_id and r.id < ^run.id and
+            r.status in ^statuses,
+        order_by: [desc: r.id],
+        limit: 1
+    )
+  end
+
   @doc "The ids among `ids` that belong to finished runs."
   def final_run_ids(ids) do
     Repo.all(
@@ -597,12 +614,32 @@ defmodule TestFleet.Runs do
   # Updates the run only while its status is one of `from`, so a late or repeated
   # event cannot reopen a finished run.
   defp transition(id, from, changes) do
-    with {:ok, run} <- update_status(id, from, changes) do
-      {:ok, broadcast_transition(run)}
+    transaction =
+      Repo.transaction(fn ->
+        case update_status(id, from, changes) do
+          {:ok, run} -> run
+          :error -> Repo.rollback(:not_in_from)
+        end
+      end)
+
+    case transaction do
+      {:ok, run} -> {:ok, broadcast_transition(run)}
+      {:error, :not_in_from} -> :error
     end
   end
 
+  # Every status change goes through here. A run that becomes final gets its
+  # notification evaluation in the same transaction (Milestone 8, section 6), so a
+  # final run is always evaluated, even if TestFleet stops right after the commit.
+  # Callers run it inside a transaction.
   defp update_status(id, from, changes) do
+    with {:ok, run} <- update_status_row(id, from, changes) do
+      if Run.final?(run), do: Oban.insert!(EvaluateWorker.new(%{run_id: run.id}))
+      {:ok, run}
+    end
+  end
+
+  defp update_status_row(id, from, changes) do
     changes =
       changes
       |> Keyword.put(:updated_at, DateTime.utc_now())

@@ -276,7 +276,17 @@ The `CleanupWorker` (Milestone 7, section 8) gets a fourth step: deliveries olde
 
 Each slice passes `mix precommit` on its own. The existing Docker tests keep passing.
 
-**Status (2026-09-28):** slice A is built (423 tests, plus 83 Docker integration tests).
+**Status (2026-09-28):** slices A and B are built (458 tests, plus 84 Docker integration tests).
+
+Notes from slice B:
+
+- The evaluation job is inserted in `Runs`' single status update (`update_status/3`) whenever the new status is final. Every status change now runs in a transaction; `Runs.finish/2` already did.
+- **Disabled channels get no delivery at all** (not a failed one): evaluation only looks at enabled channels. A channel disabled between evaluation and sending still fails its delivery with "the channel is disabled".
+- Subscriptions are managed on the channel's page, below its settings. A new channel opens there after saving ("Now choose what it receives"); the channel list shows "receives nothing yet" for a channel without subscriptions. A subscription is changed by removing it and adding another.
+- `run.error` names the run right before it (the latest non-cancelled one) as the previous run; that run always has a verdict when the event fires.
+- The webhook payload also carries `run.failed_tests`: the same up to three names as the message.
+- Deliveries are broadcast on the `notifications` topic with their channel redacted; the delivery log and the run page follow them live.
+- **Known limit:** two runs of one series that run in parallel (`allow` overlap) and both fail right after a green run can both report `run.failing`: each is evaluated against the runs that were final when it finished.
 
 Notes from slice A:
 

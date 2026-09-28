@@ -59,7 +59,11 @@ defmodule TestFleet.Notifications.DeliveryWorker do
     end
   end
 
-  # Run and system events are added by later slices (Milestone 8, section 11).
+  # System events are added by slice C (Milestone 8, section 11).
   defp message(%Delivery{event: "test"} = delivery), do: {:ok, Message.test(delivery.channel)}
+
+  defp message(%Delivery{event: "run." <> _, run_id: run_id} = delivery) when run_id != nil,
+    do: {:ok, Notifications.run_message(delivery)}
+
   defp message(%Delivery{event: event}), do: {:error, :permanent, "unknown event #{event}"}
 end

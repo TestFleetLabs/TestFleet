@@ -7,13 +7,31 @@ defmodule TestFleet.Notifications do
   removed by `redact/1` before a channel reaches a template, a form, or a stream.
   Deliveries are sent by `TestFleet.Notifications.DeliveryWorker`; Oban job args
   carry the delivery id only, because Oban stores them in plain JSON.
+
+  Deliveries are broadcast on the `notifications` topic as `{:delivery, delivery}`
+  (with its channel) when they are created and after every attempt.
   """
 
   import Ecto.Query, warn: false
 
   alias Ecto.Multi
-  alias TestFleet.Notifications.{Channel, Delivery, DeliveryWorker, Message, Sender}
+
+  alias TestFleet.Notifications.{
+    Channel,
+    Delivery,
+    DeliveryWorker,
+    Message,
+    Sender,
+    Subscription,
+    Transitions
+  }
+
   alias TestFleet.Repo
+  alias TestFleet.Runs
+  alias TestFleet.Runs.Run
+  alias TestFleet.TestDefinitions.TestDefinition
+
+  @topic "notifications"
 
   ## Configuration
 
@@ -99,7 +117,143 @@ defmodule TestFleet.Notifications do
     end
   end
 
+  @doc "The number of subscriptions per channel id."
+  def subscription_counts do
+    Repo.all(from s in Subscription, group_by: s.channel_id, select: {s.channel_id, count(s.id)})
+    |> Map.new()
+  end
+
+  ## Subscriptions
+
+  @doc "A channel's subscriptions, with their project and environment."
+  def list_subscriptions(%Channel{id: channel_id}) do
+    Repo.all(
+      from s in Subscription,
+        where: s.channel_id == ^channel_id,
+        order_by: [asc: s.id],
+        preload: [:project, :environment]
+    )
+  end
+
+  def get_subscription!(id), do: Repo.get!(Subscription, id)
+
+  def create_subscription(%Channel{id: channel_id}, attrs) do
+    %Subscription{channel_id: channel_id}
+    |> Subscription.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def delete_subscription(%Subscription{} = subscription), do: Repo.delete(subscription)
+
+  def change_subscription(%Subscription{} = subscription, attrs \\ %{}),
+    do: Subscription.changeset(subscription, attrs)
+
+  @doc """
+  The enabled channels with a subscription to `event` that covers `run`: all
+  projects, its project, or its project's environment. Each channel once.
+  """
+  def channels_for(event, %Run{} = run) do
+    project_id =
+      Repo.one!(
+        from t in TestDefinition, where: t.id == ^run.test_definition_id, select: t.project_id
+      )
+
+    Repo.all(
+      from c in Channel,
+        join: s in Subscription,
+        on: s.channel_id == c.id,
+        where: c.enabled and fragment("? = ANY(?)", ^event, s.events),
+        where:
+          is_nil(s.project_id) or
+            (s.project_id == ^project_id and
+               (is_nil(s.environment_id) or s.environment_id == ^run.environment_id)),
+        distinct: true,
+        order_by: c.id
+    )
+  end
+
+  ## Run events
+
+  @doc """
+  Decides whether a final run changed its series' state (`Transitions`), and
+  creates one delivery per matching channel, in one transaction. Idempotent:
+  deliveries are unique per channel and `"<event>:<run id>"`.
+
+  Returns the deliveries created (none when there is no event, no subscriber, or
+  everything was delivered before).
+  """
+  def evaluate_run(run_id) do
+    run = Runs.get_run!(run_id)
+    previous_verdict = Runs.previous_run(run, Transitions.verdict_statuses())
+    previous_outcome = Runs.previous_run(run, Run.final_statuses() -- [:cancelled])
+
+    case Transitions.event(run, previous_verdict, previous_outcome) do
+      :none ->
+        {:ok, []}
+
+      {event, previous} ->
+        data = %{
+          "previous_status" => previous && to_string(previous.status),
+          "previous_run_id" => previous && previous.id
+        }
+
+        {:ok, changes} =
+          event
+          |> channels_for(run)
+          |> Enum.reduce(Multi.new(), fn channel, multi ->
+            enqueue_delivery_multi(
+              multi,
+              {:delivery, channel.id},
+              channel,
+              event,
+              "#{event}:#{run.id}",
+              run_id: run.id,
+              data: data
+            )
+          end)
+          |> Repo.transaction()
+
+        deliveries = for {{:delivery, _id}, %Delivery{} = delivery} <- changes, do: delivery
+        Enum.each(deliveries, &broadcast_delivery/1)
+        {:ok, deliveries}
+    end
+  end
+
+  @doc "Renders a run event delivery from the run as it is now."
+  def run_message(%Delivery{event: event, run_id: run_id, data: data}) do
+    run = run_id |> Runs.get_run!() |> Repo.preload([:environment, test_definition: :project])
+    Message.run_event(event, run, data, TestFleet.Results.failure_summary(run))
+  end
+
   ## Deliveries
+
+  def subscribe_deliveries, do: Phoenix.PubSub.subscribe(TestFleet.PubSub, @topic)
+
+  # Broadcast deliveries reach pages: their channel is redacted.
+  defp broadcast_delivery(%Delivery{} = delivery) do
+    Phoenix.PubSub.broadcast(TestFleet.PubSub, @topic, {:delivery, with_channel(delivery)})
+    delivery
+  end
+
+  @doc "The newest deliveries, with their (redacted) channel."
+  def list_recent_deliveries(limit \\ 50) do
+    Repo.all(from d in Delivery, order_by: [desc: d.id], limit: ^limit)
+    |> with_channel()
+  end
+
+  @doc "The deliveries a run caused, with their (redacted) channel."
+  def list_run_deliveries(%Run{id: run_id}) do
+    Repo.all(from d in Delivery, where: d.run_id == ^run_id, order_by: [asc: d.id])
+    |> with_channel()
+  end
+
+  defp with_channel(deliveries) when is_list(deliveries) do
+    deliveries
+    |> Repo.preload(:channel, force: true)
+    |> Enum.map(&%{&1 | channel: redact(&1.channel)})
+  end
+
+  defp with_channel(%Delivery{} = delivery), do: hd(with_channel([delivery]))
 
   @doc """
   Records a delivery of `event` to `channel` and enqueues its job, in one
@@ -113,7 +267,8 @@ defmodule TestFleet.Notifications do
     |> enqueue_delivery_multi(:delivery, channel, event, dedupe_key, opts)
     |> Repo.transaction()
     |> case do
-      {:ok, %{delivery: delivery}} -> {:ok, delivery}
+      {:ok, %{delivery: :duplicate}} -> {:ok, :duplicate}
+      {:ok, %{delivery: delivery}} -> {:ok, broadcast_delivery(delivery)}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
@@ -147,7 +302,8 @@ defmodule TestFleet.Notifications do
     end)
   end
 
-  def get_delivery(id), do: Repo.get(Delivery, id) |> Repo.preload(:channel)
+  @doc "A delivery with its channel, secrets included: for sending, never for a page."
+  def get_delivery(id), do: Delivery |> Repo.get(id) |> Repo.preload(:channel)
 
   @doc """
   Records the outcome of an attempt. `result` is the sender's; `final?` tells
@@ -166,9 +322,12 @@ defmodule TestFleet.Notifications do
           [status: :failed, last_error: short(reason)]
       end
 
-    delivery
-    |> Ecto.Changeset.change([attempts: attempt] ++ changes)
-    |> Repo.update()
+    with {:ok, delivery} <-
+           delivery
+           |> Ecto.Changeset.change([attempts: attempt] ++ changes)
+           |> Repo.update() do
+      {:ok, broadcast_delivery(delivery)}
+    end
   end
 
   defp short(reason), do: String.slice(reason, 0, 500)

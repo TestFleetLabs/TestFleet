@@ -5,7 +5,9 @@ defmodule TestFleetWeb.RunLive.Show do
   """
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Artifacts, Results, Runs, Schedules}
+  import TestFleetWeb.NotificationComponents, only: [delivery_status: 1]
+
+  alias TestFleet.{Artifacts, Notifications, Results, Runs, Schedules}
   alias TestFleet.Runs.Run
   alias TestFleet.Schedules.Timezones
 
@@ -21,9 +23,13 @@ defmodule TestFleetWeb.RunLive.Show do
 
     # Subscribed before the history is loaded: a batch that overlaps it updates
     # the same lines (DOM id `log-<sequence>`) instead of repeating them.
-    if connected?(socket), do: Runs.subscribe(run.id)
+    if connected?(socket) do
+      Runs.subscribe(run.id)
+      Notifications.subscribe_deliveries()
+    end
 
     lines = Runs.list_log_tail(run, @history_lines)
+    deliveries = Notifications.list_run_deliveries(run)
 
     {:ok,
      socket
@@ -50,6 +56,11 @@ defmodule TestFleetWeb.RunLive.Show do
      |> stream(:test_others, [])
      |> stream(:media, [])
      |> stream(:artifact_rows, [])
+     # Notifications this run caused (Milestone 8, section 9)
+     |> assign(:delivery_ids, MapSet.new(deliveries, & &1.id))
+     |> assign(:delivery_count, length(deliveries))
+     |> stream_configure(:run_deliveries, dom_id: &"run-delivery-#{&1.id}")
+     |> stream(:run_deliveries, deliveries)
      |> assign_run(run)}
   end
 
@@ -152,6 +163,21 @@ defmodule TestFleetWeb.RunLive.Show do
      |> clear_expired(socket.assigns.run, run)
      |> assign_run(run)}
   end
+
+  def handle_info(
+        {:delivery, %{run_id: run_id} = delivery},
+        %{assigns: %{run: %{id: run_id}}} = socket
+      ) do
+    ids = MapSet.put(socket.assigns.delivery_ids, delivery.id)
+
+    {:noreply,
+     socket
+     |> assign(delivery_ids: ids, delivery_count: MapSet.size(ids))
+     |> stream_insert(:run_deliveries, delivery)}
+  end
+
+  # Another run's, or a system event's.
+  def handle_info({:delivery, _delivery}, socket), do: {:noreply, socket}
 
   def handle_info({:run_output, lines}, socket) do
     {:noreply,
@@ -662,6 +688,18 @@ defmodule TestFleetWeb.RunLive.Show do
               )}</code>
               <span :if={@run.command == []} class="text-base-content/60">
                 {gettext("the image's entrypoint")}
+              </span>
+            </.detail>
+            <.detail :if={@delivery_count > 0} label={gettext("Notifications")}>
+              <span id="run-notifications" phx-update="stream" class="flex flex-wrap gap-x-4 gap-y-1">
+                <span
+                  :for={{id, delivery} <- @streams.run_deliveries}
+                  id={id}
+                  class="inline-flex items-center gap-1.5"
+                >
+                  <span class="font-medium">{delivery.channel.name}</span>
+                  <.delivery_status delivery={delivery} />
+                </span>
               </span>
             </.detail>
             <.detail label={gettext("Exit code")}>

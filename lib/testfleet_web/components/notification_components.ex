@@ -16,6 +16,96 @@ defmodule TestFleetWeb.NotificationComponents do
   def kind_icon(:teams), do: "hero-user-group"
   def kind_icon(:webhook), do: "hero-bolt"
 
+  @doc "The display name of an event."
+  def event_label("run.failing"), do: gettext("Failing")
+  def event_label("run.recovered"), do: gettext("Recovered")
+  def event_label("run.error"), do: gettext("Could not run")
+  def event_label("system.docker_unreachable"), do: gettext("Docker unreachable")
+  def event_label("system.docker_recovered"), do: gettext("Docker recovered")
+  def event_label("system.scheduling_stalled"), do: gettext("Scheduling stalled")
+  def event_label("system.scheduling_recovered"), do: gettext("Scheduling recovered")
+  def event_label("test"), do: gettext("Test")
+  def event_label(event), do: event
+
+  @doc "When an event is sent."
+  def event_description("run.failing"),
+    do: gettext("A suite fails or times out after it passed. Not again while it stays red.")
+
+  def event_description("run.recovered"), do: gettext("A failing suite passes again.")
+
+  def event_description("run.error"),
+    do: gettext("A run cannot execute (registry, image, Docker). Once, not for every repeat.")
+
+  def event_description("system.docker_unreachable"),
+    do: gettext("TestFleet cannot reach Docker for 5 minutes.")
+
+  def event_description("system.docker_recovered"),
+    do: gettext("Docker answers again, after that alert.")
+
+  def event_description("system.scheduling_stalled"),
+    do: gettext("Schedules are more than 10 minutes overdue.")
+
+  def event_description("system.scheduling_recovered"),
+    do: gettext("Schedules run again, after that alert.")
+
+  @doc "Renders a subscription's scope: all projects, a project, or its environment."
+  attr :subscription, :map, required: true
+
+  def subscription_scope(%{subscription: %{project: nil}} = assigns) do
+    ~H"""
+    <span class="font-medium">{gettext("All projects")}</span>
+    """
+  end
+
+  def subscription_scope(assigns) do
+    ~H"""
+    <span class="font-medium">{@subscription.project.name}</span>
+    <span :if={@subscription.environment} class="text-base-content/60">
+      · {@subscription.environment.name}
+    </span>
+    <span :if={!@subscription.environment} class="text-base-content/60">
+      · {gettext("all environments")}
+    </span>
+    """
+  end
+
+  @doc "Renders a delivery's status, with the reason of a failure as its title."
+  attr :delivery, :map, required: true
+  attr :id, :string, default: nil
+
+  def delivery_status(assigns) do
+    ~H"""
+    <span
+      id={@id}
+      title={@delivery.last_error}
+      class={[
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
+        case @delivery.status do
+          :sent -> "bg-success/10 text-success"
+          :failed -> "bg-error/10 text-error"
+          :pending -> "bg-base-200 text-base-content/70"
+        end
+      ]}
+    >
+      <.icon
+        name={
+          case @delivery.status do
+            :sent -> "hero-check-mini"
+            :failed -> "hero-x-mark-mini"
+            :pending -> "hero-clock-mini"
+          end
+        }
+        class="size-3.5"
+      />
+      {case @delivery.status do
+        :sent -> gettext("sent")
+        :failed -> gettext("failed")
+        :pending -> if(@delivery.attempts > 0, do: gettext("retrying"), else: gettext("pending"))
+      end}
+    </span>
+    """
+  end
+
   @doc "Renders a channel's kind with its icon."
   attr :kind, :atom, required: true
   attr :id, :string, default: nil
