@@ -2,6 +2,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
   # Milestone 6 section 7: the tests and artifacts panels, and counts in run lists.
   use TestFleetWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import TestFleet.RunsFixtures
 
@@ -237,6 +238,89 @@ defmodule TestFleetWeb.RunResultsLiveTest do
 
     assert has_element?(view, "#run-warnings", "boom")
     refute has_element?(view, "#artifact-tree li")
+  end
+
+  describe "retention" do
+    test "the pin toggle pins and unpins a finished run", %{conn: conn} do
+      run = finish(run_fixture(status: :running), [])
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+      assert has_element?(view, "#pin-run[aria-pressed='false']")
+      view |> element("#pin-run") |> render_click()
+      assert has_element?(view, "#pin-run[aria-pressed='true']")
+      assert Runs.get_run!(run.id).pinned
+
+      view |> element("#pin-run") |> render_click()
+      refute Runs.get_run!(run.id).pinned
+    end
+
+    test "an active run has no pin toggle", %{conn: conn} do
+      run = run_fixture(status: :running)
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+      refute has_element?(view, "#pin-run")
+    end
+
+    test "expired artifacts and logs are shown as expired; tests stay", %{conn: conn} do
+      run = junit_run()
+
+      TestFleet.Repo.update_all(
+        from(r in TestFleet.Runs.Run, where: r.id == ^run.id),
+        set: [
+          artifacts_expired_at: ~U[2026-09-01 10:00:00.000000Z],
+          logs_expired_at: ~U[2026-09-01 10:00:00.000000Z],
+          last_log_sequence: 42
+        ]
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+      assert has_element?(view, "#run-artifacts-expired", "1 Sep 2026")
+      assert has_element?(view, "#log-empty", "The log expired on 1 Sep 2026")
+      refute has_element?(view, "#download-log")
+      assert has_element?(view, "#test-failures li[data-status='failed']", "pays")
+    end
+
+    test "expiry while the page is open clears artifacts and log", %{conn: conn} do
+      run = run_fixture(status: :running)
+      file = Path.join(TestFleet.Artifacts.Storage.run_dir(run.id), "shot.png")
+      File.mkdir_p!(Path.dirname(file))
+      File.write!(file, "png")
+
+      :ok =
+        Runs.append_log(run.id, [%{sequence: 1, stream: :stdout, content: "hello", timestamp: 1}])
+
+      # Passed: the latest failure would be kept.
+      finish(run,
+        status: :passed,
+        exit_code: 0,
+        finished_at: ~U[2026-01-01 00:00:00.000000Z],
+        artifacts: [%{path: "shot.png", size_bytes: 3}]
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      assert has_element?(view, "#artifact-tree li", "shot.png")
+      assert has_element?(view, "#log-lines li[data-stream]", "hello")
+
+      TestFleet.Retention.run(~U[2027-01-01 00:00:00Z])
+
+      assert has_element?(view, "#run-artifacts-expired")
+      refute has_element?(view, "#artifact-tree li")
+      refute has_element?(view, "#artifact-media")
+      refute has_element?(view, "#log-lines li[data-stream]")
+      assert has_element?(view, "#log-empty", "The log expired")
+    end
+
+    test "downloading an expired log says so", %{conn: conn} do
+      run = finish(run_fixture(status: :running), [])
+
+      TestFleet.Repo.update_all(
+        from(r in TestFleet.Runs.Run, where: r.id == ^run.id),
+        set: [logs_expired_at: ~U[2026-09-01 10:00:00.000000Z]]
+      )
+
+      assert conn |> get(~p"/runs/#{run.id}/log") |> response(410) =~ "expired on 2026-09-01"
+    end
   end
 
   test "run lists show the test counts", %{conn: conn} do

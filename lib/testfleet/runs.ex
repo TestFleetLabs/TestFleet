@@ -534,6 +534,26 @@ defmodule TestFleet.Runs do
     |> Enum.reverse()
   end
 
+  @doc """
+  Pins or unpins a run. A pinned run is exempt from retention (Milestone 6,
+  section 8); unpinning an old run lets the next cleanup expire it.
+  """
+  def set_pinned(%Run{id: id}, pinned) when is_boolean(pinned) do
+    {1, _} =
+      Repo.update_all(from(r in Run, where: r.id == ^id),
+        set: [pinned: pinned, updated_at: DateTime.utc_now()]
+      )
+
+    {:ok, broadcast_updated(id)}
+  end
+
+  @doc "Broadcasts `{:run_updated, run}` with the run as stored, e.g. after retention."
+  def broadcast_updated(run_id) do
+    run = get_run!(run_id)
+    broadcast(run, :run_updated)
+    run
+  end
+
   @doc "Finalizes a run as `error` without an execution result, e.g. when it cannot start."
   def fail(run_id, message) do
     transition(run_id, [:queued | Run.active_statuses()],

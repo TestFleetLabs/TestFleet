@@ -48,6 +48,14 @@ if artifact_limit_mb = System.get_env("ARTIFACT_LIMIT_MB") do
     max_bytes: String.to_integer(artifact_limit_mb) * 1024 * 1024
 end
 
+if days = System.get_env("ARTIFACT_RETENTION_DAYS") do
+  config :testfleet, TestFleet.Retention, artifacts_days: String.to_integer(days)
+end
+
+if days = System.get_env("LOG_RETENTION_DAYS") do
+  config :testfleet, TestFleet.Retention, logs_days: String.to_integer(days)
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :testfleet, TestFleetWeb.Endpoint,

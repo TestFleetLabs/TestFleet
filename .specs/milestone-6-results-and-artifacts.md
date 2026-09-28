@@ -236,8 +236,13 @@ config :testfleet, TestFleet.Retention,
   - the latest run per test definition and environment whose status is `failed`, `timeout`, or `error`. **Deviation:** the main spec says "most recent failed run"; timeouts and errors are just as much worth investigating.
 - **Expiring artifacts:** delete the run's directory, then its `artifacts` rows, and set `artifacts_expired_at`. The directory goes first: a crash in between leaves rows without files, which the page shows as missing, never files nobody can find.
 - **Expiring logs:** delete the run's `run_logs` rows in batches of 10,000, then set `logs_expired_at`.
-- **Batches:** at most 100 runs per job. A backlog shrinks over the next runs of the job, without long transactions.
+- **Batches:** at most 100 runs per job for artifacts, and 100 for logs, oldest first. A backlog shrinks over the next runs of the job, without long transactions.
 - Unpinning a run whose age is past the limit lets the next job expire it.
+- Only runs that still have `artifacts` rows (or `run_logs` rows) are considered. A run that never had any is not marked expired, so the page does not claim something expired that never existed, and such runs cannot fill every batch.
+- "Latest" is by run id. A later passing run does not end the exception; a later failure does.
+- The logic is in `TestFleet.Retention.run/1` (it takes `now`, for tests); `CleanupWorker` (`max_attempts: 1`, cron `0 * * * *`) calls it. Each expired run is broadcast as `{:run_updated, run}`, so an open run page clears its artifacts and log.
+- `GET /runs/:id/log` answers `410 Gone` once the log expired.
+- The pin toggle is shown on finished runs only; retention never touches active runs.
 
 ---
 
@@ -268,7 +273,7 @@ The image must be rebuilt and pushed afterwards (spike spec section 9).
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-28):** slices A, B, and C are built (317 tests, plus 65 Docker integration tests). Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
+**Status (2026-09-28):** all slices are built (328 tests, plus 65 Docker integration tests). The manual walkthrough (section 12) is next. Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
 
 ---
 

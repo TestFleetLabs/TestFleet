@@ -33,7 +33,8 @@ config :testfleet, Oban,
   # One static entry drives all user-defined schedules (Milestone 5, section 4).
   cron: [
     crontab: [
-      {"* * * * *", TestFleet.Schedules.TickWorker}
+      {"* * * * *", TestFleet.Schedules.TickWorker},
+      {"0 * * * *", TestFleet.Artifacts.CleanupWorker}
     ]
   ],
   pruner: [max_age: 7 * 24 * 60 * 60],
@@ -59,6 +60,11 @@ config :testfleet, TestFleet.Runs, max_log_bytes: 50 * 1024 * 1024
 config :testfleet, TestFleet.Artifacts,
   root: "tmp/artifacts",
   max_bytes: 500 * 1024 * 1024
+
+# Retention (Milestone 6 section 8; ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
+config :testfleet, TestFleet.Retention,
+  artifacts_days: 30,
+  logs_days: 90
 
 # Configure LiveView
 config :phoenix_live_view,

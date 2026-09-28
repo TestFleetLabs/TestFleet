@@ -8,8 +8,18 @@ defmodule TestFleetWeb.RunLogController do
   alias TestFleet.Runs
 
   def show(conn, %{"id" => id}) do
-    run = Runs.get_run!(id)
+    case Runs.get_run!(id) do
+      %{logs_expired_at: %DateTime{} = expired_at} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(410, "The log of this run expired on #{Date.to_iso8601(expired_at)}.\n")
 
+      run ->
+        send_log(conn, run)
+    end
+  end
+
+  defp send_log(conn, run) do
     conn =
       conn
       |> put_resp_content_type("text/plain")

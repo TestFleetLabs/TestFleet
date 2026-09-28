@@ -100,7 +100,29 @@ defmodule TestFleetWeb.RunLive.Show do
 
   defp maybe_load_results(socket), do: socket
 
+  # Retention expired the artifacts or the log while the page is open.
+  defp clear_expired(socket, %Run{} = old, %Run{} = new) do
+    socket =
+      if is_nil(old.artifacts_expired_at) and new.artifacts_expired_at do
+        socket
+        |> assign(artifact_count: 0, artifact_bytes: 0, media_count: 0)
+        |> stream(:media, [], reset: true)
+        |> stream(:artifact_rows, [], reset: true)
+      else
+        socket
+      end
+
+    if is_nil(old.logs_expired_at) and new.logs_expired_at,
+      do: stream(socket, :log_lines, [], reset: true),
+      else: socket
+  end
+
   @impl true
+  def handle_event("toggle_pin", _params, socket) do
+    {:ok, run} = Runs.set_pinned(socket.assigns.run, !socket.assigns.run.pinned)
+    {:noreply, assign_run(socket, run)}
+  end
+
   def handle_event("show_all_tests", _params, socket) do
     others = Results.list_test_results(socket.assigns.run, only: :others)
 
@@ -125,7 +147,10 @@ defmodule TestFleetWeb.RunLive.Show do
 
   def handle_info({event, %Run{id: id} = run}, %{assigns: %{run: %Run{id: id}}} = socket)
       when event in [:run_created, :run_updated, :run_finished] do
-    {:noreply, assign_run(socket, run)}
+    {:noreply,
+     socket
+     |> clear_expired(socket.assigns.run, run)
+     |> assign_run(run)}
   end
 
   def handle_info({:run_output, lines}, socket) do
@@ -201,6 +226,25 @@ defmodule TestFleetWeb.RunLive.Show do
               data-confirm={gettext("Cancel run #%{id}?", id: @run.id)}
             >
               <.icon name="hero-stop-mini" class="size-4" /> {gettext("Cancel run")}
+            </.button>
+            <.button
+              :if={Run.final?(@run)}
+              id="pin-run"
+              variant={if(@run.pinned, do: "primary", else: "secondary")}
+              phx-click="toggle_pin"
+              aria-pressed={to_string(@run.pinned)}
+              title={
+                if(@run.pinned,
+                  do: gettext("Pinned: kept by retention. Click to unpin."),
+                  else: gettext("Pin to keep the artifacts and log beyond retention")
+                )
+              }
+            >
+              <.icon
+                name={if(@run.pinned, do: "hero-bookmark-solid", else: "hero-bookmark")}
+                class="size-4"
+              />
+              {if(@run.pinned, do: gettext("Pinned"), else: gettext("Pin"))}
             </.button>
           </div>
         </div>
@@ -314,11 +358,15 @@ defmodule TestFleetWeb.RunLive.Show do
               </span>
               {gettext("live")}
             </span>
-            <span :if={@line_count > 0} id="run-output-count" class="text-xs text-base-content/60">
+            <span
+              :if={@line_count > 0 and !@run.logs_expired_at}
+              id="run-output-count"
+              class="text-xs text-base-content/60"
+            >
               {ngettext("1 line", "%{count} lines", @line_count)}
             </span>
             <.button
-              :if={@line_count > 0}
+              :if={@line_count > 0 and !@run.logs_expired_at}
               id="download-log"
               variant="ghost"
               size="sm"
@@ -331,7 +379,7 @@ defmodule TestFleetWeb.RunLive.Show do
 
           <div class="relative bg-zinc-950 text-zinc-200">
             <p
-              :if={@first_sequence > 1 or @line_count > @max_lines}
+              :if={!@run.logs_expired_at and (@first_sequence > 1 or @line_count > @max_lines)}
               id="run-output-earlier"
               class="border-b border-white/10 px-4 py-2 text-xs text-zinc-400"
             >
@@ -356,16 +404,26 @@ defmodule TestFleetWeb.RunLive.Show do
                   class="hidden px-4 py-6 text-center font-sans text-sm text-zinc-500 only:block"
                 >
                   {cond do
-                    Run.final?(@run) -> gettext("The suite produced no output.")
-                    @run.status == :running -> gettext("Waiting for output…")
-                    true -> gettext("Output appears here once the suite starts.")
+                    @run.logs_expired_at ->
+                      gettext("The log expired on %{date}.",
+                        date: format_date(@run.logs_expired_at, @timezone)
+                      )
+
+                    Run.final?(@run) ->
+                      gettext("The suite produced no output.")
+
+                    @run.status == :running ->
+                      gettext("Waiting for output…")
+
+                    true ->
+                      gettext("Output appears here once the suite starts.")
                   end}
                 </li>
                 <.log_line :for={{id, line} <- @streams.log_lines} id={id} line={line} />
               </ol>
 
               <p
-                :if={@run.log_truncated}
+                :if={@run.log_truncated and !@run.logs_expired_at}
                 id="run-output-truncated"
                 class="mx-2 mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 font-sans text-xs text-amber-200"
               >
@@ -424,7 +482,7 @@ defmodule TestFleetWeb.RunLive.Show do
         </.panel>
 
         <.panel
-          :if={@artifact_count > 0 or @run.warnings != []}
+          :if={@artifact_count > 0 or @run.warnings != [] or @run.artifacts_expired_at}
           id="run-artifacts"
           title={gettext("Artifacts")}
         >
@@ -437,6 +495,17 @@ defmodule TestFleetWeb.RunLive.Show do
               {ngettext("1 file", "%{count} files", @artifact_count)} · {format_size(@artifact_bytes)}
             </span>
           </:actions>
+
+          <p
+            :if={@run.artifacts_expired_at}
+            id="run-artifacts-expired"
+            class="flex items-center gap-2 border-b border-base-300 px-5 py-3 text-sm text-base-content/70"
+          >
+            <.icon name="hero-archive-box-x-mark-mini" class="size-4 shrink-0 text-base-content/40" />
+            {gettext("Artifacts expired on %{date}. The test results are kept.",
+              date: format_date(@run.artifacts_expired_at, @timezone)
+            )}
+          </p>
 
           <ul
             :if={@run.warnings != []}
@@ -500,7 +569,12 @@ defmodule TestFleetWeb.RunLive.Show do
             </p>
           </div>
 
-          <ul id="artifact-tree" phx-update="stream" class="py-2 text-sm">
+          <ul
+            :if={@artifact_count > 0}
+            id="artifact-tree"
+            phx-update="stream"
+            class="py-2 text-sm"
+          >
             <li
               :for={{id, row} <- @streams.artifact_rows}
               id={id}
@@ -635,6 +709,9 @@ defmodule TestFleetWeb.RunLive.Show do
     </a>
     """
   end
+
+  defp format_date(at, timezone),
+    do: at |> DateTime.shift_zone!(timezone) |> Calendar.strftime("%-d %b %Y")
 
   defp artifact_icon(:image), do: "hero-photo-mini"
   defp artifact_icon(:video), do: "hero-film-mini"

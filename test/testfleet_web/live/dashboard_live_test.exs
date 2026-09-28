@@ -1,5 +1,8 @@
 defmodule TestFleetWeb.DashboardLiveTest do
-  use TestFleetWeb.ConnCase, async: true
+  # Not async: the dashboard subscribes to the global `runs` topic and keeps only
+  # the 10 newest runs, so runs created by concurrent tests would push this test's
+  # runs out of the list. Sync modules run after all async ones, one at a time.
+  use TestFleetWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import TestFleet.EnvironmentsFixtures
