@@ -102,6 +102,8 @@ defmodule TestFleet.Execution.RunExecution do
       batch_bytes: 0,
       batch_timer: nil,
       resume_after: opts[:last_log_timestamp],
+      # A cancel that arrived while no process owned the run (Milestone 7, section 5)
+      cancel_on_attach: Keyword.get(opts, :cancel, false),
       stopping: false,
       cancelled: false,
       timed_out: false,
@@ -135,6 +137,7 @@ defmodule TestFleet.Execution.RunExecution do
         state
         |> adopt(info)
         |> Map.put(:error, "container was created but never started")
+        |> Map.put(:cancelled, state.cancel_on_attach)
         |> finalize()
         |> stop()
 
@@ -143,7 +146,15 @@ defmodule TestFleet.Execution.RunExecution do
         state = %{state | image_digest: resolve_digest(state.image)}
         if state.image_digest, do: notify(state, {:image_digest, state.image_digest})
 
-        state |> watch(info) |> maybe_complete()
+        state = watch(state, info)
+
+        # A suite that already exited keeps its own outcome; a running one is stopped.
+        state =
+          if state.cancel_on_attach and info["State"]["Running"],
+            do: begin_stop(%{state | cancelled: true}),
+            else: state
+
+        maybe_complete(state)
 
       {:error, %{status: 404}} ->
         stop(finalize(%{state | error: "container disappeared"}))
@@ -312,6 +323,7 @@ defmodule TestFleet.Execution.RunExecution do
         "TestFleet.stop_grace_seconds" => to_string(request.stop_grace_seconds)
       }
       |> put_present("TestFleet.project_id", request.project_id && to_string(request.project_id))
+      |> put_present("TestFleet.instance", request.instance_id)
       # The keys, not the values: an attaching process reads the values from the
       # container's environment.
       |> put_present(

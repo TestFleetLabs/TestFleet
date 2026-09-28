@@ -145,6 +145,10 @@ defmodule TestFleetWeb.RunLiveTest do
       refute has_element?(view, "#cancel-run")
       assert has_element?(view, "#run-status[data-status='running']")
 
+      # The request is stored, so a reload still shows it.
+      {:ok, reloaded, _html} = live(conn, ~p"/runs/#{run.id}")
+      assert has_element?(reloaded, "#cancelling-run[disabled]")
+
       # What the recorder does once the container has stopped.
       {:ok, _} =
         Runs.finish(run.id, %TestFleet.Execution.Result{

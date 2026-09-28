@@ -254,9 +254,31 @@ defmodule TestFleet.Runs do
         :ok
 
       :error ->
-        if Repo.get!(Run, id).status in Run.active_statuses(), do: Execution.cancel(id)
+        run = Repo.get!(Run, id)
+
+        if run.status in Run.active_statuses() do
+          # Persisted first: if no process owns the run right now, the reconciler
+          # finishes the cancel (Milestone 7, section 5).
+          if is_nil(run.cancel_requested_at) do
+            transition(id, Run.active_statuses(), cancel_requested_at: DateTime.utc_now())
+          end
+
+          Execution.cancel(id)
+        end
+
         :ok
     end
+  end
+
+  @doc """
+  Finalizes an active run as `cancelled` without an execution result: its cancel
+  was requested and it has no container (Milestone 7, reconciler rule 4).
+  """
+  def mark_cancelled(run_id) do
+    transition(run_id, Run.active_statuses(),
+      status: :cancelled,
+      finished_at: DateTime.utc_now()
+    )
   end
 
   ## Dispatching
@@ -307,6 +329,11 @@ defmodule TestFleet.Runs do
     Repo.all(from r in Run, where: r.status in ^Run.active_statuses(), order_by: [asc: r.id])
   end
 
+  @doc "The ids among `ids` that belong to runs in this database."
+  def existing_run_ids(ids) do
+    Repo.all(from r in Run, where: r.id in ^ids, select: r.id)
+  end
+
   @doc "The ids among `ids` that belong to finished runs."
   def final_run_ids(ids) do
     Repo.all(
@@ -334,6 +361,7 @@ defmodule TestFleet.Runs do
     Request.new(
       run_id: run.id,
       project_id: test_definition.project_id,
+      instance_id: TestFleet.Instance.id(),
       environment_name: environment.slug,
       image: run.image,
       command: run.command,

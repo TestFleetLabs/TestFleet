@@ -1546,6 +1546,8 @@ This should become an infrastructure error after appropriate reconciliation logi
 
 A `preparing` run whose container is missing may simply not have been created yet. It is only finalized as `error` when it has been `preparing` for longer than the pull timeout (section 39).
 
+**As implemented** ([milestone-7-reliability.md](milestone-7-reliability.md), section 4): the rules also use whether a `RunExecution` process exists, and a persisted cancel request (`runs.cancel_requested_at`). A `preparing` run *with* a process is bounded by the pull timeout; one *without* a process and container is lost after a 60-second grace (none at startup). A finished run's container is left to its process while one exists. Orphans are only removed when they carry this database's instance id (`TestFleet.instance` label).
+
 ## Reattaching
 
 When reattaching to a running container, `RunExecution`:

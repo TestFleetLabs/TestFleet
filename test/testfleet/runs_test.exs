@@ -152,11 +152,32 @@ defmodule TestFleet.RunsTest do
       assert %{status: :passed} = Runs.get_run!(run.id)
     end
 
-    test "an active run without an execution process stays as it is", context do
+    test "an active run records the request, once, for the reconciler", context do
       run = run_fixture(test_definition: context.test_definition, status: :running)
+      Runs.subscribe(run.id)
+
+      # No execution process: the run stays active until the reconciler acts.
+      assert :ok = Runs.cancel_run(run)
+
+      assert %{status: :running, cancel_requested_at: %DateTime{} = requested_at} =
+               Runs.get_run!(run.id)
+
+      assert_receive {:run_updated, %Run{cancel_requested_at: %DateTime{}}}
 
       assert :ok = Runs.cancel_run(run)
-      assert %{status: :running} = Runs.get_run!(run.id)
+      assert Runs.get_run!(run.id).cancel_requested_at == requested_at
+      refute_receive {:run_updated, _}
+    end
+  end
+
+  describe "mark_cancelled/1" do
+    test "finalizes an active run as cancelled, once", context do
+      run = run_fixture(test_definition: context.test_definition, status: :preparing)
+
+      assert {:ok, %Run{status: :cancelled, finished_at: %DateTime{}}} =
+               Runs.mark_cancelled(run.id)
+
+      assert Runs.mark_cancelled(run.id) == :error
     end
   end
 

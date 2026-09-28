@@ -17,15 +17,15 @@ defmodule TestFleet.Execution.Dispatcher do
     * `:poll_interval` - milliseconds between safety-net passes (default 5000)
     * `:engine` - the module that starts executions (default `TestFleet.Execution`)
     * `:engine_opts` - extra options passed to `engine.start/2`
-    * `:recover` - run `TestFleet.Execution.Recovery` before the first pass (default
-      true). It always works on the real Docker engine.
+    * `:recover` - run a startup pass of `TestFleet.Execution.Reconciler` before the
+      first dispatch (default true). It always works on the real Docker engine.
     * `:name` - the registered name (default `#{inspect(__MODULE__)}`)
   """
   use GenServer
 
   require Logger
 
-  alias TestFleet.Execution.Recovery
+  alias TestFleet.Execution.Reconciler
   alias TestFleet.Runs
   alias TestFleet.Runs.Recorder
 
@@ -61,7 +61,7 @@ defmodule TestFleet.Execution.Dispatcher do
 
   @impl true
   def handle_continue(:recover, state) do
-    Recovery.run()
+    Reconciler.run(:startup)
     {:noreply, state, {:continue, :dispatch}}
   end
 

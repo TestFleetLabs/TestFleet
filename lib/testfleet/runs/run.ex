@@ -35,6 +35,9 @@ defmodule TestFleet.Runs.Run do
     field :exit_code, :integer
     field :oom_killed, :boolean, default: false
     field :error_message, :string
+    # Set by a cancel of an active run; the reconciler finishes it if no process can
+    # (Milestone 7, section 5).
+    field :cancel_requested_at, :utc_datetime_usec
 
     # From JUnit, nil without it; tests_failed includes errors (Milestone 6 section 3)
     field :tests_passed, :integer

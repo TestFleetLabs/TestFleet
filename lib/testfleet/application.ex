@@ -22,7 +22,7 @@ defmodule TestFleet.Application do
     dispatcher =
       if Application.get_env(:testfleet, TestFleet.Execution.Dispatcher)[:start] == false,
         do: [],
-        else: [TestFleet.Execution.Dispatcher]
+        else: [TestFleet.Execution.Dispatcher, TestFleet.Execution.Reconciler]
 
     # Start to serve requests, typically the last entry
     children = children ++ dispatcher ++ [TestFleetWeb.Endpoint]

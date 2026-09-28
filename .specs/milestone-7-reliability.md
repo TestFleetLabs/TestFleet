@@ -252,6 +252,15 @@ Directories under the artifacts root whose name is not the id of a run in this d
 
 Each slice passes `mix precommit` and the Docker tests on its own.
 
+**Status (2026-09-28):** slice A is built (335 tests, plus 72 Docker integration tests).
+
+Notes from slice A:
+
+- The Docker tests start containers through `Execution.start/2` without an `instance_id`, so their containers carry no instance label and count as legacy: never removed as orphans. Containers the dispatcher starts carry the label.
+- The integration tests of the reconciler are not async: a pass sees every container of this instance, and a container whose run sits in another test's sandbox would look like an orphan.
+- An attach re-reads the run just before starting the process and skips it if the run finished or got a process since the pass read it.
+- `attach(cancel: true)` on a container that already exited does not turn its outcome into `cancelled`: the suite finished on its own, and its result is kept.
+
 ---
 
 ## 12. Tests

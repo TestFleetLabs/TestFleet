@@ -241,7 +241,7 @@ Implementation (`TestFleet.Execution.Recovery`, run by the dispatcher in `handle
 - Attaching passes `last_log_timestamp`. The log sequence continues once logs are stored (Milestone 4).
 - The dispatcher option `recover: false` turns recovery off; the test environment does, except in the Docker tests.
 
-Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec section 32), including orphans without a run row.
+Milestone 7 turns this into the periodic `Execution.Reconciler` (main spec section 32), including orphans without a run row. **Done** in Milestone 7 slice A: `Execution.Recovery` is replaced by `Execution.Reconciler`, and the known gap of section 8 is closed by persisted cancel requests ([milestone-7-reliability.md](milestone-7-reliability.md), sections 4 and 5).
 
 ---
 

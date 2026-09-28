@@ -30,8 +30,9 @@ defmodule TestFleet.Execution do
   Takes over the container of a run whose process is gone (main spec section 32).
 
   Options: `:handler`, `:subscriber`, `:artifact_path`, `:max_artifact_bytes`,
-  `:last_log_timestamp` (nanoseconds of the last line already received) and
-  `:next_sequence`.
+  `:last_log_timestamp` (nanoseconds of the last line already received),
+  `:next_sequence`, and `cancel: true` to stop a running container right away, for a
+  cancel that arrived while no process owned the run (Milestone 7, section 5).
   """
   def attach(run_id, opts \\ []) do
     start_child(
@@ -42,7 +43,8 @@ defmodule TestFleet.Execution do
       artifact_path: opts[:artifact_path],
       max_artifact_bytes: opts[:max_artifact_bytes],
       last_log_timestamp: opts[:last_log_timestamp],
-      next_sequence: opts[:next_sequence]
+      next_sequence: opts[:next_sequence],
+      cancel: Keyword.get(opts, :cancel, false)
     )
   end
 
@@ -66,22 +68,46 @@ defmodule TestFleet.Execution do
   def executing?(run_id), do: Registry.lookup(TestFleet.Execution.Registry, run_id) != []
 
   @doc """
-  TestFleet's containers, running or not: `{:ok, [%{run_id: id, container_id: id}]}`.
+  TestFleet's containers, running or not. Each has `run_id`, `container_id`,
+  `instance` (the `TestFleet.instance` label, `nil` on containers from before
+  Milestone 7), `state` (Docker's, e.g. `"running"`), and `stop_grace_seconds`.
   Containers without a valid `TestFleet.run_id` label are left out.
   """
   def list_containers do
     with {:ok, containers} <- Command.list(["TestFleet=true"]) do
       containers =
-        for container <- containers,
-            {run_id, ""} <- [Integer.parse(container["Labels"]["TestFleet.run_id"] || "")],
-            do: %{run_id: run_id, container_id: container["Id"]}
+        for %{"Labels" => labels} = container <- containers,
+            {run_id, ""} <- [Integer.parse(labels["TestFleet.run_id"] || "")] do
+          %{
+            run_id: run_id,
+            container_id: container["Id"],
+            instance: labels["TestFleet.instance"],
+            state: container["State"],
+            stop_grace_seconds: grace_seconds(labels["TestFleet.stop_grace_seconds"])
+          }
+        end
 
       {:ok, containers}
     end
   end
 
+  defp grace_seconds(label) do
+    case Integer.parse(label || "") do
+      {seconds, ""} when seconds >= 0 -> seconds
+      _ -> 30
+    end
+  end
+
   @doc "Removes a container, running or not. Idempotent."
   def remove_container(container_id), do: Command.remove(container_id)
+
+  @doc """
+  Stops a container with its grace period (SIGTERM, then SIGKILL), then removes it.
+  Blocks for up to the grace period. Idempotent.
+  """
+  def stop_and_remove_container(container_id, grace_seconds) do
+    with :ok <- Command.stop(container_id, grace_seconds), do: Command.remove(container_id)
+  end
 
   @doc """
   Runs to completion and returns the result with all log lines.
