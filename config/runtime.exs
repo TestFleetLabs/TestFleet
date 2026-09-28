@@ -177,21 +177,29 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :testfleet, TestFleet.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://swoosh.hexdocs.pm/Swoosh.html#module-installation for details.
+  # Email notifications over SMTP (Milestone 8, section 8). Without SMTP_HOST, email
+  # channels can be saved, but nothing is sent.
+  if smtp_host = System.get_env("SMTP_HOST") do
+    smtp_tls =
+      case System.get_env("SMTP_TLS", "if_available") do
+        tls when tls in ~w(always if_available never) -> String.to_atom(tls)
+        other -> raise "SMTP_TLS must be always, if_available, or never, got: #{inspect(other)}"
+      end
+
+    config :testfleet, TestFleet.Mailer,
+      adapter: Swoosh.Adapters.SMTP,
+      relay: smtp_host,
+      port: String.to_integer(System.get_env("SMTP_PORT", "587")),
+      username: System.get_env("SMTP_USERNAME"),
+      password: System.get_env("SMTP_PASSWORD"),
+      tls: smtp_tls,
+      auth: if(System.get_env("SMTP_USERNAME"), do: :always, else: :never),
+      retries: 1
+
+    config :testfleet, TestFleet.Notifications,
+      email_enabled: true,
+      email_from: System.get_env("SMTP_FROM", "testfleet@#{host}")
+  else
+    config :testfleet, TestFleet.Notifications, email_enabled: false
+  end
 end

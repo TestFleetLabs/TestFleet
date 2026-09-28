@@ -286,7 +286,7 @@ As implemented (`TestFleet.Artifacts.Orphans`):
 
 Each slice passes `mix precommit` and the Docker tests on its own.
 
-**Status (2026-09-28):** all slices are built (368 tests, plus 83 Docker integration tests). The manual walkthrough (section 13) is pending.
+**Status (2026-09-28): done.** All slices are built and tested (368 tests, plus 83 Docker integration tests), and the manual walkthrough of section 13 worked.
 
 Notes from slice D: see section 8 ("As implemented") and section 12.
 

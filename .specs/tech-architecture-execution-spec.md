@@ -2240,6 +2240,8 @@ Production E2E recovered after previous failure
 
 Notifications should be handled asynchronously through Oban.
 
+As designed for Milestone 8 ([milestone-8-notifications.md](milestone-8-notifications.md)): channels and subscriptions are global until authentication exists; webhook URLs are treated as secrets; system alerts (Docker unreachable, scheduling stalled) come from a watchdog process outside Oban.
+
 ## Notify on Transitions, Not on Every Run
 
 By default, notifications are sent when the status of a test definition in an environment **changes**:
@@ -2488,6 +2490,8 @@ Implement:
 - webhooks
 - transition-based alerting
 - missed schedule alerts
+
+Details: [milestone-8-notifications.md](milestone-8-notifications.md).
 
 ---
 

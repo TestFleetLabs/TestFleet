@@ -44,6 +44,10 @@ config :testfleet, Oban, testing: :manual
 # In test we don't send emails
 config :testfleet, TestFleet.Mailer, adapter: Swoosh.Adapters.Test
 
+# Slack, Teams, and webhook requests go to Req.Test stubs
+config :testfleet, TestFleet.Notifications,
+  req_options: [plug: {Req.Test, TestFleet.Notifications}]
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

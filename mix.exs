@@ -52,6 +52,7 @@ defmodule TestFleet.MixProject do
        compile: false,
        depth: 1},
       {:dns_cluster, "~> 0.3.0"},
+      {:gen_smtp, "~> 1.3"},
       {:gettext, "~> 1.0.2"},
       {:ecto_sql, "~> 3.14.0"},
       {:esbuild, "~> 0.10.0", runtime: Mix.env() == :dev},

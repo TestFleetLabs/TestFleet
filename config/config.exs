@@ -68,6 +68,14 @@ config :testfleet, TestFleet.Execution,
   pull_timeout: :timer.minutes(10),
   image_retention_days: 7
 
+# Notifications (Milestone 8). Email needs a mailer: the local one in dev, SMTP in
+# production (SMTP_HOST and friends in config/runtime.exs).
+config :testfleet, TestFleet.Notifications,
+  email_enabled: true,
+  email_from: "testfleet@localhost",
+  # Extra Req options for Slack, Teams, and webhooks; tests stub them here.
+  req_options: []
+
 # Retention (Milestone 6 section 8; ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
 config :testfleet, TestFleet.Retention,
   artifacts_days: 30,

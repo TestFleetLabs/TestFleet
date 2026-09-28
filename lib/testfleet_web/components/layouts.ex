@@ -30,7 +30,7 @@ defmodule TestFleetWeb.Layouts do
 
   attr :active, :atom,
     default: nil,
-    values: [nil, :dashboard, :projects, :runs, :registries],
+    values: [nil, :dashboard, :projects, :runs, :registries, :notifications],
     doc: "the navigation entry to highlight"
 
   slot :inner_block, required: true
@@ -158,7 +158,8 @@ defmodule TestFleetWeb.Layouts do
       {:dashboard, gettext("Dashboard"), "hero-squares-2x2", ~p"/"},
       {:projects, gettext("Projects"), "hero-folder", ~p"/projects"},
       {:runs, gettext("Runs"), "hero-play-circle", ~p"/runs"},
-      {:registries, gettext("Registries"), "hero-server-stack", ~p"/registries"}
+      {:registries, gettext("Registries"), "hero-server-stack", ~p"/registries"},
+      {:notifications, gettext("Notifications"), "hero-bell", ~p"/notifications"}
     ]
   end
 

@@ -43,6 +43,9 @@ defmodule TestFleetWeb.Router do
       live "/registries", RegistryLive.Index, :index
       live "/registries/new", RegistryLive.Form, :new
       live "/registries/:id/edit", RegistryLive.Form, :edit
+      live "/notifications", NotificationLive.Index, :index
+      live "/notifications/channels/new", NotificationLive.ChannelForm, :new
+      live "/notifications/channels/:id/edit", NotificationLive.ChannelForm, :edit
     end
 
     get "/runs/:id/log", RunLogController, :show
