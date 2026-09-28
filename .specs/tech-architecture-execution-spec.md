@@ -1827,6 +1827,8 @@ When several runs need the same image at once, only one pull is performed; the o
 
 Pulled test images accumulate on the host. The `CleanupWorker` periodically removes test images that no enabled test definition references and that have not been used by a run for a configurable period (for example 7 days).
 
+As implemented (Milestone 7, section 8): images are removed by digest (`name@sha256:…`), never with a prune, and only digests TestFleet's runs recorded. The latest digest of an image an enabled test definition references is kept, however old; older digests of the same tag are removed like any other.
+
 ---
 
 # 40. API

@@ -157,7 +157,17 @@ defmodule TestFleet.RetentionTest do
     assert Retention.run(days_later(365)) == %{artifacts: 1, logs: 1}
   end
 
-  test "the worker runs retention" do
+  # Image cleanup warns when Docker is not reachable; the other steps run anyway.
+  @tag :capture_log
+  test "the worker runs retention, image cleanup, and orphan cleanup", context do
+    run = finished_run(context)
+    orphan = Storage.run_dir(run.id + 1_000_000)
+    File.mkdir_p!(orphan)
+
     assert :ok = perform_job(CleanupWorker, %{})
+
+    # Finished in June: past the 30 days.
+    assert %Run{artifacts_expired_at: %DateTime{}} = Runs.get_run!(run.id)
+    refute File.exists?(orphan)
   end
 end

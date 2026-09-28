@@ -52,6 +52,10 @@ if seconds = System.get_env("PULL_TIMEOUT_SECONDS") do
   config :testfleet, TestFleet.Execution, pull_timeout: String.to_integer(seconds) * 1000
 end
 
+if days = System.get_env("IMAGE_RETENTION_DAYS") do
+  config :testfleet, TestFleet.Execution, image_retention_days: String.to_integer(days)
+end
+
 if days = System.get_env("ARTIFACT_RETENTION_DAYS") do
   config :testfleet, TestFleet.Retention, artifacts_days: String.to_integer(days)
 end

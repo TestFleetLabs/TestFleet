@@ -234,6 +234,13 @@ TestFleet removes only images it pulled, and removes them by digest, never with 
   - `409` (a container uses it, or another tag) is skipped and tried again next hour.
 - Old digests of a mutable tag (`e2e:latest` pulled every run) are exactly what accumulates. This removes them after a week.
 
+As implemented (`TestFleet.ImageCleanup`):
+
+- Runs are kept forever, so the list of pairs past their retention only grows. The cleanup therefore lists the local images first (`GET /images/json`, `Command.list_images/0`) and sends `DELETE` only for due references Docker still has. Without that, every hour would send a `DELETE` for every digest ever removed.
+- "Latest digest of an image" is the digest of the newest run (highest id) of that image with a digest. "Used" is the run's `inserted_at`.
+- A pair's reference is `ImageRef.name/1` plus `@digest`, the form Docker lists in `RepoDigests` (`alpine@sha256:…` for Docker Hub).
+- Without Docker, the step is skipped with a warning.
+
 ### 3. Orphaned artifact directories
 
 Directories under the artifacts root whose name is not the id of a run in this database, and `<run_id>.tar` / `<run_id>.extract` leftovers of an interrupted collection, are deleted.
@@ -241,6 +248,12 @@ Directories under the artifacts root whose name is not the id of a run in this d
 - Only names that are entirely digits are considered; anything else in the root is left alone.
 - A directory of an **active** run is never touched: it may be collecting right now.
 - The artifacts root belongs to one instance (dev and test use different roots), so no instance check is needed.
+
+As implemented (`TestFleet.Artifacts.Orphans`):
+
+- Leftovers (`.tar`, `.extract`) are kept for every run that is not final, queued runs included: only a finished or unknown run's leftover is certainly from an interrupted collection.
+- Names of more than 18 digits are no bigint, so no run id, and are left alone.
+- `Orphans.run/1` takes the root, so its tests use their own directory instead of the shared test root.
 
 ---
 
@@ -273,7 +286,9 @@ Directories under the artifacts root whose name is not the id of a run in this d
 
 Each slice passes `mix precommit` and the Docker tests on its own.
 
-**Status (2026-09-28):** slices A, B, and C are built (357 tests, plus 80 Docker integration tests).
+**Status (2026-09-28):** all slices are built (368 tests, plus 83 Docker integration tests). The manual walkthrough (section 13) is pending.
+
+Notes from slice D: see section 8 ("As implemented") and section 12.
 
 Notes from slice C: see sections 7 and 12 ("As implemented", "Deviations").
 
@@ -304,6 +319,7 @@ Notes from slice A:
   - As implemented: `Reconnect.decide/3` is tested without Docker. The Docker tests run the process through a TCP proxy (`TestFleet.DockerProxy`) that the test cuts and restores, like a restarted socket proxy: the log continues without gaps or duplicates; a container killed meanwhile ends with the rule 5a message; one removed meanwhile ends "container disappeared"; without an answer in time the process stops, the container keeps running, and a reattach finishes the run. These tests are not async: they switch the Docker host for the whole application.
 - **Database failure:** a handler that raises once makes `RunExecution` crash with the container running; the next reconciler pass reattaches and the run finishes with all its lines exactly once.
 - **Image cleanup:** the candidate query (kept and removed pairs); `Command.remove_image/1` against Docker with a fixture tag; `409` skipped.
+  - As implemented: each Docker test makes its own image by committing a container of the fixture image, then pushes it to the spike registry to get a digest reference. The socket proxy does not allow `/commit`, and TestFleet never needs it, so this one fixture step uses the Docker CLI. The committed images are force-removed afterwards; the pushed tags (`localhost:5055/testfleet-cleanup:t…`) stay in the spike registry, which is test-only.
 - **Orphaned directories:** removed; active runs', existing runs', and non-numeric names kept.
 - **LiveViews:** the Docker banner appears and disappears; "Cancelling…" from the database.
 

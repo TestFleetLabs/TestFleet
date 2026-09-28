@@ -9,7 +9,7 @@ defmodule TestFleet.Execution do
   """
 
   alias TestFleet.Execution.{Dispatcher, Request, RunExecution}
-  alias TestFleet.Execution.Docker.Command
+  alias TestFleet.Execution.Docker.{Command, ImageRef}
 
   @system_topic "system"
 
@@ -128,6 +128,28 @@ defmodule TestFleet.Execution do
       _ -> 30
     end
   end
+
+  @doc """
+  The reference of `image` (as configured) at `digest`, e.g.
+  `localhost:5055/suite@sha256:...`: the form Docker lists in `RepoDigests`, and
+  the one image cleanup removes. `nil` for an invalid reference.
+  """
+  def digest_reference(image, digest) do
+    case ImageRef.parse(image) do
+      {:ok, ref} -> ImageRef.name(ref) <> "@" <> digest
+      {:error, _} -> nil
+    end
+  end
+
+  @doc "The digest references (`name@sha256:...`) of the local images."
+  def local_digest_references do
+    with {:ok, images} <- Command.list_images() do
+      {:ok, images |> Enum.flat_map(&(&1["RepoDigests"] || [])) |> MapSet.new()}
+    end
+  end
+
+  @doc "Removes a digest reference, see `Command.remove_image/1`."
+  def remove_image(reference), do: Command.remove_image(reference)
 
   @doc "Removes a container, running or not. Idempotent."
   def remove_container(container_id), do: Command.remove(container_id)

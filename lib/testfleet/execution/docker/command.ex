@@ -191,6 +191,22 @@ defmodule TestFleet.Execution.Docker.Command do
     with {:ok, _} <- call(options, [204, 404, 409]), do: :ok
   end
 
+  @doc "Lists the local images (`GET /images/json`), with their `RepoDigests`."
+  def list_images do
+    with {:ok, %{body: body}} <- call([method: :get, url: "/images/json"], [200]),
+         do: {:ok, body}
+  end
+
+  @doc """
+  Removes one reference of an image, e.g. `registry/suite@sha256:...`, without
+  `force`: Docker deletes the image once nothing else references it. An image that
+  is already gone counts as removed; one a container or another tag still uses
+  returns `{:error, %{status: 409}}`.
+  """
+  def remove_image(reference) do
+    with {:ok, _} <- call([method: :delete, url: "/images/#{reference}"], [200, 404]), do: :ok
+  end
+
   @doc "Lists containers, running or not, that carry all of the given labels."
   def list(labels) do
     options = [
