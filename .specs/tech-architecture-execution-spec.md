@@ -2467,6 +2467,8 @@ Implement:
 - Docker failure handling
 - image cleanup
 
+Details: [milestone-7-reliability.md](milestone-7-reliability.md).
+
 ---
 
 ## Milestone 8 — Notifications

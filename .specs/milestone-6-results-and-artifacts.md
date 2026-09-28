@@ -274,7 +274,7 @@ The image must be rebuilt and pushed afterwards (spike spec section 9).
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-28):** all slices are built (328 tests, plus 65 Docker integration tests). The manual walkthrough (section 12) is next. Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
+**Status (2026-09-28): done.** All four slices are built and tested (328 tests, plus 65 Docker integration tests), and the manual walkthrough of section 12 worked: JUnit failures with their details and counts in the runs list, rules 6 and 9, a screenshot and a sandboxed HTML report opened from the artifacts panel, the size limit keeping only JUnit, and retention expiring an old run while the latest failure and a pinned run kept theirs. Slice B's migration also adds the retention columns (`pinned`, `artifacts_expired_at`, `logs_expired_at`), so slice D needs no migration of its own on `runs`.
 
 ---
 
