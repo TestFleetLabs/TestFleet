@@ -31,7 +31,7 @@ defmodule TestFleetWeb.RunComponents do
       data-status={@status}
       class={[
         "inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium whitespace-nowrap",
-        if(@size == :lg, do: "px-3 py-1 text-sm", else: "px-2 py-0.5 text-xs"),
+        if(@size == :lg, do: "pl-2 pr-3 py-1 text-sm", else: "pl-1 pr-2 py-0.5 text-xs"),
         status_classes(@status)
       ]}
     >

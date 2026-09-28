@@ -257,6 +257,7 @@ New modes of the fixture suite:
 - `junit_shards`: writes `junit/shard-1.xml` and `junit/shard-2.xml`
 - `big_artifacts`: writes a JUnit file and `SPIKE_ARTIFACT_MB` MiB of data (default 5)
 - `unsafe_artifacts`: writes a symlink to `/etc/passwd` next to a normal file
+- `report`: a failing JUnit report, a real PNG screenshot, and an HTML report (`report/index.html` with a relative stylesheet and a link to the screenshot) whose script shows whether it runs sandboxed; exits 1. For the walkthrough.
 
 The image must be rebuilt and pushed afterwards (spike spec section 9).
 

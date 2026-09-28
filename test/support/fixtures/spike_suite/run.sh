@@ -124,6 +124,36 @@ case "${SPIKE_MODE:-pass}" in
     ln -s /etc/passwd "$artifacts/passwd"
     exit 0
     ;;
+  report)
+    # A failing suite with a real screenshot and an HTML report, for the Milestone 6
+    # walkthrough. The report's script shows whether it runs sandboxed.
+    mkdir -p "$artifacts/screenshots" "$artifacts/report"
+    junit "$artifacts/junit.xml" '<testcase classname="Checkout" name="shows the cart" time="1.2"/><testcase classname="Checkout" name="pays by card" time="3.4"><failure message="expected the receipt, saw an error page">at pay (checkout.spec.ts:42)
+at runTest (runner.js:7)</failure></testcase>'
+    echo "iVBORw0KGgoAAAANSUhEUgAAAUAAAAC0CAIAAABqhmJGAAACfklEQVR4nO3TwQkCQQAEwY3E54ExmH8Wvi4KEREfZrCcLs0VVADzmB6X6w2IGssXANMEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgbj+cLiBIwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ1gy4Pu2wS8s/7aAYd7yb58o4Pe+w1EELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBCxgwgQsYMIELGDCBPzvgOFwy78tYJi3/NunCBj4EjCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMI+NGmQ8M4nDEYAAAAASUVORK5CYII=" | base64 -d > "$artifacts/screenshots/checkout.png"
+    echo "body { font-family: sans-serif; margin: 2rem; } .ok { color: #15803d; } .bad { color: #b91c1c; }" > "$artifacts/report/style.css"
+    cat > "$artifacts/report/index.html" <<'HTML'
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>E2E report</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<h1>E2E report</h1>
+<p>1 passed, 1 failed. <a href="../screenshots/checkout.png">Screenshot</a></p>
+<p id="sandbox">Checking the sandbox…</p>
+<script>
+  var el = document.getElementById("sandbox");
+  var cookies;
+  try { document.cookie; cookies = "readable"; } catch (e) { cookies = "blocked"; }
+  var sandboxed = window.origin === "null" && cookies === "blocked";
+  el.className = sandboxed ? "ok" : "bad";
+  el.textContent = (sandboxed ? "Sandboxed" : "NOT sandboxed") +
+    ": origin " + window.origin + ", cookies " + cookies + ". Scripts run.";
+</script>
+</body>
+</html>
+HTML
+    exit 1
+    ;;
   tick)
     # Ticks for SPIKE_TICKS seconds, then passes.
     i=0
