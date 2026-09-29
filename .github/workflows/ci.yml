@@ -106,9 +106,19 @@ jobs:
           docker push localhost:5055/spike-suite:dev
           docker logout localhost:5055
 
+      # Through the socket proxy, as in production: the tests then also catch calls
+      # the proxy forbids, and the broken-stream tests need a tcp:// Docker host.
+      - name: Start the Docker socket proxy
+        run: |
+          docker compose up -d docker-socket-proxy
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:2375/_ping && break
+            sleep 1
+          done
+          curl -sf http://localhost:2375/_ping
+
       - run: mix deps.get
 
-      # Linux runners can use the Docker socket directly; no socket proxy needed.
       - run: mix test --only docker
         env:
-          DOCKER_HOST: unix:///var/run/docker.sock
+          DOCKER_HOST: tcp://localhost:2375

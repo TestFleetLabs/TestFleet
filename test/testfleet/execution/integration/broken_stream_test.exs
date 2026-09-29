@@ -14,7 +14,7 @@ defmodule TestFleet.Execution.Integration.BrokenStreamTest do
 
   setup do
     config = Application.fetch_env!(:testfleet, TestFleet.Execution.Docker)
-    %URI{scheme: "tcp", host: host, port: port} = URI.parse(config[:host])
+    {host, port} = tcp_host!(config[:host])
 
     {:ok, proxy} = DockerProxy.start_link({host, port})
     proxied = Keyword.put(config, :host, DockerProxy.host(proxy))
@@ -22,6 +22,19 @@ defmodule TestFleet.Execution.Integration.BrokenStreamTest do
     on_exit(fn -> Application.put_env(:testfleet, TestFleet.Execution.Docker, config) end)
 
     %{proxy: proxy, direct: "http://#{host}:#{port}/v#{Client.api_version()}"}
+  end
+
+  # TestFleet.DockerProxy forwards TCP only.
+  defp tcp_host!(docker_host) do
+    case URI.parse(docker_host) do
+      %URI{scheme: scheme, host: host, port: port} when scheme in ["tcp", "http"] ->
+        {host, port}
+
+      _ ->
+        flunk(
+          "these tests need DOCKER_HOST as tcp://host:port (the socket proxy), got #{docker_host}"
+        )
+    end
   end
 
   # Through the proxy, retrying fast; the container is removed directly when the
