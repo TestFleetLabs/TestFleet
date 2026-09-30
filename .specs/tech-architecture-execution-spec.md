@@ -1701,7 +1701,7 @@ Concretely, the MVP implements:
 - **An isolated run network**, so test containers cannot reach TestFleet's PostgreSQL (section 19).
 - **Container hardening:** `no-new-privileges`, all capabilities dropped, never privileged, no host mounts (section 19).
 - **A Docker socket proxy** (for example `tecnativa/docker-socket-proxy`) between TestFleet and the Docker socket, allowing only the endpoints TestFleet uses: containers, images, networks. Access to the raw socket is equivalent to root on the host; the proxy narrows what a compromised TestFleet process could do.
-- **Single sign-on.** Internal users are expected to log in with the company identity provider through OIDC, rather than with separate TestFleet passwords.
+- **Login.** Internal users log in with the company identity provider through OIDC where one is configured. TestFleet also has its own password login with invitations, so an installation without an identity provider stays usable; there is no open registration. Two roles: admins manage users, registries, and notification channels; members do everything else (Milestone 10, [milestone-10-authentication.md](milestone-10-authentication.md)).
 - **API tokens** per user for CI integrations (section 40); tokens are stored hashed and can be revoked.
 
 Known accepted limitation for the MVP: secrets are visible to anyone with `docker inspect` access on the host.
@@ -2364,7 +2364,7 @@ Those can come later.
 - LiveView
 - PostgreSQL
 - Oban
-- authentication (OIDC single sign-on) — **deferred** (2026-09-26): built after the other milestones; until then all pages are open and user references (`runs.triggered_by_user_id`) stay empty
+- authentication (OIDC single sign-on) — **deferred** (2026-09-26): built after the other milestones, as Milestone 10; until then all pages are open and user references (`runs.triggered_by_user_id`) stay empty
 - basic navigation
 
 ---
@@ -2506,6 +2506,20 @@ Implement the containerized deployment of the amendment below:
 - install and upgrade notes
 
 Details: [milestone-9-deployment.md](milestone-9-deployment.md).
+
+---
+
+## Milestone 10 — Authentication
+
+Implement (moved here from Milestone 1):
+
+- users, sessions, password login (`phx.gen.auth`)
+- first-run setup and invitations, no open registration
+- roles: admin and member
+- every page behind a login
+- OIDC login with one generic provider
+
+Details: [milestone-10-authentication.md](milestone-10-authentication.md).
 
 ---
 
