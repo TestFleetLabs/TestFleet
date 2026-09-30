@@ -30,8 +30,13 @@ defmodule TestFleet.Execution.Integration.ImageCleanupTest do
 
     # A commit has its own creation time, so its image id is unique. The socket
     # proxy does not allow commits (TestFleet never needs them), so this one fixture
-    # step uses the CLI, which talks to the engine directly.
-    {output, 0} = System.cmd("docker", ["commit", container, "#{@repository}:#{tag}"])
+    # step uses the CLI, with DOCKER_HOST unset so it talks to the engine directly
+    # instead of through the proxy.
+    {output, 0} =
+      System.cmd("docker", ["commit", container, "#{@repository}:#{tag}"],
+        env: [{"DOCKER_HOST", nil}]
+      )
+
     image_id = String.trim(output)
 
     on_exit(fn ->
