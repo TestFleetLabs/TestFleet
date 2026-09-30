@@ -13,7 +13,9 @@ defmodule TestFleetWeb.AccessTest do
     {"GET", "/users/invitations/:token"},
     {"GET", "/setup"},
     {"POST", "/users/log-in"},
-    {"DELETE", "/users/log-out"}
+    {"DELETE", "/users/log-out"},
+    {"GET", "/auth/oidc"},
+    {"GET", "/auth/oidc/callback"}
   ]
 
   @admin_pages ~w(/registries /registries/new /notifications /notifications/channels/new /users)

@@ -69,6 +69,41 @@ if days = System.get_env("LOG_RETENTION_DAYS") do
   config :testfleet, TestFleet.Retention, logs_days: String.to_integer(days)
 end
 
+# OIDC login with one provider (Milestone 10, section 7): Entra ID, AD FS, Keycloak,
+# or any other OpenID provider. Tests configure a stub in config/test.exs.
+if config_env() != :test and System.get_env("OIDC_ISSUER") not in [nil, ""] do
+  issuer = System.fetch_env!("OIDC_ISSUER")
+
+  config :testfleet, TestFleet.Accounts.OIDC,
+    issuer: issuer,
+    client_id:
+      System.get_env("OIDC_CLIENT_ID") ||
+        raise("OIDC_ISSUER is set, but OIDC_CLIENT_ID is missing"),
+    client_secret:
+      System.get_env("OIDC_CLIENT_SECRET") ||
+        raise("OIDC_ISSUER is set, but OIDC_CLIENT_SECRET is missing"),
+    provider_name: System.get_env("OIDC_PROVIDER_NAME", "single sign-on"),
+    scopes: String.split(System.get_env("OIDC_SCOPES", "openid email profile")),
+    email_claim: System.get_env("OIDC_EMAIL_CLAIM", "email"),
+    provisioning: System.get_env("OIDC_USER_PROVISIONING", "true") != "false",
+    allowed_domains:
+      System.get_env("OIDC_ALLOWED_DOMAINS", "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1),
+    # A local Keycloak over plain HTTP, in development only
+    allow_unsafe_http: config_env() == :dev and String.starts_with?(issuer, "http://")
+end
+
+# "SSO button only" (Milestone 10, section 4): refused without OIDC, so TestFleet
+# cannot be configured without a way in.
+if System.get_env("AUTH_PASSWORD_LOGIN") == "false" do
+  if System.get_env("OIDC_ISSUER") in [nil, ""] do
+    raise "AUTH_PASSWORD_LOGIN=false needs OIDC (OIDC_ISSUER): nobody could log in otherwise"
+  end
+
+  config :testfleet, TestFleet.Accounts, password_login: false
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :testfleet, TestFleetWeb.Endpoint,

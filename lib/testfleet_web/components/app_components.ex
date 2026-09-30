@@ -294,6 +294,50 @@ defmodule TestFleetWeb.AppComponents do
   end
 
   @doc """
+  Renders the single sign-on button (Milestone 10, section 7): a plain link, since
+  the provider is on another site. Primary when it is the only way in.
+  """
+  attr :id, :string, required: true
+  attr :href, :string, required: true
+  attr :label, :string, required: true
+  attr :primary, :boolean, default: false
+
+  def sso_button(assigns) do
+    ~H"""
+    <a
+      id={@id}
+      href={@href}
+      class={[
+        "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium",
+        "transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+        if(@primary,
+          do: "bg-primary text-primary-content shadow-sm hover:bg-primary/90",
+          else: "border border-base-300 bg-base-100 text-base-content shadow-xs hover:bg-base-200"
+        )
+      ]}
+    >
+      <.icon name="hero-key-mini" class="size-4" />
+      {@label}
+    </a>
+    """
+  end
+
+  @doc """
+  Renders the "or" between two ways to log in.
+  """
+  attr :class, :any, default: nil
+
+  def or_divider(assigns) do
+    ~H"""
+    <div class={["flex items-center gap-3 text-xs text-base-content/40 uppercase", @class]}>
+      <span class="h-px flex-1 bg-base-300"></span>
+      {gettext("or")}
+      <span class="h-px flex-1 bg-base-300"></span>
+    </div>
+    """
+  end
+
+  @doc """
   Renders the card that holds a form, with the buttons in a footer.
   """
   slot :inner_block, required: true

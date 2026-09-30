@@ -13,8 +13,19 @@ defmodule TestFleetWeb.UserSessionController do
     create(conn, params, gettext("Welcome back!"))
   end
 
+  # "SSO button only" (Milestone 10, section 4): no password or magic-link login
+  defp create(conn, params, info) do
+    if Accounts.password_login_enabled?() do
+      create_session(conn, params, info)
+    else
+      conn
+      |> put_flash(:error, gettext("Log in with single sign-on."))
+      |> redirect(to: ~p"/users/log-in")
+    end
+  end
+
   # magic link login
-  defp create(conn, %{"user" => %{"token" => token} = user_params}, info) do
+  defp create_session(conn, %{"user" => %{"token" => token} = user_params}, info) do
     case Accounts.login_user_by_magic_link(token) do
       {:ok, {user, tokens_to_disconnect}} ->
         UserAuth.disconnect_sessions(tokens_to_disconnect)
@@ -31,7 +42,7 @@ defmodule TestFleetWeb.UserSessionController do
   end
 
   # email + password login
-  defp create(conn, %{"user" => user_params}, info) do
+  defp create_session(conn, %{"user" => user_params}, info) do
     %{"email" => email, "password" => password} = user_params
 
     if user = Accounts.get_user_by_email_and_password(email, password) do

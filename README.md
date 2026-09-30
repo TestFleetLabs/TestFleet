@@ -100,7 +100,15 @@ mix setup            # install deps, create and migrate the database, build asse
 mix phx.server       # or: iex -S mix phx.server
 ```
 
-Visit [`localhost:4000`](http://localhost:4000).
+Visit [`localhost:4000`](http://localhost:4000). Every page needs a login: on a fresh database, the log shows a one-time link (`No users yet. Create the first admin at …/setup?token=…`) that creates the first admin.
+
+To try single sign-on, start the Keycloak development realm (users `alice`/`alice` with a verified email, `bob`/`bob` without) and run TestFleet against it:
+
+```bash
+docker compose --profile oidc up -d keycloak
+OIDC_ISSUER=http://localhost:8180/realms/testfleet OIDC_CLIENT_ID=testfleet \
+  OIDC_CLIENT_SECRET=testfleet-dev-secret mix phx.server
+```
 
 Before committing, run:
 

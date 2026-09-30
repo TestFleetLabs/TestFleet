@@ -7,6 +7,7 @@ defmodule TestFleetWeb.UserLive.Setup do
   use TestFleetWeb, :live_view
 
   alias TestFleet.Accounts
+  alias TestFleet.Accounts.OIDC
 
   @impl true
   def render(assigns) do
@@ -16,7 +17,18 @@ defmodule TestFleetWeb.UserLive.Setup do
       title={gettext("Set up TestFleet")}
       subtitle={gettext("Create the first admin. Everyone else is invited from the Users page.")}
     >
+      <.sso_button
+        :if={@oidc_enabled}
+        id="oidc-setup"
+        href={~p"/auth/oidc?#{[mode: "setup", token: @token]}"}
+        label={gettext("Continue with %{provider}", provider: OIDC.provider_name())}
+        primary={!@password_login}
+      />
+
+      <.or_divider :if={@oidc_enabled and @password_login} class="my-6" />
+
       <.form
+        :if={@password_login}
         for={@form}
         id="setup-form"
         action={~p"/users/log-in?_action=welcome"}
@@ -69,6 +81,8 @@ defmodule TestFleetWeb.UserLive.Setup do
     {:ok,
      socket
      |> assign(:page_title, gettext("Set up TestFleet"))
+     |> assign(:token, params["token"])
+     |> assign(oidc_enabled: OIDC.enabled?(), password_login: Accounts.password_login_enabled?())
      |> assign(:form, to_form(Accounts.change_setup()))
      |> assign(:trigger_submit, false)}
   end
@@ -80,7 +94,10 @@ defmodule TestFleetWeb.UserLive.Setup do
   end
 
   def handle_event("save", %{"user" => params}, socket) do
-    case Accounts.create_first_admin(params) do
+    case Accounts.password_login_enabled?() && Accounts.create_first_admin(params) do
+      false ->
+        {:noreply, put_flash(socket, :error, gettext("Log in with single sign-on."))}
+
       # The form posts the email and password to the session controller, which logs in.
       {:ok, _user} ->
         form = params |> Accounts.change_setup() |> to_form()

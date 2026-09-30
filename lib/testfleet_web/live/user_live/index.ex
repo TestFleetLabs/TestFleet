@@ -7,7 +7,7 @@ defmodule TestFleetWeb.UserLive.Index do
   use TestFleetWeb, :live_view
 
   alias TestFleet.Accounts
-  alias TestFleet.Accounts.User
+  alias TestFleet.Accounts.{OIDC, User}
   alias TestFleet.Schedules.Timezones
   alias TestFleetWeb.UserAuth
 
@@ -19,6 +19,7 @@ defmodule TestFleetWeb.UserLive.Index do
      |> assign(:invite_form, to_form(Accounts.change_invitation(%{role: :member})))
      |> assign(:invite_link, nil)
      |> assign(:timezone, Timezones.default())
+     |> assign(:provider_name, OIDC.provider_name())
      |> stream(:users, Accounts.list_users())}
   end
 
@@ -35,7 +36,7 @@ defmodule TestFleetWeb.UserLive.Index do
          socket
          |> assign(:invite_link, invitation)
          |> assign(:invite_form, to_form(Accounts.change_invitation(%{role: :member})))
-         |> stream_insert(:users, invitation.user)}
+         |> put_user(invitation.user)}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :invite_form, to_form(changeset, action: :insert))}
@@ -76,7 +77,7 @@ defmodule TestFleetWeb.UserLive.Index do
     role = Enum.find(User.roles(), &(Atom.to_string(&1) == role))
 
     case Accounts.update_user_role(user, role) do
-      {:ok, user} -> {:noreply, stream_insert(socket, :users, user)}
+      {:ok, user} -> {:noreply, put_user(socket, user)}
       {:error, :last_admin} -> {:noreply, last_admin_error(socket)}
     end
   end
@@ -91,7 +92,7 @@ defmodule TestFleetWeb.UserLive.Index do
         {:noreply,
          socket
          |> put_flash(:info, gettext("%{email} can no longer log in.", email: user.email))
-         |> stream_insert(:users, user)}
+         |> put_user(user)}
 
       {:error, :last_admin} ->
         {:noreply, last_admin_error(socket)}
@@ -100,10 +101,14 @@ defmodule TestFleetWeb.UserLive.Index do
 
   def handle_event("reactivate", %{"id" => id}, socket) do
     {:ok, user} = id |> Accounts.get_user!() |> Accounts.reactivate_user()
-    {:noreply, stream_insert(socket, :users, user)}
+    {:noreply, put_user(socket, user)}
   end
 
-  defp refresh(socket, user), do: stream_insert(socket, :users, Accounts.get_user!(user.id))
+  defp refresh(socket, user), do: put_user(socket, user)
+
+  # Reloaded with the identities, for the login column
+  defp put_user(socket, user),
+    do: stream_insert(socket, :users, Accounts.get_user_with_identities!(user.id))
 
   defp clear_link_for(socket, user) do
     case socket.assigns.invite_link do
@@ -229,6 +234,7 @@ defmodule TestFleetWeb.UserLive.Index do
                 <th class="px-5 py-3 font-medium">{gettext("Email")}</th>
                 <th class="px-5 py-3 font-medium">{gettext("Role")}</th>
                 <th class="px-5 py-3 font-medium">{gettext("Status")}</th>
+                <th class="px-5 py-3 font-medium">{gettext("Login")}</th>
                 <th class="px-5 py-3 font-medium">{gettext("Last login")}</th>
                 <th class="px-5 py-3"><span class="sr-only">{gettext("Actions")}</span></th>
               </tr>
@@ -252,6 +258,12 @@ defmodule TestFleetWeb.UserLive.Index do
                 </td>
                 <td class="px-5 py-3">
                   <.user_status id={"user-status-#{user.id}"} status={User.status(user)} />
+                </td>
+                <td id={"user-logins-#{user.id}"} class="px-5 py-3">
+                  <div class="flex flex-wrap gap-1">
+                    <.badge :if={user.hashed_password}>{gettext("Password")}</.badge>
+                    <.badge :if={user.identities != []} tone={:primary}>{@provider_name}</.badge>
+                  </div>
                 </td>
                 <td class="px-5 py-3 text-xs text-base-content/60">
                   <.local_time :if={user.last_login_at} at={user.last_login_at} timezone={@timezone} />

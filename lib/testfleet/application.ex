@@ -36,8 +36,12 @@ defmodule TestFleet.Application do
         do: [],
         else: [TestFleetWeb.SetupNotice]
 
+    # The OIDC provider's configuration and keys, when OIDC is configured
+    oidc = TestFleet.Accounts.OIDC.child_specs()
+
     # Start to serve requests, typically the last entry
-    children = children ++ dispatcher ++ watchdog ++ [TestFleetWeb.Endpoint] ++ setup_notice
+    children =
+      children ++ dispatcher ++ watchdog ++ oidc ++ [TestFleetWeb.Endpoint] ++ setup_notice
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options

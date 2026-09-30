@@ -1,12 +1,13 @@
 defmodule TestFleetWeb.UserLive.Invitation do
   @moduledoc """
-  An invitation link (Milestone 10, section 4): the invited user chooses a password
-  and is logged in. The release command's links for a lost admin account open here
-  too, for an existing user.
+  An invitation link (Milestone 10, section 4): the invited user chooses a password,
+  or continues with single sign-on (section 7), and is logged in. The release
+  command's links for a lost admin account open here too, for an existing user.
   """
   use TestFleetWeb, :live_view
 
   alias TestFleet.Accounts
+  alias TestFleet.Accounts.OIDC
   alias TestFleetWeb.UserAuth
 
   @impl true
@@ -14,10 +15,21 @@ defmodule TestFleetWeb.UserLive.Invitation do
     ~H"""
     <Layouts.auth
       flash={@flash}
-      title={gettext("Choose your password")}
+      title={if(@password_login, do: gettext("Choose your password"), else: gettext("Welcome"))}
       subtitle={@user.email}
     >
+      <.sso_button
+        :if={@oidc_enabled}
+        id="oidc-invite"
+        href={~p"/auth/oidc?#{[mode: "invite", token: @token]}"}
+        label={gettext("Continue with %{provider}", provider: OIDC.provider_name())}
+        primary={!@password_login}
+      />
+
+      <.or_divider :if={@oidc_enabled and @password_login} class="my-6" />
+
       <.form
+        :if={@password_login}
         for={@form}
         id="invitation-form"
         action={~p"/users/log-in?_action=welcome"}
@@ -64,6 +76,10 @@ defmodule TestFleetWeb.UserLive.Invitation do
        socket
        |> assign(:page_title, gettext("Choose your password"))
        |> assign(user: user, token: token, trigger_submit: false)
+       |> assign(
+         oidc_enabled: OIDC.enabled?(),
+         password_login: Accounts.password_login_enabled?()
+       )
        |> assign(:form, to_form(Accounts.change_user_password(user, %{}, hash_password: false)))}
     else
       {:ok,
@@ -84,7 +100,11 @@ defmodule TestFleetWeb.UserLive.Invitation do
   end
 
   def handle_event("save", %{"user" => params}, socket) do
-    case Accounts.accept_invitation(socket.assigns.token, params) do
+    case Accounts.password_login_enabled?() &&
+           Accounts.accept_invitation(socket.assigns.token, params) do
+      false ->
+        {:noreply, put_flash(socket, :error, gettext("Continue with single sign-on."))}
+
       # The form posts the email and password to the session controller, which logs in.
       {:ok, {user, expired_tokens}} ->
         UserAuth.disconnect_sessions(expired_tokens)

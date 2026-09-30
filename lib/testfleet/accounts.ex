@@ -11,7 +11,7 @@ defmodule TestFleet.Accounts do
   import Ecto.Query, warn: false
   alias TestFleet.Repo
 
-  alias TestFleet.Accounts.{User, UserToken, UserNotifier}
+  alias TestFleet.Accounts.{OIDC, User, UserIdentity, UserToken, UserNotifier}
   alias TestFleet.Notifications
 
   require Logger
@@ -70,11 +70,24 @@ defmodule TestFleet.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
-  @doc "All users, by email."
-  def list_users, do: Repo.all(from u in User, order_by: u.email)
+  @doc "Gets a user with their OIDC identities, for the Users page."
+  def get_user_with_identities!(id), do: User |> Repo.get!(id) |> Repo.preload(:identities)
 
-  @doc "Whether magic links and emailed invitations can be sent (SMTP is configured)."
+  @doc "All users, by email, with their OIDC identities."
+  def list_users, do: Repo.all(from u in User, order_by: u.email, preload: :identities)
+
+  @doc "Whether emailed invitations and email changes can be sent (SMTP is configured)."
   def email_enabled?, do: Notifications.email_configured?()
+
+  @doc """
+  Whether password login is available (`AUTH_PASSWORD_LOGIN`, section 4). Off means
+  "SSO button only": no password or magic-link login.
+  """
+  def password_login_enabled?,
+    do: Application.get_env(:testfleet, __MODULE__, [])[:password_login] != false
+
+  @doc "Whether magic links can be used: password login is available and SMTP is configured."
+  def magic_link_enabled?, do: password_login_enabled?() and email_enabled?()
 
   ## First-run setup
 
@@ -245,6 +258,192 @@ defmodule TestFleet.Accounts do
         {:ok, url_fun.(insert_invite_token(user))}
       end
     end)
+  end
+
+  ## OIDC (section 7)
+
+  @doc "The user's identity at the configured provider, or nil."
+  def get_identity(%User{id: user_id}) do
+    Repo.get_by(UserIdentity, user_id: user_id, issuer: OIDC.issuer())
+  end
+
+  @doc """
+  Logs in with a provider identity (`login` mode):
+
+  1. a known identity logs its user in, unless deactivated;
+  2. an unknown identity whose email the provider verified is linked to the user
+     with that email (confirming a pending invitation);
+  3. an unknown identity without a user gets a member account, if provisioning is
+     on and the email's domain is allowed;
+  4. an unknown identity whose email matches a user but is not verified is refused.
+
+      {:ok, user}
+      | {:error, :deactivated | :email_not_verified | :not_invited | :domain_not_allowed}
+  """
+  def oidc_login(identity) do
+    Repo.transact(fn ->
+      case find_identity(identity) do
+        %UserIdentity{user: user} = found ->
+          if User.status(user) == :deactivated do
+            {:error, :deactivated}
+          else
+            Repo.update_all(from(i in UserIdentity, where: i.id == ^found.id),
+              set: [email: identity.email]
+            )
+
+            {:ok, user}
+          end
+
+        nil ->
+          case get_user_by_email(identity.email) do
+            nil -> provision(identity)
+            user -> link_by_email(user, identity)
+          end
+      end
+    end)
+  end
+
+  defp find_identity(%{issuer: issuer, subject: subject}) do
+    Repo.one(
+      from i in UserIdentity,
+        where: i.issuer == ^issuer and i.subject == ^subject,
+        preload: :user
+    )
+  end
+
+  defp link_by_email(user, identity) do
+    cond do
+      User.status(user) == :deactivated ->
+        {:error, :deactivated}
+
+      identity.email_verified ->
+        with {:ok, _} <- insert_identity(user, identity), do: confirm(user)
+
+      true ->
+        {:error, :email_not_verified}
+    end
+  end
+
+  defp provision(identity) do
+    cond do
+      not OIDC.provisioning?() ->
+        {:error, :not_invited}
+
+      not OIDC.allowed_domain?(identity.email) ->
+        {:error, :domain_not_allowed}
+
+      true ->
+        with {:ok, user} <- insert_confirmed(identity.email, :member),
+             {:ok, _} <- insert_identity(user, identity) do
+          {:ok, user}
+        end
+    end
+  end
+
+  @doc """
+  Creates the first admin with a provider identity (`setup` mode), if there is
+  still no user.
+  """
+  def oidc_setup(identity) do
+    Repo.transact(fn ->
+      lock(:setup)
+
+      if setup_needed?() do
+        with {:ok, user} <- insert_confirmed(identity.email, :admin),
+             {:ok, _} <- insert_identity(user, identity) do
+          {:ok, user}
+        end
+      else
+        {:error, :already_set_up}
+      end
+    end)
+  end
+
+  @doc """
+  Accepts an invitation with a provider identity (`invite` mode): the link is the
+  authorization, so the provider need not verify the email. Like
+  `accept_invitation/2`, all of the user's tokens are deleted.
+
+      {:ok, {user, expired_tokens}} | {:error, :invalid_token | :identity_taken}
+  """
+  def oidc_accept_invitation(token, identity) do
+    case get_user_by_invitation_token(token) do
+      nil ->
+        {:error, :invalid_token}
+
+      user ->
+        Repo.transact(fn ->
+          with {:ok, _} <- replace_identity(user, identity) do
+            user
+            |> Ecto.Changeset.change(confirmed_at: user.confirmed_at || DateTime.utc_now(:second))
+            |> update_user_and_delete_all_tokens()
+          end
+        end)
+    end
+  end
+
+  @doc """
+  Links a provider identity to a logged-in user (`link` mode, from the settings),
+  replacing an earlier one.
+
+      {:ok, identity} | {:error, :identity_taken}
+  """
+  def link_identity(%User{} = user, identity) do
+    Repo.transact(fn -> replace_identity(user, identity) end)
+  end
+
+  @doc """
+  Unlinks the provider, while another way in remains (a password with password
+  login available, or magic links): otherwise `{:error, :last_login_method}`.
+  """
+  def unlink_identity(%User{} = user) do
+    if can_unlink?(user) do
+      {count, _} =
+        Repo.delete_all(
+          from i in UserIdentity, where: i.user_id == ^user.id and i.issuer == ^OIDC.issuer()
+        )
+
+      {:ok, count}
+    else
+      {:error, :last_login_method}
+    end
+  end
+
+  @doc "Whether the user keeps a way in without the provider."
+  def can_unlink?(%User{} = user) do
+    (password_login_enabled?() and not is_nil(user.hashed_password)) or magic_link_enabled?()
+  end
+
+  defp insert_confirmed(email, role) do
+    %User{}
+    |> User.invite_changeset(%{email: email, role: role})
+    |> User.confirm_changeset()
+    |> Repo.insert()
+  end
+
+  defp confirm(%User{confirmed_at: nil} = user) do
+    Repo.delete_all(from(t in UserToken, where: t.user_id == ^user.id and t.context == "invite"))
+    user |> User.confirm_changeset() |> Repo.update()
+  end
+
+  defp confirm(user), do: {:ok, user}
+
+  defp replace_identity(user, identity) do
+    Repo.delete_all(
+      from i in UserIdentity, where: i.user_id == ^user.id and i.issuer == ^identity.issuer
+    )
+
+    insert_identity(user, identity)
+  end
+
+  defp insert_identity(user, identity) do
+    %UserIdentity{user_id: user.id}
+    |> UserIdentity.changeset(identity)
+    |> Repo.insert()
+    |> case do
+      {:ok, identity} -> {:ok, identity}
+      {:error, %Ecto.Changeset{}} -> {:error, :identity_taken}
+    end
   end
 
   ## Roles and deactivation

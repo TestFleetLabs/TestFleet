@@ -82,9 +82,9 @@ An admin invites someone by email and role on the Users page. That creates the u
 | Magic link (the generator's default) | SMTP is configured (`SMTP_HOST`, Milestone 8) |
 | "Log in with `<OIDC_PROVIDER_NAME>`" | OIDC is configured (section 7) |
 
-`AUTH_PASSWORD_LOGIN=false` is refused at startup unless OIDC is configured, so TestFleet cannot be configured into a state without any way in. It hides password and magic-link login, and the release command (section 8) still works.
+`AUTH_PASSWORD_LOGIN=false` is refused at startup unless OIDC is configured, so TestFleet cannot be configured into a state without any way in. It makes TestFleet an "SSO button only" installation, like Dependency-Track behind the same identity provider: the login page shows only the OIDC button, password and magic-link logins are refused by the session controller too, the settings have no password section, and the setup and invitation pages offer only "Continue with `<provider>`" (section 7). The release command (section 8) still works: its link is an invitation.
 
-Changing one's email address (the generator's confirmation email) is only offered with SMTP. Setting and changing one's password always works, in sudo mode (the generator's re-authentication within the last 10 minutes).
+Changing one's email address (the generator's confirmation email) is only offered with SMTP. Setting and changing one's password works while password login is available, in sudo mode (the generator's re-authentication within the last 10 minutes).
 
 ---
 
@@ -117,31 +117,47 @@ Contexts keep their functions without a scope for now. The roles are enforced at
 
 ## 7. OIDC
 
-One provider, configured by environment variables:
+One provider, discovered from its issuer, configured by environment variables. The first target is Microsoft: **Entra ID** (issuer `https://login.microsoftonline.com/<tenant-id>/v2.0`) or **AD FS** on premises (issuer `https://<adfs-host>/adfs`); Keycloak is used in development.
 
 | Variable | Notes |
 |----------|-------|
-| `OIDC_ISSUER` | Discovery base URL, for example `https://keycloak.example/realms/company` |
-| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | A confidential client |
+| `OIDC_ISSUER` | The issuer, as the provider's discovery document names it |
+| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | A confidential client (Entra: an app registration with a client secret) |
 | `OIDC_PROVIDER_NAME` | The button label, default "single sign-on" |
+| `OIDC_SCOPES` | Default `openid email profile` |
+| `OIDC_EMAIL_CLAIM` | The claim that holds the email, default `email`. Entra sends `email` only for users with a mailbox or when configured as an optional claim; `preferred_username` (the UPN) is the usual alternative. AD FS sends what its issuance rules add. |
+| `OIDC_USER_PROVISIONING` | Default `true`: unknown users get a member account on first login. `false`: only invited or linked users can log in with the provider (like Dependency-Track's `ALPINE_OIDC_USER_PROVISIONING`). |
 | `OIDC_ALLOWED_DOMAINS` | Optional, comma-separated: only these email domains get an account on first login |
 
-The redirect URI to register at the provider is `https://<PHX_HOST>/auth/oidc/callback`.
+The redirect URI to register at the provider is `https://<PHX_HOST>/auth/oidc/callback`. With Entra, "Assignment required" on the enterprise application limits who can log in at all; that is the provider's decision, not TestFleet's.
 
-**Library:** `oidcc` with `oidcc_plug`, the OpenID Foundation-certified implementation maintained by the Erlang Ecosystem Foundation. It validates ID tokens, nonces, and issuers, and refreshes the provider's signing keys. The provider configuration worker is started in the supervision tree only when OIDC is configured. An unreachable provider must not stop TestFleet: the worker retries, and the button shows an error until discovery succeeds.
+**Library:** `oidcc`, the OpenID Foundation-certified implementation maintained by the Erlang Ecosystem Foundation. It validates ID tokens, nonces, and issuers, and refreshes the provider's signing keys when a token names an unknown key. TestFleet calls it directly (no `oidcc_plug`), because the callback has several modes (below). The provider configuration worker is started in the supervision tree only when OIDC is configured, with exponential backoff: its default is to stop on a failed discovery, which would take TestFleet down with an unreachable provider. Until discovery succeeds, the button answers "single sign-on is not available right now".
 
-**Flow:** authorization code with PKCE; `state` and `nonce` in the session. Scopes `openid email profile`.
+**Flow:** authorization code with PKCE; `state`, `nonce`, the PKCE verifier, and the mode in the session. The callback checks `state` before anything else; the token exchange checks the nonce. Claims come from the ID token.
 
-`user_identities`: `user_id`, `issuer`, `subject`, `email` (as last seen), timestamps. Unique `(issuer, subject)`. A user can have one identity per issuer.
+`user_identities`: `user_id`, `issuer`, `subject`, `email` (as last seen), timestamps. Unique `(issuer, subject)` and `(user_id, issuer)`. The subject is the provider's `sub`, not the email: emails and UPNs change, `sub` does not.
 
-On the callback, in order:
+**Modes.** The same flow runs for four purposes:
 
-1. **Known identity** (`issuer`, `subject`): log that user in, unless deactivated.
-2. **Unknown identity, and an existing user with the same email, and the provider says `email_verified: true`:** link the identity to that user, and log in.
-3. **Unknown identity, no user with that email:** create an active, confirmed member with the identity, if the email's domain is allowed (or no domains are configured). Otherwise refuse, naming the allowed domains.
-4. **Unknown identity, a user with that email, but the email is not verified by the provider:** refuse, and explain that the account can be linked in the settings after logging in another way. Some providers (Microsoft Entra ID among them) do not send `email_verified`; linking by email would then let anyone with a matching address take over the account.
+| Mode | Started from | On the callback |
+|------|-------------|-----------------|
+| `login` | the login page | the four cases below |
+| `setup` | `/setup` with its token | creates the first admin with this identity, if the token is still valid and there is still no user |
+| `invite` | an invitation link | links this identity to the invited user and confirms them; the link is the authorization, so `email_verified` does not matter |
+| `link` | the settings, in sudo mode | links this identity to the logged-in user |
 
-In the settings, a logged-in user can link the provider (the same flow, in linking mode, after sudo mode) or unlink it, as long as another way in remains (a password, or SMTP for magic links).
+`setup` and `invite` make an "SSO button only" installation work end to end: the first admin and every invited user can get in without a password, and invitations are how existing users are matched to their provider account when the provider does not verify emails (Entra, AD FS).
+
+In `login` mode, in order:
+
+1. **Known identity** (`issuer`, `subject`): log that user in, unless deactivated. The identity's `email` is updated.
+2. **Unknown identity, and an existing user with the same email, and the provider says `email_verified: true`:** link the identity to that user (confirming a pending invitation), and log in.
+3. **Unknown identity, no user with that email:** with provisioning on and the email's domain allowed (or no domains configured), create an active, confirmed member with the identity. Otherwise refuse: "Ask an admin for an invitation", naming the allowed domains where they are the reason.
+4. **Unknown identity, a user with that email, but the email is not verified by the provider:** refuse, and explain that an admin can send an invitation link, or the account can be linked in the settings after logging in another way. Entra and AD FS do not send `email_verified`; linking by email would let anyone who can get a matching address or UPN at the provider take over the account.
+
+A token without the email claim is refused with a message naming `OIDC_EMAIL_CLAIM`.
+
+Unlinking in the settings is allowed while another way in remains: password login is available and the user has a password, or magic links are available.
 
 No claim grants the admin role. Admins are made by admins (or the release command).
 
@@ -171,7 +187,7 @@ It runs in the running application (`rpc`, so the endpoint's URL is known). It c
 
 ## 10. Configuration
 
-`deploy/.env.example` and `deploy/README.md` gain `AUTH_PASSWORD_LOGIN` and the `OIDC_*` variables, the redirect URI, first-run setup, and the release command.
+`deploy/.env.example` and `deploy/README.md` gain `AUTH_PASSWORD_LOGIN` and the `OIDC_*` variables, the redirect URI, first-run setup, the release command, and a short guide for Entra ID and AD FS: where the issuer comes from (an existing OIDC application such as Dependency-Track shows it), the app registration, the email claim.
 
 Development: a Keycloak container in the development `compose.yaml` (profile `oidc`) with an imported realm, a client, and two users (one with a verified email, one without), so the OIDC flow can be tried locally without a company identity provider.
 
@@ -198,6 +214,18 @@ Each slice passes `mix precommit` on its own. The existing tests log in a user (
 
 **Status (2026-09-30):** slice A is built (632 tests). In the development server, the setup link is logged on start, `/setup` is 404 without it, and every page redirects to the login.
 
+**Status (2026-09-30):** slice B is built (674 tests). Against the Keycloak development realm, the whole flow worked end to end (driven with curl): discovery, a pushed authorization request with PKCE, the login at Keycloak, the callback with the token exchange and ID token validation, and a new member logged in. With Keycloak stopped, TestFleet started healthy and the button answered "not available"; a few seconds after Keycloak was back, logins worked without a restart. Not tried yet: a real Entra ID or AD FS.
+
+Notes from slice B:
+
+- **Client authentication:** `oidcc` prefers `client_secret_jwt` when the provider offers it, before `client_secret_basic` and `client_secret_post`. Keycloak offers it but rejects it for a client configured with a plain secret (a 401 already on the pushed authorization request). TestFleet passes `preferred_auth_methods: [:client_secret_basic, :client_secret_post]`, since its client always has a plain secret. Entra ID and AD FS offer `client_secret_basic` and `client_secret_post`.
+- `oidcc` uses pushed authorization requests (PAR) when the provider offers them (Keycloak does); nothing to configure.
+- The provider worker runs with `random_exponential` backoff (1 s to 1 min). Its default `stop` would end the worker on a failed discovery and, through restarts, TestFleet.
+- The request (`state`, `nonce`, PKCE verifier, mode, token) is kept in the session under `:oidc_request` and deleted on the callback, so a callback works once. `/auth/oidc` and `/auth/oidc/callback` are open routes; `/auth/oidc/link` needs a login and sudo mode.
+- The `OIDC_*` variables are read in development and production (`config/runtime.exs`); tests configure `TestFleet.OIDCStub`, which encodes the ID token's claims in the authorization code and checks the nonce and the PKCE verifier like `oidcc` would. Plain-HTTP issuers are allowed in development only.
+- An OIDC login is a session login (no remember-me cookie): with single sign-on, logging in again is one click.
+- The Users page shows how each user logs in (password, provider).
+
 Notes from slice A:
 
 - Routes: `/users/log-in`, `/users/log-in/:token` (magic link), `/users/invitations/:token`, `/setup`, `/users/settings`, and `/users` (admin). The admin pages are in the `live_session :require_admin`; the artifacts pipeline authenticates like the browser pipeline, without `accepts html`.
@@ -218,7 +246,8 @@ Notes from slice A:
 - **Deactivation:** refuses login, deletes sessions, disconnects a connected LiveView.
 - **Protection:** every route in the router, except the open ones of section 6, redirects without a session (one test that walks the router's routes, so a new route cannot be forgotten); the log download and artifacts answer only with a session.
 - **Login methods:** magic link hidden without SMTP; `AUTH_PASSWORD_LOGIN=false` hides password login, and is refused at startup without OIDC.
-- **OIDC**, against a stubbed token exchange (`oidcc` behind a small module that tests replace): the four cases of section 7, allowed domains, a deactivated user, `state` and `nonce` mismatches, linking and unlinking in the settings, unlinking the last way in refused.
+- **OIDC**, against a stubbed provider (`oidcc` behind a small module that tests replace): the four `login` cases of section 7, provisioning off, allowed domains, a missing email claim, a deactivated user, a `state` mismatch, the `setup`, `invite`, and `link` modes, unlinking, and unlinking the last way in refused.
+- **SSO only:** with `AUTH_PASSWORD_LOGIN=false` the login, setup, and invitation pages offer only the provider, and password and magic-link logins are refused.
 - **Runs:** "Run now" sets `triggered_by_user_id`; scheduled runs leave it empty.
 - **Release command:** creates or promotes an admin and returns a working link.
 

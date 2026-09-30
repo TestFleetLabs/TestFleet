@@ -66,6 +66,8 @@ defmodule TestFleet.MixProject do
       {:jason, "~> 1.4.5"},
       {:lazy_html, ">= 0.1.13", only: :test},
       {:oban, "~> 2.24.1"},
+      # OIDC login (Milestone 10, section 7)
+      {:oidcc, "~> 3.9.0"},
       {:phoenix, "~> 1.8.15"},
       {:phoenix_ecto, "~> 4.7.0"},
       {:phoenix_html, "~> 4.3.0"},

@@ -71,6 +71,7 @@ defmodule TestFleetWeb.Router do
 
     get "/runs/:id/log", RunLogController, :show
     post "/users/update-password", UserSessionController, :update_password
+    get "/auth/oidc/link", OIDCController, :link
   end
 
   scope "/", TestFleetWeb do
@@ -94,6 +95,11 @@ defmodule TestFleetWeb.Router do
 
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
+
+    # OIDC (Milestone 10, section 7): login, setup, and invitations start here; the
+    # provider redirects back to the callback.
+    get "/auth/oidc", OIDCController, :start
+    get "/auth/oidc/callback", OIDCController, :callback
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

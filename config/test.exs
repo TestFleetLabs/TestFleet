@@ -57,6 +57,15 @@ config :testfleet, TestFleet.Notifications.Watchdog, enabled: false
 # The first-run setup link is not logged in tests
 config :testfleet, TestFleetWeb.SetupNotice, enabled: false
 
+# OIDC against a stubbed provider (Milestone 10, section 13), no worker
+config :testfleet, TestFleet.Accounts.OIDC,
+  issuer: "https://idp.test",
+  client_id: "testfleet",
+  client_secret: "secret",
+  provider_name: "Company SSO",
+  client: TestFleet.OIDCStub,
+  start_provider: false
+
 config :testfleet, TestFleet.Notifications.Heartbeat,
   req_options: [plug: {Req.Test, TestFleet.Notifications.Heartbeat}]
 

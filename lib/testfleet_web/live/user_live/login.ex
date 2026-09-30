@@ -1,11 +1,13 @@
 defmodule TestFleetWeb.UserLive.Login do
   @moduledoc """
-  The login page (Milestone 10, section 4): email and password, and a magic link
-  when SMTP is configured. Also used to re-authenticate for sudo mode.
+  The login page (Milestone 10, section 4): single sign-on when OIDC is configured,
+  email and password unless `AUTH_PASSWORD_LOGIN=false`, and a magic link when SMTP
+  is configured too. Also used to re-authenticate for sudo mode.
   """
   use TestFleetWeb, :live_view
 
   alias TestFleet.Accounts
+  alias TestFleet.Accounts.OIDC
 
   @impl true
   def render(assigns) do
@@ -21,8 +23,19 @@ defmodule TestFleetWeb.UserLive.Login do
       }
     >
       <div class="space-y-6">
+        <.sso_button
+          :if={@oidc_enabled}
+          id="oidc-login"
+          href={~p"/auth/oidc"}
+          label={gettext("Log in with %{provider}", provider: OIDC.provider_name())}
+          primary={!@password_login}
+        />
+
+        <.or_divider :if={@oidc_enabled and @password_login} />
+
         <.form
           :let={f}
+          :if={@password_login}
           for={@form}
           id="login_form_password"
           action={~p"/users/log-in"}
@@ -38,7 +51,7 @@ defmodule TestFleetWeb.UserLive.Login do
             autocomplete="username"
             spellcheck="false"
             required
-            phx-mounted={JS.focus()}
+            phx-mounted={!@oidc_enabled && JS.focus()}
           />
           <.input
             field={@form[:password]}
@@ -64,12 +77,8 @@ defmodule TestFleetWeb.UserLive.Login do
           </.button>
         </.form>
 
-        <%= if @email_enabled do %>
-          <div class="flex items-center gap-3 text-xs text-base-content/40 uppercase">
-            <span class="h-px flex-1 bg-base-300"></span>
-            {gettext("or")}
-            <span class="h-px flex-1 bg-base-300"></span>
-          </div>
+        <%= if @magic_link do %>
+          <.or_divider />
 
           <.form
             :let={f}
@@ -116,7 +125,12 @@ defmodule TestFleetWeb.UserLive.Login do
     {:ok,
      socket
      |> assign(:page_title, gettext("Log in"))
-     |> assign(form: form, trigger_submit: false, email_enabled: Accounts.email_enabled?())}
+     |> assign(form: form, trigger_submit: false)
+     |> assign(
+       oidc_enabled: OIDC.enabled?(),
+       password_login: Accounts.password_login_enabled?(),
+       magic_link: Accounts.magic_link_enabled?()
+     )}
   end
 
   @impl true
@@ -125,7 +139,7 @@ defmodule TestFleetWeb.UserLive.Login do
   end
 
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
-    if Accounts.email_enabled?() do
+    if Accounts.magic_link_enabled?() do
       if user = Accounts.get_user_by_email(email) do
         Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}"))
       end

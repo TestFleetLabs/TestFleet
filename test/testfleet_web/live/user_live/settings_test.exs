@@ -160,6 +160,36 @@ defmodule TestFleetWeb.UserLive.SettingsTest do
     end
   end
 
+  describe "single sign-on" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "offers to link when not linked", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      assert has_element?(lv, "#sso-unlinked")
+      assert has_element?(lv, "#sso-link[href='/auth/oidc/link']")
+    end
+
+    test "shows the linked account and unlinks it", %{conn: conn, user: user} do
+      {:ok, _} =
+        Accounts.link_identity(user, %{
+          issuer: TestFleet.Accounts.OIDC.issuer(),
+          subject: "abc",
+          email: "ann@corp.example"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      assert has_element?(lv, "#sso-linked", "ann@corp.example")
+
+      lv |> element("#sso-unlink") |> render_click()
+      assert has_element?(lv, "#sso-unlinked")
+      refute Accounts.get_identity(user)
+    end
+  end
+
   describe "confirm email" do
     setup %{conn: conn} do
       user = user_fixture()

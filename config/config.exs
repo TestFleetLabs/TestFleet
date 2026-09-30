@@ -54,6 +54,10 @@ config :testfleet, Oban,
   # Rescues TestFleet's own jobs; runs are recovered by the reconciler, never by Oban.
   lifeline: [rescue_after: :timer.minutes(30)]
 
+# Password (and magic-link) login; AUTH_PASSWORD_LOGIN=false makes TestFleet "SSO
+# button only" (Milestone 10, section 4)
+config :testfleet, TestFleet.Accounts, password_login: true
+
 # Time zones for schedules (IANA database, bundled with the tz package)
 config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 

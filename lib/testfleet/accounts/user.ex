@@ -21,6 +21,8 @@ defmodule TestFleet.Accounts.User do
     field :last_login_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
 
+    has_many :identities, TestFleet.Accounts.UserIdentity
+
     timestamps(type: :utc_datetime)
   end
 

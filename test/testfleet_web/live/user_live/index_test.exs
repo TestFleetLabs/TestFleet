@@ -24,6 +24,23 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     refute has_element?(lv, "#role-#{admin.id}")
   end
 
+  test "shows how users log in", %{conn: conn, user: admin} do
+    {:ok, sso_user} =
+      Accounts.oidc_login(%{
+        issuer: TestFleet.Accounts.OIDC.issuer(),
+        subject: "abc",
+        email: "sso@example.com",
+        email_verified: false
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/users")
+
+    assert has_element?(lv, "#user-logins-#{admin.id}", "Password")
+    refute has_element?(lv, "#user-logins-#{admin.id}", "Company SSO")
+    assert has_element?(lv, "#user-logins-#{sso_user.id}", "Company SSO")
+    refute has_element?(lv, "#user-logins-#{sso_user.id}", "Password")
+  end
+
   test "invites a user and shows the link once", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/users")
 

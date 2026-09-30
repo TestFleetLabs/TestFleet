@@ -40,5 +40,22 @@ services:
     ports:
       - "5055:5000"
 
+  # An OIDC provider for trying single sign-on locally (profile "oidc"; Milestone 10,
+  # section 10). Users: alice/alice (verified email), bob/bob (unverified email).
+  # Admin console: http://localhost:8180, admin/admin. Start TestFleet with:
+  #   OIDC_ISSUER=http://localhost:8180/realms/testfleet OIDC_CLIENT_ID=testfleet
+  #   OIDC_CLIENT_SECRET=testfleet-dev-secret
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    profiles: [oidc]
+    command: start-dev --import-realm --http-port=8180
+    environment:
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+    volumes:
+      - ./dev/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "8180:8180"
+
 volumes:
   testfleet-db:

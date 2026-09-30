@@ -58,6 +58,21 @@ docker compose logs testfleet | grep "No users yet"
 
 Open it to create the first admin; `/setup` without the token does not exist. Everyone else is invited from the Users page: the invitation link is shown to copy, and emailed too when SMTP is configured.
 
+## Single sign-on
+
+TestFleet logs in with one OpenID Connect provider. It is found through the provider's discovery document, so anything that speaks OIDC works. Set the `OIDC_*` variables in `.env` (see `.env.example`) and register `https://<PHX_HOST>/auth/oidc/callback` as the redirect URI at the provider.
+
+**Which issuer?** If another internal application already logs in with the company provider (for example Dependency-Track, with its `ALPINE_OIDC_ISSUER`), its issuer tells you which provider you have:
+
+- `https://login.microsoftonline.com/<tenant-id>/v2.0`: **Entra ID**. Create an app registration: a web platform with the redirect URI above, and a client secret (`OIDC_CLIENT_SECRET`); the application (client) ID is `OIDC_CLIENT_ID`. To let only certain people in, set "Assignment required" on its enterprise application and assign them.
+- `https://<adfs-host>/adfs`: **AD FS** (on-premises Active Directory). Create an application group with a server application: the redirect URI above, a client secret, and issuance rules that add the email address.
+
+**Email claim.** TestFleet names users by email. Entra sends `email` only for users with a mailbox or when it is added as an optional claim; otherwise set `OIDC_EMAIL_CLAIM=preferred_username` (the UPN). Users are matched by the provider's subject, not by email, so changing the email later does not create a second account.
+
+**Who gets in.** With `OIDC_USER_PROVISIONING=true` (the default), anyone the provider lets through gets a member account on first login, optionally limited by `OIDC_ALLOWED_DOMAINS`; admins promote them on the Users page. With `false`, only invited users get in. Neither Entra nor AD FS confirms that an email address is verified, so an existing TestFleet account is never taken over by email: invitation links offer "Continue with <provider>", which links the account at the provider.
+
+**SSO button only.** `AUTH_PASSWORD_LOGIN=false` removes password login, like Dependency-Track behind the same provider. The first-run setup link then creates the first admin through the provider too.
+
 ## Upgrade
 
 Set the new version in `TESTFLEET_IMAGE`, then:

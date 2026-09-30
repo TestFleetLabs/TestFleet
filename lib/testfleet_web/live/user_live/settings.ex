@@ -1,14 +1,16 @@
 defmodule TestFleetWeb.UserLive.Settings do
   @moduledoc """
-  The user's own settings (Milestone 10, section 9): the password, and the email
-  address when SMTP is configured (a change is confirmed by email). Requires sudo
-  mode: a login within the last 10 minutes.
+  The user's own settings (Milestone 10, section 9): the linked single sign-on
+  account, the password (unless `AUTH_PASSWORD_LOGIN=false`), and the email address
+  when SMTP is configured (a change is confirmed by email). Requires sudo mode: a
+  login within the last 10 minutes.
   """
   use TestFleetWeb, :live_view
 
   on_mount {TestFleetWeb.UserAuth, :require_sudo_mode}
 
   alias TestFleet.Accounts
+  alias TestFleet.Accounts.OIDC
 
   @impl true
   def render(assigns) do
@@ -17,7 +19,37 @@ defmodule TestFleetWeb.UserLive.Settings do
       <div id="settings" class="space-y-8">
         <.page_header title={gettext("Settings")} description={@current_email} />
 
+        <.panel :if={@oidc_enabled} id="sso" title={@provider_name} class="max-w-2xl">
+          <div class="flex flex-wrap items-center justify-between gap-4 p-5">
+            <p :if={@identity} id="sso-linked" class="text-sm">
+              {gettext("Linked to %{email}.", email: @identity.email)}
+            </p>
+            <p :if={!@identity} id="sso-unlinked" class="text-sm text-base-content/60">
+              {gettext("Not linked. Link it to log in with %{provider}.", provider: @provider_name)}
+            </p>
+            <.button
+              :if={!@identity}
+              id="sso-link"
+              variant="primary"
+              size="sm"
+              href={~p"/auth/oidc/link"}
+            >
+              {gettext("Link")}
+            </.button>
+            <.button
+              :if={@identity && @can_unlink}
+              id="sso-unlink"
+              size="sm"
+              phx-click="unlink"
+              data-confirm={gettext("Unlink %{provider}?", provider: @provider_name)}
+            >
+              {gettext("Unlink")}
+            </.button>
+          </div>
+        </.panel>
+
         <.form
+          :if={@password_login}
           for={@password_form}
           id="password_form"
           action={~p"/users/update-password"}
@@ -122,6 +154,9 @@ defmodule TestFleetWeb.UserLive.Settings do
       |> assign(:page_title, gettext("Settings"))
       |> assign(:current_email, user.email)
       |> assign(:email_enabled, Accounts.email_enabled?())
+      |> assign(:password_login, Accounts.password_login_enabled?())
+      |> assign(oidc_enabled: OIDC.enabled?(), provider_name: OIDC.provider_name())
+      |> assign_identity(user)
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:trigger_submit, false)
@@ -163,6 +198,26 @@ defmodule TestFleetWeb.UserLive.Settings do
     end
   end
 
+  def handle_event("unlink", _params, socket) do
+    user = socket.assigns.current_scope.user
+
+    case Accounts.unlink_identity(user) do
+      {:ok, _count} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("%{provider} is unlinked.", provider: OIDC.provider_name()))
+         |> assign_identity(user)}
+
+      {:error, :last_login_method} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("Set a password first: you would have no way to log in.")
+         )}
+    end
+  end
+
   def handle_event("validate_password", params, socket) do
     %{"user" => user_params} = params
 
@@ -187,5 +242,12 @@ defmodule TestFleetWeb.UserLive.Settings do
       changeset ->
         {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
     end
+  end
+
+  defp assign_identity(socket, user) do
+    assign(socket,
+      identity: OIDC.enabled?() && Accounts.get_identity(user),
+      can_unlink: Accounts.can_unlink?(user)
+    )
   end
 end
