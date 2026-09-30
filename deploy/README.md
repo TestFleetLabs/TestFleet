@@ -9,12 +9,15 @@ TestFleet runs as three containers on one Docker host: TestFleet itself, Postgre
 
 ## Install
 
+The server needs only this directory's `compose.yaml` and `.env.example`; the image comes from `ghcr.io/testfleetlabs/testfleet`.
+
 ```sh
-cd deploy
+mkdir testfleet && cd testfleet
+# copy compose.yaml and .env.example here
 cp .env.example .env
 ```
 
-Fill in the four required values in `.env`:
+Fill in the four required values in `.env`, and pin `TESTFLEET_IMAGE` to a release:
 
 ```sh
 openssl rand -base64 48   # SECRET_KEY_BASE
@@ -25,7 +28,7 @@ openssl rand -hex 24      # POSTGRES_PASSWORD
 Start it:
 
 ```sh
-docker compose up -d --build
+docker compose up -d
 docker compose ps          # all three healthy
 ```
 
@@ -46,12 +49,14 @@ TestFleet redirects plain HTTP requests to HTTPS, except on `localhost`.
 
 ## Upgrade
 
+Set the new version in `TESTFLEET_IMAGE`, then:
+
 ```sh
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-Running tests survive the restart: their containers keep running, and TestFleet picks them up again when it is back. Time spent down counts against their timeout.
+Migrations run on start. Running tests survive the restart: their containers keep running, and TestFleet picks them up again when it is back. Time spent down counts against their timeout.
 
 ## Operate
 
@@ -88,12 +93,29 @@ services:
       - /var/lib/testfleet/artifacts:/app/artifacts
 ```
 
+## Images
+
+| Tag | Published for |
+|-----|---------------|
+| `1.2.3`, `1.2` | the git tag `v1.2.3` |
+| `latest` | the newest release (not prereleases like `v1.3.0-rc.1`) |
+| `main`, `sha-<commit>` | every commit on `main`, once CI is green |
+
+Only `linux/amd64` is published for now.
+
 ## Trying it on a development machine
+
+Build the image from the repository root:
+
+```sh
+docker build -t testfleet:dev .
+```
 
 The development `compose.yaml` in the repository root has the same Compose project name (`testfleet`). Give the production stack another one, and another port, so the two do not take over each other's containers:
 
 ```sh
-TESTFLEET_PUBLISH=127.0.0.1:4100 docker compose -p testfleet-local up -d --build
+cd deploy
+TESTFLEET_IMAGE=testfleet:dev TESTFLEET_PUBLISH=127.0.0.1:4100 docker compose -p testfleet-local up -d
 ```
 
 TestFleet always pulls images, so a suite image has to come from a registry, not only from the local image store.

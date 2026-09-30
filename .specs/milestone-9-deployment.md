@@ -30,13 +30,15 @@ The main spec defines the deployment model (section 51, and the amendment "TestF
 - A production Compose file with an `.env` template
 - Hardening of the TestFleet container
 - CI: build the image and boot it with the production Compose file
+- Publishing the image to GHCR, versioned by git tags
 - Install and upgrade notes
 
 ### Out of scope
 
 | What | Milestone |
 |------|-----------|
-| Publishing the image to a registry, versioned releases | later |
+| `linux/arm64` images, Docker Hub | later |
+| Release automation (changelog, GitHub releases) | later |
 | TLS inside TestFleet (it runs behind a reverse proxy, section 6) | – |
 | Authentication | later (main spec section 52, milestone 1) |
 | Multiple TestFleet nodes | later (main spec section 34) |
@@ -98,7 +100,7 @@ TestFleet serves plain HTTP on port 4000 and expects a reverse proxy (nginx, Tra
 
 | Service | Image | Networks | Notes |
 |---------|-------|----------|-------|
-| `testfleet` | `${TESTFLEET_IMAGE:-testfleet:latest}`, with `build: ..` | `backend`, `default` | Waits for a healthy `db`. `default` gives it egress (Slack, webhooks, SMTP) and the published port. |
+| `testfleet` | `${TESTFLEET_IMAGE:-ghcr.io/testfleetlabs/testfleet:latest}` (section 10) | `backend`, `default` | Waits for a healthy `db`. `default` gives it egress (Slack, webhooks, SMTP) and the published port. |
 | `db` | `postgres:18-alpine` | `backend` | Named volume `db`. Health check `pg_isready`. |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | `backend` | Mounts the socket read-only; the only service that does. `CONTAINERS`, `IMAGES`, `NETWORKS`, `AUTH`, `POST` enabled. No published port. |
 
@@ -141,31 +143,52 @@ It never mounts the Docker socket; only the proxy does (amendment, "TestFleet �
 
 ## 9. CI
 
-A third job, `image`, builds the image and starts `deploy/compose.yaml` with generated secrets and `docker compose up --wait` (which waits for the health checks), then requests `/health` and stops the stack. It proves that the image builds, the release boots, migrations run on an empty database, and the proxy and networks are wired. It does not push.
+A third job, `image`, builds the image (buildx, layers cached in the GitHub Actions cache) and starts `deploy/compose.yaml` with it, generated secrets, and `docker compose up --wait` (which waits for the health checks), then requests `/health` and stops the stack. It is a smoke test: the image builds, the release boots, migrations run on an empty database, and the proxy and networks are wired. It does not execute a run or migrate an existing database.
 
 ---
 
-## 10. Install and Upgrade
+## 10. Publishing
+
+A fourth job, `publish`, pushes the image to `ghcr.io/testfleetlabs/testfleet` (public). It runs on pushes only, never for pull requests, and only after `check`, `docker`, and `image` are green, so a published image has passed every test. It builds from the `image` job's cache, and logs in with `GITHUB_TOKEN` (`packages: write`); no other secret is needed.
+
+| Git ref | Tags |
+|---------|------|
+| a commit on `main` | `main`, `sha-<short>` |
+| the tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` |
+| a prerelease tag `v1.3.0-rc.1` | `1.3.0-rc.1`, `sha-<short>` |
+
+- A release tag must match the version in `mix.exs` (`v` + version); otherwise `publish` fails before building.
+- `docker/metadata-action` adds the OCI labels, among them `org.opencontainers.image.source`, which links the package to the repository.
+- Only `linux/amd64`.
+- The package has to be made public once, in the organization's package settings, after the first push: GHCR creates packages private.
+
+`deploy/compose.yaml` has no `build:`; servers pull. `.env.example` sets `TESTFLEET_IMAGE`, and the README asks to pin a version there, so an upgrade is a deliberate change.
+
+---
+
+## 11. Install and Upgrade
 
 In `deploy/README.md`:
 
-- **Install:** copy `deploy/`, fill `.env`, `docker compose up -d --build` (or `pull` once an image is published), configure the reverse proxy.
-- **Upgrade:** `git pull && docker compose up -d --build` (later: `docker compose pull && docker compose up -d`). Running tests survive the restart (section 4).
+- **Install:** copy `compose.yaml` and `.env.example`, fill `.env` (pinning `TESTFLEET_IMAGE`), `docker compose up -d`, configure the reverse proxy.
+- **Upgrade:** set the new version in `TESTFLEET_IMAGE`, `docker compose pull && docker compose up -d`. Running tests survive the restart (section 4).
+- **Local image:** `docker build -t testfleet:dev .` and `TESTFLEET_IMAGE=testfleet:dev`.
 - **Logs, shell, migrations:** `docker compose logs -f testfleet`; `docker compose exec testfleet bin/testfleet remote`; migrations run on start, `bin/migrate` runs them by hand.
 - **Rollback:** the previous image, after rolling back migrations with `bin/testfleet eval 'TestFleet.Release.rollback(TestFleet.Repo, <version>)'` when the new version added any.
 
 ---
 
-## 11. Slices
+## 12. Slices
 
 | # | Slice | Depends on |
 |---|-------|-----------|
 | A | Release and image: `bin/start`, `/health`, the Dockerfile, `.dockerignore`, line endings and executable bits of the scripts, `ARTIFACTS_DIR` default. | – |
 | B | Compose, `.env.example`, hardening, `deploy/README.md`, the CI job. | A |
+| C | Publishing to GHCR: the `publish` job, the cached build in `image`, Compose pulling instead of building. | B |
 
 Each slice passes `mix precommit` on its own.
 
-**Status (2026-09-30):** both slices are built (483 tests). Locally, the production stack started healthy on an empty database with the hardening of section 8. A run pulled from a private registry passed through it, a run survived `docker compose restart testfleet` with its full log (no gaps, no duplicates), and secrets and artifacts survived `down` and `up`. The CI job and a walkthrough behind a real reverse proxy are next.
+**Status (2026-09-30):** all slices are built (483 tests). Locally, the production stack started healthy on an empty database with the hardening of section 8. A run pulled from a private registry passed through it, a run survived `docker compose restart testfleet` with its full log (no gaps, no duplicates), and secrets and artifacts survived `down` and `up`. Next: the CI jobs on GitHub (they run once pushed), making the package public, and a walkthrough behind a real reverse proxy.
 
 Notes:
 
@@ -175,18 +198,19 @@ Notes:
 
 ---
 
-## 12. Tests
+## 13. Tests
 
 - **`/health`:** `200` with a working database and the Docker status; `HEAD` too; other methods fall through to the router.
 - **Image (CI, section 9):** builds, boots on an empty database with the hardening of section 8, and answers `/health`.
+- **Publishing (CI, section 10):** a push to `main` publishes `main` and `sha-<short>`; a `v` tag that does not match `mix.exs` fails.
 
 ---
 
-## 13. Done
+## 14. Done
 
-Milestone 9 is done when both slices pass `mix precommit`, the CI job is green, and:
+Milestone 9 is done when all slices pass `mix precommit`, the CI jobs are green, the image is public on GHCR, and:
 
-1. `docker compose -f deploy/compose.yaml up -d --build` with a filled `.env` starts all three services healthy.
+1. `docker compose -f deploy/compose.yaml up -d` with a filled `.env` pulls the published image and starts all three services healthy.
 2. Behind a reverse proxy (or with `X-Forwarded-Proto: https`), TestFleet shows the dashboard; live updates work over the WebSocket.
 3. A run of the fixture suite passes, its log and artifacts are shown, and the artifacts are in the `artifacts` volume.
 4. `docker compose restart testfleet` during a long run: the run continues and finishes after the restart.

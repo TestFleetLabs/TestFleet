@@ -1,13 +1,13 @@
 # TestFleet in production (.specs/milestone-9-deployment.md). See README.md.
 #
 #   cp .env.example .env    # then fill it in
-#   docker compose up -d --build
+#   docker compose up -d
 name: testfleet
 
 services:
   testfleet:
-    image: ${TESTFLEET_IMAGE:-testfleet:latest}
-    build: ..
+    # Pin a version in .env (TESTFLEET_IMAGE); latest follows every release
+    image: ${TESTFLEET_IMAGE:-ghcr.io/testfleetlabs/testfleet:latest}
     restart: unless-stopped
     # A proper PID 1: forwards signals to the BEAM and reaps processes
     init: true
