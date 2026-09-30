@@ -10,6 +10,7 @@ TestFleet is a self-hosted Phoenix application that schedules, executes, and mon
 ## Workflow
 
 - Run `mix precommit` when you are done with all changes and fix any pending issues.
+- **Never commit or push.** Leave all changes uncommitted: the maintainer reviews them and commits themselves. When a change is done, provide a commit message in the reply instead (a short subject line in the imperative, a blank line, then a body that explains what changed and why).
 - Use `Req` for all HTTP, including the Docker Engine API. Do not add `:httpoison`, `:tesla`, or use `:httpc`.
 - Generate migrations with `mix ecto.gen.migration name_using_underscores`.
 - Local services run through `docker compose up -d`: PostgreSQL and a Docker socket proxy on `tcp://localhost:2375` (use it as `DOCKER_HOST`).
