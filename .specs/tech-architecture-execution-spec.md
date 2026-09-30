@@ -2495,6 +2495,20 @@ Details: [milestone-8-notifications.md](milestone-8-notifications.md).
 
 ---
 
+## Milestone 9 — Deployment
+
+Implement the containerized deployment of the amendment below:
+
+- production image (Mix release)
+- migrations on start
+- health endpoint
+- production Docker Compose with TestFleet, PostgreSQL, and the socket proxy
+- install and upgrade notes
+
+Details: [milestone-9-deployment.md](milestone-9-deployment.md).
+
+---
+
 # 53. Execution Technical Spike
 
 Before implementing the entire application, build a small standalone proof of concept.
@@ -2804,6 +2818,8 @@ TestFleet
 ```
 
 A future object-storage backend can replace this without changing the execution model.
+
+As built (Milestone 9, section 7), the Compose file uses a named volume at `/app/artifacts` instead, because it needs no ownership changes on the host; a host directory mounted there still works.
 
 ## Container Upgrade
 

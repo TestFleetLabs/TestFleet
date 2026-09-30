@@ -1,3 +1,4 @@
 # Shell scripts run inside Linux containers and break with CRLF line endings.
 *.sh text eol=lf
+rel/overlays/bin/* text eol=lf
 test/support/fixtures/registry/htpasswd text eol=lf

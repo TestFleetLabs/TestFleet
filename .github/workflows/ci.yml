@@ -122,3 +122,38 @@ jobs:
       - run: mix test --only docker
         env:
           DOCKER_HOST: tcp://localhost:2375
+
+  # The production image, booted with the production Compose file on an empty
+  # database (.specs/milestone-9-deployment.md, section 9). Nothing is pushed.
+  image:
+    name: Production image
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate .env
+        run: |
+          {
+            echo "PHX_HOST=testfleet.ci"
+            echo "SECRET_KEY_BASE=$(openssl rand -base64 48 | tr -d '\n')"
+            echo "CLOAK_KEY=$(openssl rand -base64 32)"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+          } > .env
+
+      - name: Build and start
+        run: docker compose up -d --build --wait --wait-timeout 180
+
+      - name: Check health
+        run: curl -fsS http://127.0.0.1:4000/health
+
+      - name: Logs
+        if: always()
+        run: docker compose logs
+
+      - name: Stop
+        if: always()
+        run: docker compose down -v

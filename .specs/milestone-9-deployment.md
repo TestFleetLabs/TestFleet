@@ -1,0 +1,193 @@
+# TestFleet — Milestone 9: Deployment
+
+## 1. Purpose
+
+Milestone 9 makes TestFleet installable on an internal server as the main spec's amendment describes: **a containerized control plane that orchestrates independently running test containers.** One image, one Compose file, one `.env`. No Elixir on the server.
+
+```text
+Internal Server
+│
+└── Docker Engine
+    │
+    ├── testfleet            (this image)      ─┐
+    ├── db                   (postgres)          ├─ Compose network "backend" (internal)
+    ├── docker-socket-proxy  (socket, read-only) ─┘
+    │
+    └── TestFleet-run-<id>   (created per run, network "TestFleet-runs")
+```
+
+The main spec defines the deployment model (section 51, and the amendment "TestFleet Containerized Deployment"). This document records what the amendment leaves open, and where the implementation deviates.
+
+---
+
+## 2. Scope
+
+### In scope
+
+- A production image built from a Mix release
+- Migrations on start
+- A health endpoint
+- A production Compose file with an `.env` template
+- Hardening of the TestFleet container
+- CI: build the image and boot it with the production Compose file
+- Install and upgrade notes
+
+### Out of scope
+
+| What | Milestone |
+|------|-----------|
+| Publishing the image to a registry, versioned releases | later |
+| TLS inside TestFleet (it runs behind a reverse proxy, section 6) | – |
+| Authentication | later (main spec section 52, milestone 1) |
+| Multiple TestFleet nodes | later (main spec section 34) |
+| Backups beyond documenting what to back up | – |
+
+---
+
+## 3. Image
+
+Generated with `mix phx.gen.release --docker` and adapted. Two stages on the same Debian release:
+
+- **builder:** `hexpm/elixir` with the versions of `.tool-versions`; compiles the release with minified, digested assets.
+- **runner:** `debian:<same>-slim` with the release only, plus `curl` for the health check. Runs as `nobody`.
+
+The image contains Erlang, the release, and compiled assets. It does not contain PostgreSQL, test suite images, browsers, or test code (amendment, "TestFleet Image").
+
+`/app/artifacts` exists in the image, owned by `nobody`, so a named volume mounted there is writable without further setup.
+
+---
+
+## 4. Start
+
+The image's command is `/app/bin/start`: it runs `bin/migrate`, then `exec`s `bin/server`. A failing migration stops the container before the application starts; Compose restarts it, and the logs show the migration error.
+
+This covers the amendment's upgrade order (pull, stop, start, migrate, run): `docker compose pull && docker compose up -d`. Migrations run while no other TestFleet is running, because there is only one.
+
+Stopping the container is safe at any time. Running containers keep running; the reconciler reattaches them on the next start (Milestone 7, section 4). Deadlines come from the persisted `started_at`, so time spent down counts against the run's timeout.
+
+`init: true` in Compose gives the BEAM a proper PID 1 that forwards signals and reaps processes.
+
+---
+
+## 5. Health
+
+`GET /health` is answered by a plug in the endpoint, before request logging, so the check every 30 seconds does not fill the log.
+
+| Database | Response |
+|----------|----------|
+| `SELECT 1` succeeds | `200 {"status": "ok", "docker": "reachable" \| "unreachable"}` |
+| fails | `503 {"status": "error", "docker": …}` |
+
+Docker reachability is reported, but does not make TestFleet unhealthy: restarting TestFleet does not fix Docker, and the dispatcher already holds runs while Docker is down (Milestone 7, section 7).
+
+---
+
+## 6. HTTP, TLS, and the Reverse Proxy
+
+TestFleet serves plain HTTP on port 4000 and expects a reverse proxy (nginx, Traefik, Caddy) in front of it that terminates TLS and sets `X-Forwarded-Proto`. `force_ssl` stays on (it is compile-time): requests without `X-Forwarded-Proto: https` are redirected, except for `localhost`, so the container's own health check works.
+
+- `PHX_HOST` is the public host name. Links in notifications and the WebSocket origin check use it, with `https` on port 443.
+- The port is published on `127.0.0.1:4000` by default (`TESTFLEET_PUBLISH`), for a proxy on the same host. A proxy elsewhere publishes it on an interface it can reach.
+- The proxy must pass WebSocket upgrades on `/live`.
+
+---
+
+## 7. Compose
+
+`deploy/compose.yaml`, with `deploy/.env.example`. Separate from the development `compose.yaml` in the repository root.
+
+| Service | Image | Networks | Notes |
+|---------|-------|----------|-------|
+| `testfleet` | `${TESTFLEET_IMAGE:-testfleet:latest}`, with `build: ..` | `backend`, `default` | Waits for a healthy `db`. `default` gives it egress (Slack, webhooks, SMTP) and the published port. |
+| `db` | `postgres:18-alpine` | `backend` | Named volume `db`. Health check `pg_isready`. |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | `backend` | Mounts the socket read-only; the only service that does. `CONTAINERS`, `IMAGES`, `NETWORKS`, `AUTH`, `POST` enabled. No published port. |
+
+`backend` is `internal: true`: PostgreSQL and the socket proxy have no route out and no published ports. E2E containers run on `TestFleet-runs`, which TestFleet creates through the Docker API, and cannot reach `backend` (amendment, "Networks").
+
+The socket proxy's endpoints are the ones `Execution.Docker.Command` uses: `_ping`, `version`, `auth`, `containers/*` (create, start, inspect, logs, wait, stop, kill, archive, delete, list), `images/*` (create, inspect, list, delete), `networks/*` (inspect, create).
+
+### Configuration
+
+Set in `.env`:
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `PHX_HOST` | yes | Public host name |
+| `SECRET_KEY_BASE` | yes | `openssl rand -base64 48` |
+| `CLOAK_KEY` | yes | `openssl rand -base64 32`. **Back it up with the database**; without it, environment variables, registry passwords, and channel URLs are unreadable. |
+| `POSTGRES_PASSWORD` | yes | URL-safe, because it is part of `DATABASE_URL`: `openssl rand -hex 24` |
+| `TESTFLEET_IMAGE`, `TESTFLEET_PUBLISH` | no | Image and published address |
+| everything else in `config/runtime.exs` | no | `MAX_CONCURRENT_RUNS`, `RUN_LOG_LIMIT_MB`, `ARTIFACT_LIMIT_MB`, retention, `PULL_TIMEOUT_SECONDS`, `IMAGE_RETENTION_DAYS`, `SMTP_*`, `HEARTBEAT_URL`, `POOL_SIZE` |
+
+Compose sets `DATABASE_URL`, `DOCKER_HOST=tcp://docker-socket-proxy:2375`, and `ARTIFACTS_DIR=/app/artifacts` itself.
+
+### Artifacts
+
+**Deviation from the amendment:** artifacts live in the named volume `artifacts`, mounted at `/app/artifacts`, instead of the host directory `/var/lib/TestFleet/artifacts`. A named volume takes the ownership of the image's directory, so it works without a `chown` on the host. A host directory still works: mount it at `/app/artifacts` and give it to UID 65534 (`nobody`). The production default of `ARTIFACTS_DIR` changes to `/app/artifacts` accordingly.
+
+### What to back up
+
+The `db` volume (or a `pg_dump`), the `artifacts` volume, and `.env` (above all `CLOAK_KEY`). The TestFleet container holds nothing else.
+
+---
+
+## 8. Hardening
+
+The `testfleet` service runs as `nobody` with `read_only: true`, a `tmpfs` on `/tmp`, `cap_drop: [ALL]`, and `no-new-privileges`. It writes only to `/app/artifacts` and `/tmp`. `RELEASE_TMP=/tmp`, so the release's scripts write there too.
+
+It never mounts the Docker socket; only the proxy does (amendment, "TestFleet → Docker Communication"). As the amendment says, Docker API access remains highly privileged: this is a trusted internal deployment, not an isolation boundary.
+
+---
+
+## 9. CI
+
+A third job, `image`, builds the image and starts `deploy/compose.yaml` with generated secrets and `docker compose up --wait` (which waits for the health checks), then requests `/health` and stops the stack. It proves that the image builds, the release boots, migrations run on an empty database, and the proxy and networks are wired. It does not push.
+
+---
+
+## 10. Install and Upgrade
+
+In `deploy/README.md`:
+
+- **Install:** copy `deploy/`, fill `.env`, `docker compose up -d --build` (or `pull` once an image is published), configure the reverse proxy.
+- **Upgrade:** `git pull && docker compose up -d --build` (later: `docker compose pull && docker compose up -d`). Running tests survive the restart (section 4).
+- **Logs, shell, migrations:** `docker compose logs -f testfleet`; `docker compose exec testfleet bin/testfleet remote`; migrations run on start, `bin/migrate` runs them by hand.
+- **Rollback:** the previous image, after rolling back migrations with `bin/testfleet eval 'TestFleet.Release.rollback(TestFleet.Repo, <version>)'` when the new version added any.
+
+---
+
+## 11. Slices
+
+| # | Slice | Depends on |
+|---|-------|-----------|
+| A | Release and image: `bin/start`, `/health`, the Dockerfile, `.dockerignore`, line endings and executable bits of the scripts, `ARTIFACTS_DIR` default. | – |
+| B | Compose, `.env.example`, hardening, `deploy/README.md`, the CI job. | A |
+
+Each slice passes `mix precommit` on its own.
+
+**Status (2026-09-30):** both slices are built (483 tests). Locally, the production stack started healthy on an empty database with the hardening of section 8. A run pulled from a private registry passed through it, a run survived `docker compose restart testfleet` with its full log (no gaps, no duplicates), and secrets and artifacts survived `down` and `up`. The CI job and a walkthrough behind a real reverse proxy are next.
+
+Notes:
+
+- The production Compose project is named `testfleet`, like the development one; on a development machine, run it with `-p` and another `TESTFLEET_PUBLISH` (`deploy/README.md`).
+- `libsctp1` is in the runner image only to keep OTP's socket module from logging a warning on every start.
+- `ERL_CRASH_DUMP=/tmp/erl_crash.dump`, because `/app` is read-only.
+
+---
+
+## 12. Tests
+
+- **`/health`:** `200` with a working database and the Docker status; `HEAD` too; other methods fall through to the router.
+- **Image (CI, section 9):** builds, boots on an empty database with the hardening of section 8, and answers `/health`.
+
+---
+
+## 13. Done
+
+Milestone 9 is done when both slices pass `mix precommit`, the CI job is green, and:
+
+1. `docker compose -f deploy/compose.yaml up -d --build` with a filled `.env` starts all three services healthy.
+2. Behind a reverse proxy (or with `X-Forwarded-Proto: https`), TestFleet shows the dashboard; live updates work over the WebSocket.
+3. A run of the fixture suite passes, its log and artifacts are shown, and the artifacts are in the `artifacts` volume.
+4. `docker compose restart testfleet` during a long run: the run continues and finishes after the restart.
+5. `docker compose down && docker compose up -d`: projects, runs, secrets, and artifacts are still there.

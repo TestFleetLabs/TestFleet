@@ -1,0 +1,95 @@
+# TestFleet in production (.specs/milestone-9-deployment.md). See README.md.
+#
+#   cp .env.example .env    # then fill it in
+#   docker compose up -d --build
+name: testfleet
+
+services:
+  testfleet:
+    image: ${TESTFLEET_IMAGE:-testfleet:latest}
+    build: ..
+    restart: unless-stopped
+    # A proper PID 1: forwards signals to the BEAM and reaps processes
+    init: true
+    env_file: .env
+    environment:
+      PHX_HOST: ${PHX_HOST:?set PHX_HOST in .env}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?set SECRET_KEY_BASE in .env}
+      CLOAK_KEY: ${CLOAK_KEY:?set CLOAK_KEY in .env}
+      DATABASE_URL: ecto://testfleet:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db/testfleet
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      ARTIFACTS_DIR: /app/artifacts
+    # For a reverse proxy on this host; it terminates TLS and sets X-Forwarded-Proto
+    ports:
+      - "${TESTFLEET_PUBLISH:-127.0.0.1:4000}:4000"
+    volumes:
+      - artifacts:/app/artifacts
+    # backend: PostgreSQL and the socket proxy. default: egress for Slack, webhooks,
+    # SMTP, and the published port.
+    networks:
+      - backend
+      - default
+    depends_on:
+      db:
+        condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: testfleet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: testfleet
+    volumes:
+      - db:/var/lib/postgresql
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testfleet -d testfleet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+  # The only service with the Docker socket. It allows the endpoints TestFleet uses
+  # (Execution.Docker.Command): containers, images, networks, and registry auth.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      AUTH: 1
+      POST: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - backend
+
+networks:
+  # No route out and no published ports. E2E containers run on TestFleet-runs,
+  # which TestFleet creates, and cannot reach it.
+  backend:
+    internal: true
+
+volumes:
+  db:
+  artifacts:

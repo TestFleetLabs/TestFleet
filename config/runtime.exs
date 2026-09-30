@@ -87,9 +87,8 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
-  # The mounted volume of the containerized deployment (main spec, amendment)
-  config :testfleet, TestFleet.Artifacts,
-    root: System.get_env("ARTIFACTS_DIR", "/var/lib/TestFleet/artifacts")
+  # The mounted volume of the containerized deployment (Milestone 9, section 7)
+  config :testfleet, TestFleet.Artifacts, root: System.get_env("ARTIFACTS_DIR", "/app/artifacts")
 
   database_url =
     System.get_env("DATABASE_URL") ||

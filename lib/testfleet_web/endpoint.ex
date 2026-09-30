@@ -36,6 +36,9 @@ defmodule TestFleetWeb.Endpoint do
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :testfleet
   end
 
+  # Before request logging, so health checks stay out of the log
+  plug TestFleetWeb.Health
+
   plug Phoenix.LiveDashboard.RequestLogger,
     param_key: "request_logger",
     cookie_key: "request_logger"
