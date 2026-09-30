@@ -276,7 +276,7 @@ The `CleanupWorker` (Milestone 7, section 8) gets a fourth step: deliveries olde
 
 Each slice passes `mix precommit` on its own. The existing Docker tests keep passing.
 
-**Status (2026-09-28):** all slices are built (474 tests, plus 84 Docker integration tests). The manual walkthrough (section 13) is pending.
+**Status (2026-09-30): done.** All slices are built and tested (474 tests, plus 84 Docker integration tests). The manual walkthrough of section 13 is deferred: it will be done later against real channels, and anything it finds is fixed then.
 
 Notes from slice C:
 
