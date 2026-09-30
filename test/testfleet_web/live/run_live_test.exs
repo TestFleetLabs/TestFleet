@@ -9,6 +9,8 @@ defmodule TestFleetWeb.RunLiveTest do
 
   alias TestFleet.Runs
 
+  setup :register_and_log_in_user
+
   setup do
     project = project_fixture(%{name: "Customer Portal"})
 
@@ -64,6 +66,10 @@ defmodule TestFleetWeb.RunLiveTest do
       assert [run] = Runs.list_runs(test_definition: context.test_definition)
       assert %{status: :queued, trigger: :manual, image: "e2e:1.17"} = run
       assert has_element?(run_view, "#run-status[data-status='queued']")
+
+      # Who started it (Milestone 10, section 6)
+      assert run.triggered_by_user_id == context.user.id
+      assert has_element?(run_view, "#run-triggered-by", context.user.email)
     end
 
     test "cannot run a disabled test definition", %{conn: conn} = context do

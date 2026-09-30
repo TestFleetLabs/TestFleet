@@ -6,6 +6,8 @@ defmodule TestFleetWeb.ProjectLiveTest do
 
   alias TestFleet.Projects
 
+  setup :register_and_log_in_user
+
   describe "index" do
     test "lists projects linking to their pages", %{conn: conn} do
       project = project_fixture(%{name: "Customer Portal"})

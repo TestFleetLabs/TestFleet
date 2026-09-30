@@ -11,6 +11,8 @@ defmodule TestFleetWeb.NotificationEmailUnconfiguredTest do
 
   alias TestFleet.Notifications
 
+  setup :register_and_log_in_admin
+
   setup do
     previous = Application.fetch_env!(:testfleet, Notifications)
     Application.put_env(:testfleet, Notifications, Keyword.put(previous, :email_enabled, false))

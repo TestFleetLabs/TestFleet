@@ -8,6 +8,8 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
   alias TestFleet.Environments
   alias TestFleet.Environments.Variable
 
+  setup :register_and_log_in_user
+
   setup do
     project = project_fixture(%{name: "Customer Portal"})
     %{project: project}

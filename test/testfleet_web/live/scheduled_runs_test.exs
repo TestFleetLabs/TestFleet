@@ -11,6 +11,8 @@ defmodule TestFleetWeb.ScheduledRunsTest do
   alias TestFleet.{Repo, Schedules, TestDefinitions}
   alias TestFleet.Runs.Run
 
+  setup :register_and_log_in_user
+
   setup do
     project = project_fixture(%{name: "Customer Portal"})
     test_definition = test_definition_fixture(project: project)

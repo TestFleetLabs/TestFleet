@@ -30,8 +30,14 @@ defmodule TestFleet.Application do
     # Reports Docker and scheduling problems; outside Oban, so a stuck cron shows.
     watchdog = [TestFleet.Notifications.Watchdog]
 
+    # Logs the first-run setup link while there is no user (Milestone 10, section 4)
+    setup_notice =
+      if Application.get_env(:testfleet, TestFleetWeb.SetupNotice)[:enabled] == false,
+        do: [],
+        else: [TestFleetWeb.SetupNotice]
+
     # Start to serve requests, typically the last entry
-    children = children ++ dispatcher ++ watchdog ++ [TestFleetWeb.Endpoint]
+    children = children ++ dispatcher ++ watchdog ++ [TestFleetWeb.Endpoint] ++ setup_notice
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options

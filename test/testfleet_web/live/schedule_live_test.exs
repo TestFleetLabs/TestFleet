@@ -9,6 +9,8 @@ defmodule TestFleetWeb.ScheduleLiveTest do
 
   alias TestFleet.Schedules
 
+  setup :register_and_log_in_user
+
   setup do
     %{project: project_fixture(%{name: "Customer Portal"})}
   end

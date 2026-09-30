@@ -204,7 +204,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:notifications}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:notifications}>
       <div class="space-y-8">
         <div>
           <.breadcrumbs>

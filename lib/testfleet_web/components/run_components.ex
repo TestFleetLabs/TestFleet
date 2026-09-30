@@ -76,6 +76,10 @@ defmodule TestFleetWeb.RunComponents do
   def status_label(:cancelled), do: gettext("Cancelled")
   def status_label(:error), do: gettext("Error")
 
+  @doc "The email of the user who started the run, or nil (scheduled runs, not preloaded)."
+  def triggered_by(%{triggered_by_user: %TestFleet.Accounts.User{email: email}}), do: email
+  def triggered_by(_run), do: nil
+
   @doc "The display name of a trigger."
   def trigger_label(:manual), do: gettext("Manual")
   def trigger_label(:schedule), do: gettext("Schedule")
@@ -383,6 +387,7 @@ defmodule TestFleetWeb.RunComponents do
               <span :if={@context == nil}>{@run.test_definition.project.name} · </span>
               <span :if={@context != :test_definition}>{@run.environment.name} · </span>
               {trigger_label(@run.trigger)}
+              <span :if={triggered_by(@run)}>· {triggered_by(@run)}</span>
             </span>
             <.test_counts id={"#{@id}-tests"} run={@run} />
           </p>

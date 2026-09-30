@@ -7,6 +7,19 @@
 # General application configuration
 import Config
 
+config :testfleet, :scopes,
+  user: [
+    default: true,
+    module: TestFleet.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :id,
+    schema_table: :users,
+    test_data_fixture: TestFleet.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :testfleet,
   # Without this, Phoenix generators derive "Testfleet" from the app name
   namespace: TestFleet,

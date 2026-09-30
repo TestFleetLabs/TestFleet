@@ -152,10 +152,10 @@ No claim grants the admin role. Admins are made by admins (or the release comman
 For a lost or locked-out admin account:
 
 ```sh
-docker compose exec testfleet bin/testfleet eval 'TestFleet.Release.invite_admin("ops@example.com")'
+docker compose exec testfleet bin/testfleet rpc 'TestFleet.Release.invite_admin("ops@example.com")'
 ```
 
-It creates the user as an admin if it does not exist, or makes an existing user an active admin, and prints an invitation link (section 4) that sets a new password. It works regardless of `AUTH_PASSWORD_LOGIN`, and is documented in `deploy/README.md`.
+It runs in the running application (`rpc`, so the endpoint's URL is known). It creates the user as an admin if it does not exist, or makes an existing user an active admin, and prints an invitation link (section 4) that sets a new password; invitation links therefore also work for existing, active users. It works regardless of `AUTH_PASSWORD_LOGIN`, and is documented in `deploy/README.md`.
 
 ---
 
@@ -181,7 +181,7 @@ Development: a Keycloak container in the development `compose.yaml` (profile `oi
 
 | Change | Purpose |
 |--------|---------|
-| `users`, `users_tokens` (generated), plus `users.role`, `users.deactivated_at`, `hashed_password` nullable | Users, sessions, invitations (sections 3, 4) |
+| `users`, `users_tokens` (generated), plus `users.role` (checked: `admin` or `member`), `users.deactivated_at`, `users.last_login_at`, `hashed_password` nullable | Users, sessions, invitations, the Users page (sections 3, 4, 9) |
 | `user_identities`: `user_id`, `issuer`, `subject`, `email`, timestamps; unique `(issuer, subject)` and `(user_id, issuer)` | OIDC (section 7) |
 | `runs.triggered_by_user_id`, nullable, `on_delete: :nilify_all` | Who started a manual run (section 6) |
 
@@ -191,10 +191,22 @@ Development: a Keycloak container in the development `compose.yaml` (profile `oi
 
 | # | Slice | Depends on |
 |---|-------|-----------|
-| A | Users and roles: `phx.gen.auth` adapted (no registration, pbkdf2, magic links only with SMTP), first-run setup, invitations, the Users page, roles, all routes protected, `triggered_by_user_id`, the release command, `AUTH_PASSWORD_LOGIN`. | – |
-| B | OIDC: `oidcc`, the callback with provisioning and linking, allowed domains, linking in the settings, the Keycloak development realm, deployment docs. | A |
+| A | Users and roles: `phx.gen.auth` adapted (no registration, pbkdf2, magic links only with SMTP), first-run setup, invitations, the Users page, roles, all routes protected, `triggered_by_user_id`, the release command. | – |
+| B | OIDC: `oidcc`, the callback with provisioning and linking, allowed domains, linking in the settings, `AUTH_PASSWORD_LOGIN` (it only makes sense with OIDC), the Keycloak development realm, deployment docs. | A |
 
 Each slice passes `mix precommit` on its own. The existing tests log in a user (the generator's `register_and_log_in_user` in `ConnCase`); admin pages log in an admin.
+
+**Status (2026-09-30):** slice A is built (632 tests). In the development server, the setup link is logged on start, `/setup` is 404 without it, and every page redirects to the login.
+
+Notes from slice A:
+
+- Routes: `/users/log-in`, `/users/log-in/:token` (magic link), `/users/invitations/:token`, `/setup`, `/users/settings`, and `/users` (admin). The admin pages are in the `live_session :require_admin`; the artifacts pipeline authenticates like the browser pipeline, without `accepts html`.
+- The setup and invitation pages create the user, then post the email and password to `POST /users/log-in?_action=welcome` (the generator's `phx-trigger-action` pattern), so the session is created by the controller like any password login. Their forms need `method="post"`: a form for a loaded user would otherwise send `_method=put`.
+- Magic links go to active users only, so the generator's "confirm by magic link" path is gone; invited users accept their invitation. A revoked invitation deletes the invited user (nothing refers to it yet).
+- The setup link is logged at `warning` level by `TestFleetWeb.SetupNotice`, a task started after the endpoint; disabled in tests.
+- Runs preload the user who started them with only `id` and `email`, because runs are broadcast.
+- The last-admin check and the setup take PostgreSQL advisory locks, so concurrent requests cannot both pass.
+- LiveViewTest has no transport socket, so the test for deactivation asserts the `disconnect` broadcast on the session topic rather than a closed LiveView.
 
 ---
 

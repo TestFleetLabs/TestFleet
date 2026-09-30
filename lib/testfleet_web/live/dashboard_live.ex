@@ -116,7 +116,7 @@ defmodule TestFleetWeb.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:dashboard}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:dashboard}>
       <div id="dashboard" class="space-y-8">
         <.page_header
           title={gettext("Dashboard")}

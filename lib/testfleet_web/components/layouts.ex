@@ -5,6 +5,8 @@ defmodule TestFleetWeb.Layouts do
   """
   use TestFleetWeb, :html
 
+  alias TestFleet.Accounts.Scope
+
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
@@ -30,7 +32,7 @@ defmodule TestFleetWeb.Layouts do
 
   attr :active, :atom,
     default: nil,
-    values: [nil, :dashboard, :projects, :runs, :registries, :notifications],
+    values: [nil, :dashboard, :projects, :runs, :registries, :notifications, :users],
     doc: "the navigation entry to highlight"
 
   slot :inner_block, required: true
@@ -43,7 +45,8 @@ defmodule TestFleetWeb.Layouts do
         class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-base-300 bg-base-100 lg:flex"
       >
         <.brand class="h-16 px-5" />
-        <.main_nav id="nav" active={@active} class="flex-1 px-3 py-4" />
+        <.main_nav id="nav" active={@active} current_scope={@current_scope} class="flex-1 px-3 py-4" />
+        <.user_menu id="user-menu" current_scope={@current_scope} class="border-t border-base-300" />
         <div class="flex items-center justify-between border-t border-base-300 px-5 py-4">
           <span class="text-xs text-base-content/50 tabular-nums">
             v{Application.spec(:testfleet, :vsn)}
@@ -68,7 +71,17 @@ defmodule TestFleetWeb.Layouts do
           </button>
         </div>
         <div id="mobile-menu" class="hidden border-t border-base-300">
-          <.main_nav id="mobile-nav" active={@active} class="px-3 py-3" />
+          <.main_nav
+            id="mobile-nav"
+            active={@active}
+            current_scope={@current_scope}
+            class="px-3 py-3"
+          />
+          <.user_menu
+            id="mobile-user-menu"
+            current_scope={@current_scope}
+            class="border-t border-base-300"
+          />
           <div class="flex justify-end px-4 pb-3">
             <.theme_toggle />
           </div>
@@ -112,12 +125,86 @@ defmodule TestFleetWeb.Layouts do
     """
   end
 
+  @doc """
+  Renders the layout of the pages before login: login, first-run setup, and
+  invitations. No navigation, a centered card.
+  """
+  attr :flash, :map, required: true
+  attr :title, :string, required: true
+  attr :subtitle, :string, default: nil
+  slot :inner_block, required: true
+
+  def auth(assigns) do
+    ~H"""
+    <div class="grid min-h-screen place-items-center bg-base-200/50 px-4 py-12">
+      <div class="w-full max-w-sm">
+        <.brand class="mb-8 justify-center" />
+        <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm sm:p-8">
+          <h1 class="text-lg font-semibold tracking-tight">{@title}</h1>
+          <p :if={@subtitle} class="mt-1 text-sm text-base-content/60">{@subtitle}</p>
+          <div class="mt-6">{render_slot(@inner_block)}</div>
+        </div>
+      </div>
+    </div>
+
+    <.flash_group flash={@flash} />
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :current_scope, :map, default: nil
+  attr :class, :any, default: nil
+
+  defp user_menu(assigns) do
+    ~H"""
+    <div
+      :if={@current_scope && @current_scope.user}
+      id={@id}
+      class={["flex items-center gap-3 px-5 py-3", @class]}
+    >
+      <span class="grid size-8 shrink-0 place-items-center rounded-full bg-base-200 text-xs font-semibold text-base-content/70 uppercase">
+        {String.first(@current_scope.user.email)}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium" title={@current_scope.user.email}>
+          {@current_scope.user.email}
+        </p>
+        <p class="text-xs text-base-content/50">{role_label(@current_scope.user.role)}</p>
+      </div>
+      <.link
+        navigate={~p"/users/settings"}
+        id={"#{@id}-settings"}
+        aria-label={gettext("Settings")}
+        title={gettext("Settings")}
+        class="grid size-8 place-items-center rounded-lg text-base-content/50 transition-colors hover:bg-base-200 hover:text-base-content"
+      >
+        <.icon name="hero-cog-6-tooth" class="size-5" />
+      </.link>
+      <.link
+        href={~p"/users/log-out"}
+        method="delete"
+        id={"#{@id}-log-out"}
+        aria-label={gettext("Log out")}
+        title={gettext("Log out")}
+        class="grid size-8 place-items-center rounded-lg text-base-content/50 transition-colors hover:bg-base-200 hover:text-base-content"
+      >
+        <.icon name="hero-arrow-right-start-on-rectangle" class="size-5" />
+      </.link>
+    </div>
+    """
+  end
+
+  @doc "The display name of a role."
+  def role_label(:admin), do: gettext("Admin")
+  def role_label(:member), do: gettext("Member")
+
   attr :id, :string, required: true, doc: "prefix for the ids of the entries"
   attr :active, :atom, default: nil
+  attr :current_scope, :map, default: nil
   attr :class, :any, default: nil
 
   defp main_nav(assigns) do
-    assigns = assign(assigns, :items, nav_items())
+    assigns = assign(assigns, :items, nav_items(Scope.admin?(assigns.current_scope)))
 
     ~H"""
     <nav id={@id} aria-label={gettext("Main")} class={@class}>
@@ -153,14 +240,20 @@ defmodule TestFleetWeb.Layouts do
     """
   end
 
-  defp nav_items do
+  # Members do not see the admin pages (Milestone 10, section 5).
+  defp nav_items(admin?) do
     [
       {:dashboard, gettext("Dashboard"), "hero-squares-2x2", ~p"/"},
       {:projects, gettext("Projects"), "hero-folder", ~p"/projects"},
-      {:runs, gettext("Runs"), "hero-play-circle", ~p"/runs"},
-      {:registries, gettext("Registries"), "hero-server-stack", ~p"/registries"},
-      {:notifications, gettext("Notifications"), "hero-bell", ~p"/notifications"}
-    ]
+      {:runs, gettext("Runs"), "hero-play-circle", ~p"/runs"}
+    ] ++
+      if admin?,
+        do: [
+          {:registries, gettext("Registries"), "hero-server-stack", ~p"/registries"},
+          {:notifications, gettext("Notifications"), "hero-bell", ~p"/notifications"},
+          {:users, gettext("Users"), "hero-users", ~p"/users"}
+        ],
+        else: []
   end
 
   @doc """

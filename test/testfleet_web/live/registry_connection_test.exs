@@ -8,6 +8,8 @@ defmodule TestFleetWeb.RegistryConnectionTest do
 
   alias TestFleet.Registries
 
+  setup :register_and_log_in_admin
+
   @moduletag :docker
 
   @spike %{host: "localhost:5055", username: "spike", password: "spike-password"}

@@ -189,7 +189,7 @@ defmodule TestFleetWeb.RunLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:runs}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:runs}>
       <div id="run" class="space-y-8">
         <div>
           <.breadcrumbs>
@@ -658,6 +658,9 @@ defmodule TestFleetWeb.RunLive.Show do
                 <% else %>
                   {trigger_label(@run.trigger)}
                 <% end %>
+                <span :if={triggered_by(@run)} id="run-triggered-by" class="text-base-content/60">
+                  {gettext("by %{email}", email: triggered_by(@run))}
+                </span>
               </span>
             </.detail>
             <%!-- The slot the run belongs to: after downtime or a queue wait, it differs

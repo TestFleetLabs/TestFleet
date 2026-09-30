@@ -101,7 +101,7 @@ defmodule TestFleetWeb.RegistryLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:registries}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:registries}>
       <div class="space-y-8">
         <div>
           <.breadcrumbs>

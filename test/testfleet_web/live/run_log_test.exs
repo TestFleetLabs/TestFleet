@@ -7,6 +7,8 @@ defmodule TestFleetWeb.RunLogTest do
   alias TestFleet.Runs
   alias TestFleetWeb.RunComponents
 
+  setup :register_and_log_in_user
+
   defp line(sequence, content, stream \\ :stdout),
     do: %{sequence: sequence, stream: stream, content: content, timestamp: sequence}
 

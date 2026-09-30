@@ -1,5 +1,8 @@
 import Config
 
+# Only in tests, remove the complexity from the password hashing algorithm
+config :pbkdf2_elixir, :rounds, 1
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -50,6 +53,9 @@ config :testfleet, TestFleet.Notifications,
 
 # Tests start the watchdog themselves, with a fake clock and Docker status.
 config :testfleet, TestFleet.Notifications.Watchdog, enabled: false
+
+# The first-run setup link is not logged in tests
+config :testfleet, TestFleetWeb.SetupNotice, enabled: false
 
 config :testfleet, TestFleet.Notifications.Heartbeat,
   req_options: [plug: {Req.Test, TestFleet.Notifications.Heartbeat}]

@@ -3,6 +3,8 @@ defmodule TestFleetWeb.NavigationTest do
 
   import Phoenix.LiveViewTest
 
+  setup :register_and_log_in_admin
+
   defp pages do
     [
       {~p"/", "#dashboard", "#nav-dashboard"},

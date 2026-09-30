@@ -129,7 +129,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:projects}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:projects}>
       <div class="space-y-8">
         <div>
           <.breadcrumbs>

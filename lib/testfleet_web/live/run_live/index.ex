@@ -28,7 +28,7 @@ defmodule TestFleetWeb.RunLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:runs}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:runs}>
       <div id="runs" class="space-y-8">
         <.page_header
           title={gettext("Runs")}

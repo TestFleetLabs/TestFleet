@@ -3,6 +3,8 @@ defmodule TestFleetWeb.IndexPagesTest do
 
   import Phoenix.LiveViewTest
 
+  setup :register_and_log_in_admin
+
   test "projects shows its empty state", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/projects")
     assert has_element?(view, "#projects #projects-empty")

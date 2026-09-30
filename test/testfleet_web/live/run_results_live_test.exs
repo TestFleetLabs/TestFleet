@@ -9,6 +9,8 @@ defmodule TestFleetWeb.RunResultsLiveTest do
   alias TestFleet.Execution.Result
   alias TestFleet.Runs
 
+  setup :register_and_log_in_user
+
   defp finish(run, fields) do
     result =
       struct!(

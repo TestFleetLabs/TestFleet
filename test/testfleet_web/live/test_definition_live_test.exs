@@ -8,6 +8,8 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
   alias TestFleet.TestDefinitions
 
+  setup :register_and_log_in_user
+
   setup do
     %{project: project_fixture(%{name: "Customer Portal"})}
   end

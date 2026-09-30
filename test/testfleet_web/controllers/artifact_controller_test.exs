@@ -8,6 +8,8 @@ defmodule TestFleetWeb.ArtifactControllerTest do
   alias TestFleet.Execution.Result
   alias TestFleet.Runs
 
+  setup :register_and_log_in_user
+
   @sandbox "sandbox allow-scripts allow-popups allow-forms"
 
   @files %{

@@ -8,6 +8,8 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
   alias TestFleet.Notifications
 
+  setup :register_and_log_in_admin
+
   defp stub_ok, do: Req.Test.stub(TestFleet.Notifications, &Req.Test.text(&1, "ok"))
 
   describe "index" do

@@ -112,7 +112,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:projects}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:projects}>
       <div id="project" class="space-y-8">
         <div>
           <.breadcrumbs>

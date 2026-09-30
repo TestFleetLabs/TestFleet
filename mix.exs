@@ -72,6 +72,8 @@ defmodule TestFleet.MixProject do
       {:phoenix_live_dashboard, "~> 0.9.1"},
       {:phoenix_live_reload, "~> 1.7.0", only: :dev},
       {:phoenix_live_view, "~> 1.2.12"},
+      # Password hashing without a C compiler (Milestone 10, section 3)
+      {:pbkdf2_elixir, "~> 2.0"},
       {:postgrex, "~> 0.22.4"},
       {:req, "~> 0.7.4"},
       {:swoosh, "~> 1.28.1"},

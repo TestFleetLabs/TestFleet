@@ -32,7 +32,9 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
   def handle_event("run", %{"environment" => environment_id}, socket) do
     environment = Enum.find(socket.assigns.environments, &(to_string(&1.id) == environment_id))
 
-    case environment && Runs.create_manual_run(socket.assigns.test_definition, environment) do
+    user = socket.assigns.current_scope.user
+
+    case environment && Runs.create_manual_run(socket.assigns.test_definition, environment, user) do
       {:ok, run} ->
         {:noreply, push_navigate(socket, to: ~p"/runs/#{run.id}")}
 
@@ -56,7 +58,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:projects}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:projects}>
       <div id="test-definition" class="space-y-8">
         <div>
           <.breadcrumbs>

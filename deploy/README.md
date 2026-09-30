@@ -47,6 +47,17 @@ location / {
 
 TestFleet redirects plain HTTP requests to HTTPS, except on `localhost`.
 
+### First login
+
+Every page needs a login. While there is no user, TestFleet logs a one-time link on each start:
+
+```sh
+docker compose logs testfleet | grep "No users yet"
+# No users yet. Create the first admin at https://testfleet.example.internal/setup?token=…
+```
+
+Open it to create the first admin; `/setup` without the token does not exist. Everyone else is invited from the Users page: the invitation link is shown to copy, and emailed too when SMTP is configured.
+
 ## Upgrade
 
 Set the new version in `TESTFLEET_IMAGE`, then:
@@ -66,6 +77,7 @@ Migrations run on start. Running tests survive the restart: their containers kee
 | Health | `curl http://127.0.0.1:4000/health` |
 | Remote shell | `docker compose exec testfleet bin/testfleet remote` |
 | Run migrations by hand | `docker compose exec testfleet bin/migrate` |
+| Lost admin access | `docker compose exec testfleet bin/testfleet rpc 'TestFleet.Release.invite_admin("ops@example.com")'` prints a link that sets a new password |
 | Roll back migrations | `docker compose exec testfleet bin/testfleet eval 'TestFleet.Release.rollback(TestFleet.Repo, 20260930000000)'` |
 
 ## Back up

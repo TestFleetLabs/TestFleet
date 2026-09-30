@@ -52,6 +52,8 @@ defmodule TestFleet.Runs.Run do
     belongs_to :test_definition, TestFleet.TestDefinitions.TestDefinition
     belongs_to :environment, TestFleet.Environments.Environment
     belongs_to :schedule, TestFleet.Schedules.Schedule
+    # Who started a manual run (Milestone 10, section 6)
+    belongs_to :triggered_by_user, TestFleet.Accounts.User
 
     has_many :artifacts, TestFleet.Artifacts.Artifact
     has_many :test_results, TestFleet.Results.TestResult

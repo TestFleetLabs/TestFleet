@@ -12,6 +12,8 @@ defmodule TestFleetWeb.DashboardLiveTest do
 
   alias TestFleet.Runs
 
+  setup :register_and_log_in_user
+
   test "shows the run figures and empty lists", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 

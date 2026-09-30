@@ -6,6 +6,8 @@ defmodule TestFleetWeb.RegistryLiveTest do
 
   alias TestFleet.Registries
 
+  setup :register_and_log_in_admin
+
   describe "index" do
     test "lists registries with their host and username", %{conn: conn} do
       registry = registry_fixture(name: "Company GitLab", host: "registry.company.com")
