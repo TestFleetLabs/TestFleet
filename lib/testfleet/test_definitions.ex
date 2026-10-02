@@ -5,6 +5,7 @@ defmodule TestFleet.TestDefinitions do
 
   import Ecto.Query, warn: false
 
+  alias TestFleet.Execution.Docker.ImageRef
   alias TestFleet.Projects.Project
   alias TestFleet.Repo
   alias TestFleet.TestDefinitions.TestDefinition
@@ -37,6 +38,30 @@ defmodule TestFleet.TestDefinitions do
     test_definition
     |> TestDefinition.changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Updates only the image, from CI (Milestone 11, section 6): `{:image, reference}`
+  replaces the whole reference, `{:tag, tag}` only its tag. Validated like the form.
+  Runs created from then on use the new image; queued and running runs keep theirs.
+
+      {:ok, test_definition} | {:error, changeset}
+  """
+  def update_image(%TestDefinition{} = test_definition, {:image, image}) when is_binary(image),
+    do: update_test_definition(test_definition, %{image: image})
+
+  def update_image(%TestDefinition{} = test_definition, {:tag, tag}) when is_binary(tag) do
+    case ImageRef.put_tag(test_definition.image, tag) do
+      {:ok, image} ->
+        update_test_definition(test_definition, %{image: image})
+
+      {:error, :invalid_tag} ->
+        {:error,
+         test_definition
+         |> Ecto.Changeset.change()
+         |> Ecto.Changeset.add_error(:tag, "is not a valid tag")
+         |> Map.put(:action, :update)}
+    end
   end
 
   @doc """

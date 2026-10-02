@@ -277,6 +277,14 @@ Each slice passes `mix precommit` on its own.
 
 **Status (2026-10-02):** slice A is built (704 tests).
 
+**Status (2026-10-02):** slice B is built (716 tests).
+
+Notes from slice B:
+
+- `ImageRef.put_tag/2` keeps the reference as written (`e2e:1.4` becomes `e2e:1.5`, not `library/e2e:1.5`), keeps a registry port, and drops a digest. `TestDefinitions.update_image/2` takes `{:image, reference}` or `{:tag, tag}` and goes through the form's changeset.
+- The lookups by slug and id are shared by the API controllers (`TestFleetWeb.API.Lookup`), so "not found" messages are the same everywhere.
+- The test definition page shows the new image when it is next opened; it does not update live, like every other edit of a test definition.
+
 Notes from slice A:
 
 - Files: `TestFleetWeb.APIAuth` (`lib/testfleet_web/api_auth.ex`); controllers, JSON, the fallback controller, and the body helper in `lib/testfleet_web/controllers/api/`. Routes: `POST /api/v1/projects/:project/runs`, `GET /api/v1/runs/:id`, `POST /api/v1/runs/:id/cancel`.

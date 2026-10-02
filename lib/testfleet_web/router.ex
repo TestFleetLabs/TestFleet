@@ -111,6 +111,8 @@ defmodule TestFleetWeb.Router do
     post "/projects/:project/runs", RunController, :create
     get "/runs/:id", RunController, :show
     post "/runs/:id/cancel", RunController, :cancel
+    get "/projects/:project/test-definitions/:slug", TestDefinitionController, :show
+    patch "/projects/:project/test-definitions/:slug", TestDefinitionController, :update
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

@@ -79,4 +79,31 @@ defmodule TestFleet.Execution.Docker.ImageRefTest do
 
     assert ImageRef.repo_digest(ref, []) == nil
   end
+
+  describe "put_tag/2" do
+    test "replaces the tag and keeps the name as written" do
+      assert ImageRef.put_tag("ghcr.io/acme/e2e:1.4", "1.5") == {:ok, "ghcr.io/acme/e2e:1.5"}
+      assert ImageRef.put_tag("e2e:1.4", "1.5") == {:ok, "e2e:1.5"}
+      assert ImageRef.put_tag("acme/e2e", "v2_rc.1") == {:ok, "acme/e2e:v2_rc.1"}
+    end
+
+    test "keeps a registry port and drops a digest" do
+      assert ImageRef.put_tag("localhost:5000/suite:dev", "2") == {:ok, "localhost:5000/suite:2"}
+      assert ImageRef.put_tag("localhost:5000/suite", "2") == {:ok, "localhost:5000/suite:2"}
+
+      assert ImageRef.put_tag("localhost:5000/suite:dev@" <> @digest, "2") ==
+               {:ok, "localhost:5000/suite:2"}
+
+      assert ImageRef.put_tag("localhost:5000/suite@" <> @digest, "2") ==
+               {:ok, "localhost:5000/suite:2"}
+    end
+
+    test "refuses invalid tags" do
+      for tag <- ["", ".1", "-1", "1:2", "a/b", "sha256@x", String.duplicate("a", 129)] do
+        assert ImageRef.put_tag("e2e:1", tag) == {:error, :invalid_tag}, inspect(tag)
+      end
+
+      assert {:ok, _} = ImageRef.put_tag("e2e:1", String.duplicate("a", 128))
+    end
+  end
 end
