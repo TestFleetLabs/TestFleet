@@ -7,6 +7,10 @@ defmodule TestFleet.Application do
 
   @impl true
   def start(_type, _args) do
+    # Generated once, before anything can ask for it: generated lazily, two
+    # concurrent first calls could each store their own token.
+    TestFleet.Accounts.setup_token()
+
     children = [
       TestFleetWeb.Telemetry,
       TestFleet.Vault,

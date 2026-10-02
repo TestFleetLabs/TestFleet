@@ -31,7 +31,7 @@ defmodule TestFleet.RunsFixtures do
     {environment, attrs} =
       Map.pop_lazy(attrs, :environment, fn -> environment_fixture(project: project) end)
 
-    {:ok, run} = TestFleet.Runs.create_manual_run(test_definition, environment)
+    {:ok, run} = TestFleet.Runs.create_run(test_definition, environment)
 
     if attrs == %{} do
       run

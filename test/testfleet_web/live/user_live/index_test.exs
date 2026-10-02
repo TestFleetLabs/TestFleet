@@ -41,6 +41,21 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     refute has_element?(lv, "#user-logins-#{sso_user.id}", "Password")
   end
 
+  test "shows how many API tokens a user has", %{conn: conn} do
+    user = user_fixture()
+    api_token_fixture(user)
+    api_token_fixture(user)
+    without = user_fixture()
+
+    {:ok, lv, _html} = live(conn, ~p"/users")
+
+    assert has_element?(lv, "#user-api-tokens-#{user.id}", "2 API tokens")
+    refute has_element?(lv, "#user-api-tokens-#{without.id}")
+
+    lv |> element("#deactivate-#{user.id}") |> render_click()
+    refute has_element?(lv, "#user-api-tokens-#{user.id}")
+  end
+
   test "invites a user and shows the link once", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/users")
 

@@ -190,6 +190,67 @@ defmodule TestFleetWeb.UserLive.SettingsTest do
     end
   end
 
+  # Milestone 11, section 8
+  describe "API tokens" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "creates a token and shows it once", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      assert has_element?(lv, "#api-tokens-empty")
+
+      lv
+      |> form("#api-token-form", api_token: %{name: "GitLab deploy", expires_in: "90"})
+      |> render_submit()
+
+      [api_token] = Accounts.list_api_tokens(TestFleet.Accounts.Scope.for_user(user))
+      value = lv |> element("#new-api-token-value") |> render()
+      [_, token] = Regex.run(~r/value="(tf_[^"]+)"/, value)
+      assert {_user, _} = Accounts.get_user_by_api_token(token)
+
+      assert has_element?(lv, "#api_tokens-#{api_token.id}", "GitLab deploy")
+      assert has_element?(lv, "#api_tokens-#{api_token.id}", api_token.hint)
+
+      lv |> element("#dismiss-new-api-token") |> render_click()
+      refute has_element?(lv, "#new-api-token")
+
+      # Not shown again after a reload.
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      refute has_element?(lv, "#new-api-token")
+    end
+
+    test "shows errors", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      html =
+        lv
+        |> form("#api-token-form", api_token: %{name: ""})
+        |> render_submit()
+
+      assert html =~ "can&#39;t be blank"
+      refute has_element?(lv, "#new-api-token")
+    end
+
+    test "revokes a token", %{conn: conn, user: user} do
+      {token, api_token} = api_token_fixture(user)
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      lv |> element("#revoke-api-token-#{api_token.id}") |> render_click()
+
+      refute has_element?(lv, "#api_tokens-#{api_token.id}")
+      refute Accounts.get_user_by_api_token(token)
+    end
+
+    test "does not show other users' tokens", %{conn: conn} do
+      {_token, theirs} = api_token_fixture(user_fixture())
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      refute has_element?(lv, "#api_tokens-#{theirs.id}")
+    end
+  end
+
   describe "confirm email" do
     setup %{conn: conn} do
       user = user_fixture()

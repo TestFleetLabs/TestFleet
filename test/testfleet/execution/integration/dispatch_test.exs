@@ -63,7 +63,7 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
     # All runs, before creating: the dispatcher may admit it before a per-run
     # subscription would be in place.
     Runs.subscribe()
-    {:ok, run} = Runs.create_manual_run(test_definition, environment)
+    {:ok, run} = Runs.create_run(test_definition, environment)
     on_exit(fn -> Command.remove(RunExecution.container_name(run.id)) end)
     run
   end

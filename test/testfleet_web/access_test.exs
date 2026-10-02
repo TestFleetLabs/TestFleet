@@ -20,23 +20,44 @@ defmodule TestFleetWeb.AccessTest do
 
   @admin_pages ~w(/registries /registries/new /notifications /notifications/channels/new /users)
 
-  test "every route requires a login, except the open ones", %{conn: conn} do
+  test "every route requires a login, except the open ones and the API", %{conn: conn} do
     routes =
       TestFleetWeb.Router
       |> Phoenix.Router.routes()
-      |> Enum.reject(&String.starts_with?(&1.path, "/dev"))
+      |> Enum.reject(&String.starts_with?(&1.path, ["/dev", "/api/"]))
       |> Enum.reject(&({String.upcase(to_string(&1.verb)), &1.path} in @open))
 
     assert length(routes) > 20
 
     for route <- routes do
-      path = String.replace(route.path, ~r/[:*]\w+/, "1")
-      conn = dispatch(conn, TestFleetWeb.Endpoint, route.verb, path)
+      conn = dispatch(conn, TestFleetWeb.Endpoint, route.verb, example_path(route))
 
       assert redirected_to(conn) == ~p"/users/log-in",
              "#{route.verb} #{route.path} must require a login"
     end
   end
+
+  # Milestone 11, section 4: the token, and only the token.
+  test "every API route requires an API token, even with a session", %{conn: conn} do
+    routes =
+      TestFleetWeb.Router
+      |> Phoenix.Router.routes()
+      |> Enum.filter(&String.starts_with?(&1.path, "/api/"))
+
+    assert routes != []
+    assert Enum.all?(routes, &String.starts_with?(&1.path, "/api/v1/"))
+
+    session = log_in_user(build_conn(), user_fixture())
+
+    for route <- routes, conn <- [conn, session] do
+      conn = dispatch(conn, TestFleetWeb.Endpoint, route.verb, example_path(route))
+
+      assert json_response(conn, 401)["error"]["code"] == "unauthorized",
+             "#{route.verb} #{route.path} must require an API token"
+    end
+  end
+
+  defp example_path(route), do: String.replace(route.path, ~r/[:*]\w+/, "1")
 
   describe "a member" do
     setup :register_and_log_in_user

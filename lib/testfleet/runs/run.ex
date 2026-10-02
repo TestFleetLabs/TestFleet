@@ -54,6 +54,8 @@ defmodule TestFleet.Runs.Run do
     belongs_to :schedule, TestFleet.Schedules.Schedule
     # Who started a manual run (Milestone 10, section 6)
     belongs_to :triggered_by_user, TestFleet.Accounts.User
+    # Which token started an API run; nil once revoked (Milestone 11, section 6)
+    belongs_to :api_token, TestFleet.Accounts.APIToken
 
     has_many :artifacts, TestFleet.Artifacts.Artifact
     has_many :test_results, TestFleet.Results.TestResult

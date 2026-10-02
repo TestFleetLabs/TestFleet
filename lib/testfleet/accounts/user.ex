@@ -20,6 +20,8 @@ defmodule TestFleet.Accounts.User do
     field :deactivated_at, :utc_datetime
     field :last_login_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
+    # Set for the Users page (Milestone 11, section 8)
+    field :api_token_count, :integer, virtual: true, default: 0
 
     has_many :identities, TestFleet.Accounts.UserIdentity
 

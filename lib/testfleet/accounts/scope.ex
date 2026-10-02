@@ -3,8 +3,8 @@ defmodule TestFleet.Accounts.Scope do
   The caller: the logged-in user, assigned as `current_scope`.
 
   Roles are enforced at the edge (router, `on_mount`, controllers) with
-  `admin?/1`; contexts do not take a scope yet, because no data belongs to a user
-  (Milestone 10, section 5).
+  `admin?/1` (Milestone 10, section 5). Contexts take a scope only for data that
+  belongs to a user: so far, API tokens (Milestone 11, section 3).
   """
 
   alias TestFleet.Accounts.User

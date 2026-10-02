@@ -185,6 +185,51 @@ defmodule TestFleetWeb.AppComponents do
   end
 
   @doc """
+  Renders a read-only value with a copy button, for a secret or a link shown once
+  (an invitation link, a new API token). The button's id is `copy-<id>`.
+  """
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+
+  def copy_field(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2">
+      <input
+        id={@id}
+        type="text"
+        readonly
+        value={@value}
+        class="min-w-0 flex-1 rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs"
+      />
+      <button
+        id={"copy-#{@id}"}
+        type="button"
+        phx-hook=".CopyValue"
+        data-value={@value}
+        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs font-medium transition-colors hover:bg-base-200"
+      >
+        <.icon name="hero-clipboard-document-mini" class="size-4" />
+        <span data-label>{gettext("Copy")}</span>
+      </button>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyValue">
+        export default {
+          mounted() {
+            this.el.addEventListener("click", () => {
+              navigator.clipboard.writeText(this.el.dataset.value).then(() => {
+                const label = this.el.querySelector("[data-label]")
+                const text = label.textContent
+                label.textContent = "Copied"
+                setTimeout(() => (label.textContent = text), 1500)
+              })
+            })
+          }
+        }
+      </script>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a small label, e.g. for a slug or a limit.
   """
   attr :id, :string, default: nil

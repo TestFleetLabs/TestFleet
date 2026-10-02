@@ -35,6 +35,11 @@ defmodule TestFleet.Environments do
     |> Repo.preload(:variables)
   end
 
+  @doc "Gets an environment of a project by slug, without its variables, or nil."
+  def get_environment_by_slug(%Project{id: project_id}, slug) when is_binary(slug) do
+    Repo.get_by(Environment, project_id: project_id, slug: slug)
+  end
+
   def create_environment(%Project{} = project, attrs) do
     %Environment{project_id: project.id}
     |> Environment.changeset(attrs)

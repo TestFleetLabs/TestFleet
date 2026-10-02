@@ -11,7 +11,7 @@ defmodule TestFleet.Accounts do
   import Ecto.Query, warn: false
   alias TestFleet.Repo
 
-  alias TestFleet.Accounts.{OIDC, User, UserIdentity, UserToken, UserNotifier}
+  alias TestFleet.Accounts.{APIToken, OIDC, Scope, User, UserIdentity, UserToken, UserNotifier}
   alias TestFleet.Notifications
 
   require Logger
@@ -70,11 +70,29 @@ defmodule TestFleet.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
-  @doc "Gets a user with their OIDC identities, for the Users page."
-  def get_user_with_identities!(id), do: User |> Repo.get!(id) |> Repo.preload(:identities)
+  @doc "Gets a user with their OIDC identities and API token count, for the Users page."
+  def get_user_with_identities!(id) do
+    from(u in User, where: u.id == ^id, preload: :identities)
+    |> with_api_token_count()
+    |> Repo.one!()
+  end
 
-  @doc "All users, by email, with their OIDC identities."
-  def list_users, do: Repo.all(from u in User, order_by: u.email, preload: :identities)
+  @doc "All users, by email, with their OIDC identities and API token counts."
+  def list_users do
+    from(u in User, order_by: u.email, preload: :identities)
+    |> with_api_token_count()
+    |> Repo.all()
+  end
+
+  defp with_api_token_count(query) do
+    counts =
+      from t in APIToken, group_by: t.user_id, select: %{user_id: t.user_id, count: count(t.id)}
+
+    from u in query,
+      left_join: c in subquery(counts),
+      on: c.user_id == u.id,
+      select_merge: %{api_token_count: coalesce(c.count, 0)}
+  end
 
   @doc "Whether emailed invitations and email changes can be sent (SMTP is configured)."
   def email_enabled?, do: Notifications.email_configured?()
@@ -93,7 +111,7 @@ defmodule TestFleet.Accounts do
 
   @doc """
   The one-time token of the first-run setup (section 4): random, in memory only,
-  and new on every start.
+  and new on every start. The application generates it when it starts.
   """
   def setup_token do
     case :persistent_term.get(@setup_token_key, nil) do
@@ -446,6 +464,77 @@ defmodule TestFleet.Accounts do
     end
   end
 
+  ## API tokens (Milestone 11, section 3)
+
+  # Polling pipelines would otherwise write on every request.
+  @last_used_interval_seconds 5 * 60
+
+  @doc "The scope's user's API tokens, newest first."
+  def list_api_tokens(%Scope{user: %User{id: user_id}}) do
+    Repo.all(from t in APIToken, where: t.user_id == ^user_id, order_by: [desc: t.id])
+  end
+
+  @doc "Returns an `%Ecto.Changeset{}` for the new-token form."
+  def change_api_token(attrs \\ %{}), do: APIToken.changeset(%APIToken{}, attrs)
+
+  @doc """
+  Creates an API token for the scope's user. The token is returned once and never
+  stored:
+
+      {:ok, {token, api_token}} | {:error, changeset}
+  """
+  def create_api_token(%Scope{user: %User{} = user}, attrs) do
+    {token, changeset} =
+      %APIToken{user_id: user.id}
+      |> APIToken.changeset(attrs)
+      |> APIToken.generate()
+
+    with {:ok, api_token} <- Repo.insert(changeset), do: {:ok, {token, api_token}}
+  end
+
+  @doc "Revokes one of the scope's user's API tokens. Another user's token is `{:error, :not_found}`."
+  def delete_api_token(%Scope{user: %User{id: user_id}}, id) do
+    case Repo.delete_all(from t in APIToken, where: t.id == ^id and t.user_id == ^user_id) do
+      {1, _} -> :ok
+      {0, _} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  The active user and the token for an API token, or nil: unknown, expired, and
+  deactivated users' tokens are all nil. Records the use, at most every
+  #{div(@last_used_interval_seconds, 60)} minutes.
+  """
+  def get_user_by_api_token(token, now \\ DateTime.utc_now(:second))
+
+  def get_user_by_api_token(token, now) when is_binary(token) do
+    with true <- APIToken.well_formed?(token),
+         %APIToken{user: user} = api_token <-
+           Repo.one(
+             from t in APIToken, where: t.token_hash == ^APIToken.hash(token), preload: :user
+           ),
+         false <- APIToken.expired?(api_token, now),
+         true <- User.active?(user) do
+      {user, touch_api_token(api_token, now)}
+    else
+      _ -> nil
+    end
+  end
+
+  def get_user_by_api_token(_token, _now), do: nil
+
+  defp touch_api_token(%APIToken{last_used_at: last} = api_token, now) do
+    if is_nil(last) or DateTime.diff(now, last) >= @last_used_interval_seconds do
+      Repo.update_all(from(t in APIToken, where: t.id == ^api_token.id),
+        set: [last_used_at: now]
+      )
+
+      %{api_token | last_used_at: now}
+    else
+      api_token
+    end
+  end
+
   ## Roles and deactivation
 
   @doc """
@@ -463,15 +552,18 @@ defmodule TestFleet.Accounts do
   end
 
   @doc """
-  Deactivates a user: login is refused and all tokens are deleted. Returns the
-  deleted tokens, so their LiveViews can be disconnected. The last active admin
-  cannot be deactivated: `{:error, :last_admin}`.
+  Deactivates a user: login is refused and all tokens are deleted, API tokens
+  included (Milestone 11, section 3). Returns the deleted session tokens, so their
+  LiveViews can be disconnected. The last active admin cannot be deactivated:
+  `{:error, :last_admin}`.
   """
   def deactivate_user(%User{} = user) do
     Repo.transact(fn ->
       if last_active_admin?(user) do
         {:error, :last_admin}
       else
+        Repo.delete_all(from t in APIToken, where: t.user_id == ^user.id)
+
         user
         |> Ecto.Changeset.change(deactivated_at: DateTime.utc_now(:second))
         |> update_user_and_delete_all_tokens()

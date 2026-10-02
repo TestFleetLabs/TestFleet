@@ -34,7 +34,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
 
     user = socket.assigns.current_scope.user
 
-    case environment && Runs.create_manual_run(socket.assigns.test_definition, environment, user) do
+    case environment && Runs.create_run(socket.assigns.test_definition, environment, user: user) do
       {:ok, run} ->
         {:noreply, push_navigate(socket, to: ~p"/runs/#{run.id}")}
 

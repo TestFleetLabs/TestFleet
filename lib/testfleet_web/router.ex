@@ -23,8 +23,10 @@ defmodule TestFleetWeb.Router do
     plug :require_authenticated_user
   end
 
+  # The bearer token only, never the session (Milestone 11, section 4).
   pipeline :api do
     plug :accepts, ["json"]
+    plug TestFleetWeb.APIAuth
   end
 
   # Everything behind a login (Milestone 10, section 6). /health is answered in the
@@ -100,6 +102,15 @@ defmodule TestFleetWeb.Router do
     # provider redirects back to the callback.
     get "/auth/oidc", OIDCController, :start
     get "/auth/oidc/callback", OIDCController, :callback
+  end
+
+  # The API for CI (Milestone 11): every route needs an API token.
+  scope "/api/v1", TestFleetWeb.API do
+    pipe_through :api
+
+    post "/projects/:project/runs", RunController, :create
+    get "/runs/:id", RunController, :show
+    post "/runs/:id/cancel", RunController, :cancel
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

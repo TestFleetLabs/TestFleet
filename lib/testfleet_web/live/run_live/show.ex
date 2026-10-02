@@ -661,6 +661,9 @@ defmodule TestFleetWeb.RunLive.Show do
                 <span :if={triggered_by(@run)} id="run-triggered-by" class="text-base-content/60">
                   {gettext("by %{email}", email: triggered_by(@run))}
                 </span>
+                <span :if={triggered_via(@run)} id="run-triggered-via" class="text-base-content/60">
+                  {gettext("via %{token}", token: triggered_via(@run))}
+                </span>
               </span>
             </.detail>
             <%!-- The slot the run belongs to: after downtime or a queue wait, it differs

@@ -110,7 +110,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
       assert has_element?(view, "#recent-run-list #recent-#{finished.id}")
       refute has_element?(view, "#queued-run-list #queued-#{finished.id}")
 
-      {:ok, run} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, run} = Runs.create_run(context.test_definition, context.environment)
       assert has_element?(view, "#recent-run-list #recent-#{run.id}")
       assert has_element?(view, "#queued-run-list #queued-#{run.id}")
 

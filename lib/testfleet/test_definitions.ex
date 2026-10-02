@@ -22,6 +22,11 @@ defmodule TestFleet.TestDefinitions do
     Repo.get_by!(TestDefinition, project_id: project_id, id: id)
   end
 
+  @doc "Gets a test definition of a project by slug, or nil."
+  def get_test_definition_by_slug(%Project{id: project_id}, slug) when is_binary(slug) do
+    Repo.get_by(TestDefinition, project_id: project_id, slug: slug)
+  end
+
   def create_test_definition(%Project{} = project, attrs) do
     %TestDefinition{project_id: project.id}
     |> TestDefinition.changeset(attrs)

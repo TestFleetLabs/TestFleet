@@ -191,39 +191,7 @@ defmodule TestFleetWeb.UserLive.Index do
                 <.icon name="hero-x-mark-mini" class="size-4" />
               </.button>
             </div>
-            <div class="flex items-center gap-2">
-              <input
-                id="invite-link-url"
-                type="text"
-                readonly
-                value={@invite_link.url}
-                class="min-w-0 flex-1 rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs"
-              />
-              <button
-                id="copy-invite-link"
-                type="button"
-                phx-hook=".CopyLink"
-                data-value={@invite_link.url}
-                class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs font-medium transition-colors hover:bg-base-200"
-              >
-                <.icon name="hero-clipboard-document-mini" class="size-4" />
-                <span data-label>{gettext("Copy")}</span>
-              </button>
-              <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyLink">
-                export default {
-                  mounted() {
-                    this.el.addEventListener("click", () => {
-                      navigator.clipboard.writeText(this.el.dataset.value).then(() => {
-                        const label = this.el.querySelector("[data-label]")
-                        const text = label.textContent
-                        label.textContent = "Copied"
-                        setTimeout(() => (label.textContent = text), 1500)
-                      })
-                    })
-                  }
-                }
-              </script>
-            </div>
+            <.copy_field id="invite-link-url" value={@invite_link.url} />
           </div>
         </.panel>
 
@@ -263,6 +231,9 @@ defmodule TestFleetWeb.UserLive.Index do
                   <div class="flex flex-wrap gap-1">
                     <.badge :if={user.hashed_password}>{gettext("Password")}</.badge>
                     <.badge :if={user.identities != []} tone={:primary}>{@provider_name}</.badge>
+                    <.badge :if={user.api_token_count > 0} id={"user-api-tokens-#{user.id}"}>
+                      {ngettext("1 API token", "%{count} API tokens", user.api_token_count)}
+                    </.badge>
                   </div>
                 </td>
                 <td class="px-5 py-3 text-xs text-base-content/60">

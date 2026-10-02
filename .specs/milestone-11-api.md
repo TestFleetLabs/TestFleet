@@ -236,7 +236,7 @@ Controllers live in `TestFleetWeb.API` with a fallback controller that turns `{:
 ## 8. UI
 
 - **Settings, "API tokens" panel:** the user's tokens with name, hint (`tf_…a1B2`), created, expires, last used; "New token" (name, expiry; sudo mode) shows the token once, with a copy button and the note that it will not be shown again; "Revoke" with confirmation.
-- **Run page and runs list:** API runs show "Started by `<email>` via `<token name>`" (the name as it was, or "a revoked token").
+- **Run page:** API runs show "by `<email>` via `<token name>`", or "via a revoked token". The runs list shows the email, as for manual runs.
 - **Users page:** the number of tokens per user.
 
 ---
@@ -274,6 +274,17 @@ The reference moves to the docs site once it exists.
 | C | Log (`?after=`) and artifacts over the API; the shared artifact response; the CI documentation. | A |
 
 Each slice passes `mix precommit` on its own.
+
+**Status (2026-10-02):** slice A is built (704 tests).
+
+Notes from slice A:
+
+- Files: `TestFleetWeb.APIAuth` (`lib/testfleet_web/api_auth.ex`); controllers, JSON, the fallback controller, and the body helper in `lib/testfleet_web/controllers/api/`. Routes: `POST /api/v1/projects/:project/runs`, `GET /api/v1/runs/:id`, `POST /api/v1/runs/:id/cancel`.
+- The token's name is shown by its run (the run preloads only the token's `id` and `name`, because runs are broadcast). A revoked token's runs keep their user and lose the token (`on_delete: :nilify_all`).
+- A body sent as a form (`curl -d` without `Content-Type: application/json`) is refused with a `400` that says so, instead of the confusing "unknown field" of a form-parsed JSON string.
+- Errors raised before the router, like a malformed JSON body, are rendered by `ErrorJSON` in the API's format. `render_errors` lists JSON first, so clients that accept `*/*` (curl) get JSON; browsers ask for `text/html` and still get HTML.
+- The Users page shows the number of tokens in the "Login" column. The copy button of the invitation link became a shared component (`copy_field`), used for the new token too.
+- Fixed on the way: the first-run setup token was generated lazily, so two concurrent first calls could each store their own token (a flaky OIDC setup test). The application now generates it when it starts.
 
 ---
 

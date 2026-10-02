@@ -17,7 +17,7 @@ defmodule TestFleet.Runs do
 
   import Ecto.Query, warn: false
 
-  alias TestFleet.Accounts.User
+  alias TestFleet.Accounts.{APIToken, User}
   alias TestFleet.Artifacts
   alias TestFleet.Artifacts.Storage
   alias TestFleet.Environments.Environment
@@ -51,6 +51,11 @@ defmodule TestFleet.Runs do
 
   @doc "Gets a run with its test definition (and project) and environment."
   def get_run!(id), do: Run |> Repo.get!(id) |> preload()
+
+  @doc "Like `get_run!/1`, but nil when there is no such run."
+  def get_run(id) do
+    if run = Repo.get(Run, id), do: preload(run)
+  end
 
   @doc """
   Runs, newest first, preloaded like `get_run!/1`.
@@ -140,13 +145,19 @@ defmodule TestFleet.Runs do
   ## Creating
 
   @doc """
-  Creates a queued run for "Run now", started by `user`.
+  Creates a queued run for "Run now" or the API.
+
+  Options: `:trigger` (`:manual`, the default, or `:api`), `:user` who started it,
+  and the `:api_token` it was started with (Milestone 11, section 6).
 
   The test definition is read again, so a definition disabled in the meantime is
   rejected.
   """
-  def create_manual_run(%TestDefinition{id: id}, %Environment{} = environment, user \\ nil) do
+  def create_run(%TestDefinition{id: id}, %Environment{} = environment, opts \\ []) do
     test_definition = Repo.get!(TestDefinition, id)
+    trigger = Keyword.get(opts, :trigger, :manual)
+    user = opts[:user]
+    api_token = opts[:api_token]
 
     cond do
       !test_definition.enabled ->
@@ -158,11 +169,12 @@ defmodule TestFleet.Runs do
       true ->
         run =
           Repo.insert!(%Run{
-            trigger: :manual,
+            trigger: trigger,
             status: :queued,
             test_definition_id: test_definition.id,
             environment_id: environment.id,
             triggered_by_user_id: user && user.id,
+            api_token_id: api_token && api_token.id,
             image: test_definition.image,
             command: test_definition.command,
             queued_at: DateTime.utc_now()
@@ -674,12 +686,13 @@ defmodule TestFleet.Runs do
   defp usec(%DateTime{microsecond: {value, _precision}} = datetime),
     do: %{datetime | microsecond: {value, 6}}
 
-  # Runs are broadcast: of the user, only what the UI shows.
+  # Runs are broadcast: of the user and the token, only what the UI shows.
   defp preload(run_or_runs) do
     Repo.preload(run_or_runs, [
       :environment,
       test_definition: :project,
-      triggered_by_user: from(u in User, select: struct(u, [:id, :email]))
+      triggered_by_user: from(u in User, select: struct(u, [:id, :email])),
+      api_token: from(t in APIToken, select: struct(t, [:id, :name]))
     ])
   end
 end

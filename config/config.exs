@@ -30,8 +30,11 @@ config :testfleet,
 config :testfleet, TestFleetWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
+  # JSON first: errors before the router (a malformed body) reach API clients like
+  # curl, which accept */*, in the API's format (Milestone 11, section 5). Browsers
+  # ask for text/html and get HTML.
   render_errors: [
-    formats: [html: TestFleetWeb.ErrorHTML, json: TestFleetWeb.ErrorJSON],
+    formats: [json: TestFleetWeb.ErrorJSON, html: TestFleetWeb.ErrorHTML],
     layout: false
   ],
   pubsub_server: TestFleet.PubSub,

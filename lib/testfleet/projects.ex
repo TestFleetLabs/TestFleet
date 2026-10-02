@@ -20,6 +20,9 @@ defmodule TestFleet.Projects do
   @doc "Gets a project by its slug. Raises `Ecto.NoResultsError` if there is none."
   def get_project_by_slug!(slug), do: Repo.get_by!(Project, slug: slug)
 
+  @doc "Gets a project by its slug, or nil."
+  def get_project_by_slug(slug) when is_binary(slug), do: Repo.get_by(Project, slug: slug)
+
   def create_project(attrs) do
     %Project{}
     |> Project.changeset(attrs)

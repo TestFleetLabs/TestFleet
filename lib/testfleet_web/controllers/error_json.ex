@@ -1,21 +1,18 @@
 defmodule TestFleetWeb.ErrorJSON do
   @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
+  Renders errors on JSON requests, raised before or outside a controller (a
+  malformed body, a crash), in the API's error format (Milestone 11, section 5):
+
+      {"error": {"code": "bad_request", "message": "Bad Request"}}
 
   See config/config.exs.
   """
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
-  #
-  # def render("500.json", _assigns) do
-  #   %{errors: %{detail: "Internal Server Error"}}
-  # end
-
-  # By default, Phoenix returns the status message from
-  # the template name. For example, "404.json" becomes
-  # "Not Found".
   def render(template, _assigns) do
-    %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
+    message = Phoenix.Controller.status_message_from_template(template)
+    %{error: %{code: code(message), message: message}}
   end
+
+  # "Not Found" -> "not_found"
+  defp code(message), do: message |> String.downcase() |> String.replace(~r/[^a-z]+/, "_")
 end

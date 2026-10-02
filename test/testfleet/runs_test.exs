@@ -20,12 +20,12 @@ defmodule TestFleet.RunsTest do
     }
   end
 
-  describe "create_manual_run/2" do
+  describe "create_run/3" do
     test "creates a queued run with the definition's image and command", context do
       Runs.subscribe()
 
       assert {:ok, %Run{} = run} =
-               Runs.create_manual_run(context.test_definition, context.environment)
+               Runs.create_run(context.test_definition, context.environment)
 
       assert %{
                status: :queued,
@@ -44,8 +44,23 @@ defmodule TestFleet.RunsTest do
       assert_receive {:run_created, %Run{id: ^run_id}}
     end
 
+    test "creates an API run with the user and the token", context do
+      user = TestFleet.AccountsFixtures.user_fixture()
+      {_token, api_token} = TestFleet.AccountsFixtures.api_token_fixture(user, %{name: "deploy"})
+
+      assert {:ok, run} =
+               Runs.create_run(context.test_definition, context.environment,
+                 trigger: :api,
+                 user: user,
+                 api_token: api_token
+               )
+
+      assert %{trigger: :api, triggered_by_user_id: user_id, api_token: %{name: "deploy"}} = run
+      assert user_id == user.id
+    end
+
     test "broadcasts on the run's own topic", context do
-      {:ok, run} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, run} = Runs.create_run(context.test_definition, context.environment)
       Runs.subscribe(run.id)
 
       :ok = Runs.cancel_run(run)
@@ -57,14 +72,14 @@ defmodule TestFleet.RunsTest do
         TestDefinitions.update_test_definition(context.test_definition, %{enabled: false})
 
       assert {:error, :test_definition_disabled} =
-               Runs.create_manual_run(context.test_definition, context.environment)
+               Runs.create_run(context.test_definition, context.environment)
     end
 
     test "rejects an environment of another project", context do
       other = environment_fixture()
 
       assert {:error, :environment_mismatch} =
-               Runs.create_manual_run(context.test_definition, other)
+               Runs.create_run(context.test_definition, other)
     end
   end
 

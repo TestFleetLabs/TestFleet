@@ -275,7 +275,7 @@ defmodule TestFleet.Execution.DispatcherTest do
     environment = environment(context, 1)
     start_dispatcher()
 
-    {:ok, run} = Runs.create_manual_run(context.test_definition, environment)
+    {:ok, run} = Runs.create_run(context.test_definition, environment)
 
     run_id = run.id
     assert_receive {:engine_started, %{run_id: ^run_id}, _opts}

@@ -64,7 +64,7 @@ defmodule TestFleet.Execution.Integration.ReconcilerTest do
   defp orphaned_run(context, output \\ nil) do
     start_supervised!({Dispatcher, poll_interval: :timer.hours(1)})
     Runs.subscribe()
-    {:ok, run} = Runs.create_manual_run(context.test_definition, context.environment)
+    {:ok, run} = Runs.create_run(context.test_definition, context.environment)
     Runs.subscribe(run.id)
     on_exit(fn -> Command.remove(RunExecution.container_name(run.id)) end)
     await_status(run.id, :running)
@@ -345,7 +345,7 @@ defmodule TestFleet.Execution.Integration.ReconcilerTest do
       )
 
       Runs.subscribe()
-      {:ok, run} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, run} = Runs.create_run(context.test_definition, context.environment)
       Runs.subscribe(run.id)
       on_exit(fn -> Command.remove(RunExecution.container_name(run.id)) end)
 

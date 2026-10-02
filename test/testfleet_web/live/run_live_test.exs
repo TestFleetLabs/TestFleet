@@ -70,6 +70,27 @@ defmodule TestFleetWeb.RunLiveTest do
       # Who started it (Milestone 10, section 6)
       assert run.triggered_by_user_id == context.user.id
       assert has_element?(run_view, "#run-triggered-by", context.user.email)
+      refute has_element?(run_view, "#run-triggered-via")
+    end
+
+    test "an API run names its token, also once revoked", %{conn: conn} = context do
+      {_token, api_token} =
+        TestFleet.AccountsFixtures.api_token_fixture(context.user, %{name: "GitLab deploy"})
+
+      {:ok, run} =
+        Runs.create_run(context.test_definition, context.environment,
+          trigger: :api,
+          user: context.user,
+          api_token: api_token
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run}")
+      assert has_element?(view, "#run-triggered-by", context.user.email)
+      assert has_element?(view, "#run-triggered-via", "GitLab deploy")
+
+      :ok = TestFleet.Accounts.delete_api_token(context.scope, api_token.id)
+      {:ok, view, _html} = live(conn, ~p"/runs/#{run}")
+      assert has_element?(view, "#run-triggered-via", "a revoked token")
     end
 
     test "cannot run a disabled test definition", %{conn: conn} = context do
@@ -102,7 +123,7 @@ defmodule TestFleetWeb.RunLiveTest do
       assert has_element?(view, "#runs-#{old.id}")
       refute has_element?(view, "#runs-#{other.id}")
 
-      {:ok, new} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, new} = Runs.create_run(context.test_definition, context.environment)
       assert has_element?(view, "#runs-#{new.id}")
     end
 
@@ -209,7 +230,7 @@ defmodule TestFleetWeb.RunLiveTest do
       assert has_element?(view, "#runs-#{run.id} a[href='/runs/#{run.id}']")
       assert has_element?(view, "#runs-#{run.id}", "Checkout")
 
-      {:ok, new} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, new} = Runs.create_run(context.test_definition, context.environment)
       assert has_element?(view, "#runs-#{new.id}")
 
       :ok = Runs.cancel_run(new)
@@ -226,7 +247,7 @@ defmodule TestFleetWeb.RunLiveTest do
       assert has_element?(view, "#recent-run-list #runs-#{run.id}")
       refute has_element?(view, "#runs-#{other_project_run.id}")
 
-      {:ok, new} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, new} = Runs.create_run(context.test_definition, context.environment)
       assert has_element?(view, "#recent-run-list #runs-#{new.id}")
 
       :ok = Runs.cancel_run(other_project_run)
@@ -239,7 +260,7 @@ defmodule TestFleetWeb.RunLiveTest do
       {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
       assert has_element?(view, "#runs-#{oldest.id}")
 
-      {:ok, new} = Runs.create_manual_run(context.test_definition, context.environment)
+      {:ok, new} = Runs.create_run(context.test_definition, context.environment)
       assert has_element?(view, "#runs-#{new.id}")
       refute has_element?(view, "#runs-#{oldest.id}")
 
