@@ -216,6 +216,8 @@ Each slice passes `mix precommit` on its own. The existing tests log in a user (
 
 **Status (2026-09-30):** slice B is built (674 tests). Against the Keycloak development realm, the whole flow worked end to end (driven with curl): discovery, a pushed authorization request with PKCE, the login at Keycloak, the callback with the token exchange and ID token validation, and a new member logged in. With Keycloak stopped, TestFleet started healthy and the button answered "not available"; a few seconds after Keycloak was back, logins worked without a restart. Not tried yet: a real Entra ID or AD FS.
 
+**Status (2026-10-02): done.** Both slices are built and tested (674 tests, plus 84 Docker integration tests), and the manual walkthrough of section 14 passed, the browser login with the Keycloak profile included. Not tried yet: a real Entra ID or AD FS; anything that turns up there is fixed then.
+
 Notes from slice B:
 
 - **Client authentication:** `oidcc` prefers `client_secret_jwt` when the provider offers it, before `client_secret_basic` and `client_secret_post`. Keycloak offers it but rejects it for a client configured with a plain secret (a 401 already on the pushed authorization request). TestFleet passes `preferred_auth_methods: [:client_secret_basic, :client_secret_post]`, since its client always has a plain secret. Entra ID and AD FS offer `client_secret_basic` and `client_secret_post`.

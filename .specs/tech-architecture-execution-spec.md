@@ -1429,7 +1429,7 @@ RunExecution
 API:
 
 ```text
-POST /api/projects/:project/runs
+POST /api/v1/projects/:project/runs
   ↓
 create Run (queued)
   ↓
@@ -1702,7 +1702,7 @@ Concretely, the MVP implements:
 - **Container hardening:** `no-new-privileges`, all capabilities dropped, never privileged, no host mounts (section 19).
 - **A Docker socket proxy** (for example `tecnativa/docker-socket-proxy`) between TestFleet and the Docker socket, allowing only the endpoints TestFleet uses: containers, images, networks. Access to the raw socket is equivalent to root on the host; the proxy narrows what a compromised TestFleet process could do.
 - **Login.** Internal users log in with the company identity provider through OIDC where one is configured. TestFleet also has its own password login with invitations, so an installation without an identity provider stays usable; there is no open registration. Two roles: admins manage users, registries, and notification channels; members do everything else (Milestone 10, [milestone-10-authentication.md](milestone-10-authentication.md)).
-- **API tokens** per user for CI integrations (section 40); tokens are stored hashed and can be revoked.
+- **API tokens** per user for CI integrations (section 40); tokens are stored hashed and can be revoked (Milestone 11, [milestone-11-api.md](milestone-11-api.md)).
 
 Known accepted limitation for the MVP: secrets are visible to anyone with `docker inspect` access on the host.
 
@@ -1833,15 +1833,19 @@ As implemented (Milestone 7, section 8): images are removed by digest (`name@sha
 
 # 40. API
 
-A future API can expose:
+The API (Milestone 11, [milestone-11-api.md](milestone-11-api.md)) exposes:
 
 ```text
-POST /api/projects/:project/runs
-GET  /api/runs/:id
-POST /api/runs/:id/cancel
-GET  /api/runs/:id/logs
-GET  /api/runs/:id/artifacts
+POST  /api/v1/projects/:project/runs
+GET   /api/v1/runs/:id
+POST  /api/v1/runs/:id/cancel
+GET   /api/v1/runs/:id/log
+GET   /api/v1/runs/:id/artifacts
+GET   /api/v1/projects/:project/test-definitions/:slug
+PATCH /api/v1/projects/:project/test-definitions/:slug
 ```
+
+The paths carry a version (`/api/v1`), because CI pipelines outlive TestFleet versions. The `PATCH` updates a test definition's image (or only its tag), so a pipeline that deploys version 1.4.2 of an application can move its E2E suite to the matching image.
 
 This allows external CI systems to trigger TestFleet.
 
@@ -1850,7 +1854,7 @@ Example:
 ```text
 Deployment
     ↓
-POST /api/projects/customer-portal/runs
+POST /api/v1/projects/customer-portal/runs
     ↓
 TestFleet
     ↓
@@ -2520,6 +2524,20 @@ Implement (moved here from Milestone 1):
 - OIDC login with one generic provider
 
 Details: [milestone-10-authentication.md](milestone-10-authentication.md).
+
+---
+
+## Milestone 11 — API
+
+Implement (section 40):
+
+- API tokens per user, hashed, revocable
+- start, read, and cancel runs from CI (`trigger = api`)
+- update a test definition's image or tag
+- a run's log and artifacts
+- CI documentation
+
+Details: [milestone-11-api.md](milestone-11-api.md).
 
 ---
 
