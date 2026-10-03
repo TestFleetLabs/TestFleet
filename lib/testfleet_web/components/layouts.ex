@@ -118,7 +118,12 @@ defmodule TestFleetWeb.Layouts do
     ~H"""
     <.link navigate={~p"/"} class={["group flex items-center gap-2.5", @class]}>
       <span class="grid size-8 place-items-center rounded-lg bg-primary text-primary-content shadow-sm transition-transform duration-200 group-hover:-rotate-6">
-        <.icon name="hero-rocket-launch" class="size-5" />
+        <%!-- The TestFleet mark: three hulls in formation (priv/static/images/favicon.svg) --%>
+        <svg viewBox="5 7 22 18" class="size-5" fill="currentColor" aria-hidden="true">
+          <path d="M16 7.5 21 17.2 16 14.8 11 17.2Z" />
+          <path d="M10 15.8 14.5 24.5 10 22.3 5.5 24.5Z" opacity=".78" />
+          <path d="M22 15.8 26.5 24.5 22 22.3 17.5 24.5Z" opacity=".78" />
+        </svg>
       </span>
       <span class="text-base font-semibold tracking-tight">TestFleet</span>
     </.link>
