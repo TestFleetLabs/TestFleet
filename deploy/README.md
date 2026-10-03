@@ -73,6 +73,87 @@ TestFleet logs in with one OpenID Connect provider. It is found through the prov
 
 **SSO button only.** `AUTH_PASSWORD_LOGIN=false` removes password login, like Dependency-Track behind the same provider. The first-run setup link then creates the first admin through the provider too.
 
+## Starting runs from CI
+
+A deployment pipeline can start the E2E suite after it deploys, wait for the result, and fail when the tests fail. Design: [.specs/milestone-11-api.md](../.specs/milestone-11-api.md).
+
+### A token
+
+Create one in **Settings → API tokens**; it is shown once. A token acts as the user who created it, and stops working when that user is deactivated. So a pipeline does not break when its author leaves, invite a user for it (`ci@example.com`), accept the invitation, and create the token as that user. Store it as a masked secret in the CI system.
+
+### The script
+
+[`ci/testfleet-run.sh`](ci/testfleet-run.sh) (curl and jq) and [`ci/testfleet-run.ps1`](ci/testfleet-run.ps1) (PowerShell 7) do the whole job; copy one into the application's repository:
+
+```sh
+export TESTFLEET_URL=https://testfleet.example.internal
+export TESTFLEET_TOKEN=tf_…
+sh ci/testfleet-run.sh customer-portal e2e staging 1.4.2
+```
+
+```text
+TestFleet: e2e now uses ghcr.io/acme/portal-e2e:1.4.2
+TestFleet: run 1842 of ghcr.io/acme/portal-e2e:1.4.2 on staging
+TestFleet: https://testfleet.example.internal/runs/1842
+…the suite's output, as it runs…
+TestFleet: run 1842 passed (41 passed, 0 failed, 3 skipped)
+```
+
+The arguments are the project, test definition, and environment slugs (as in the web UI's URLs), and optionally the E2E image's tag. With a tag, the test definition is updated first, so scheduled runs use the new image from then on too. The exit status is `0` when the run passed, `1` when its tests failed, and `2` for anything else: an infrastructure error, a timeout, a cancelled run, or a refused request.
+
+**One deployment at a time.** If two pipelines update the tag and start a run at the same time, one of them can test the other's image. Let pipelines that deploy the same environment wait for each other (GitHub's `concurrency`, GitLab's `resource_group`), as in the examples below.
+
+### GitHub Actions
+
+GitHub-hosted runners cannot reach an internal TestFleet; use a self-hosted runner in the same network.
+
+```yaml
+e2e:
+  needs: deploy-staging
+  runs-on: [self-hosted]
+  concurrency: staging
+  steps:
+    - uses: actions/checkout@v4
+    - run: sh ci/testfleet-run.sh customer-portal e2e staging "${{ github.ref_name }}"
+      env:
+        TESTFLEET_URL: https://testfleet.example.internal
+        TESTFLEET_TOKEN: ${{ secrets.TESTFLEET_TOKEN }}
+```
+
+### GitLab CI
+
+```yaml
+e2e:staging:
+  stage: verify
+  needs: ["deploy:staging"]
+  resource_group: staging
+  image: alpine:3.22
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - sh ci/testfleet-run.sh customer-portal e2e staging "$CI_COMMIT_TAG"
+  variables:
+    TESTFLEET_URL: https://testfleet.example.internal
+  # TESTFLEET_TOKEN: a masked CI/CD variable
+```
+
+### The API
+
+Every request sends `Authorization: Bearer <token>`; request bodies are JSON (`Content-Type: application/json`). Errors look like `{"error": {"code": "not_found", "message": "No environment \"stagign\" in project \"customer-portal\"."}}`, with `details` per field for `422`.
+
+| Method | Path | |
+|--------|------|-|
+| `POST` | `/api/v1/projects/:project/runs` | Start a run: `{"test_definition": "e2e", "environment": "staging"}`. `201` with the run. |
+| `GET` | `/api/v1/runs/:id` | The run: `status`, `final` (no further change), `image`, `exit_code`, `tests` (`passed`, `failed`, `skipped`, or `null` without a JUnit report), `url`, `log_url`, `artifacts_url`. |
+| `POST` | `/api/v1/runs/:id/cancel` | Cancel; `202`. An active run is `cancelled` once its container has stopped. |
+| `GET` | `/api/v1/runs/:id/log` | The log as text. `?after=<n>` sends only lines after sequence `n`; the `TestFleet-Log-Sequence` header names the last line sent. |
+| `GET` | `/api/v1/runs/:id/artifacts` | The artifacts, with download URLs. |
+| `GET` | `/api/v1/runs/:id/artifacts/*name` | One artifact's file. |
+| `GET` | `/api/v1/projects/:project/test-definitions/:slug` | The test definition and its image. |
+| `PATCH` | `/api/v1/projects/:project/test-definitions/:slug` | Update the image: `{"tag": "1.4.2"}` (only the tag) or `{"image": "ghcr.io/acme/portal-e2e:1.4.2"}`. |
+
+A pipeline should pass only on `passed`: `failed` means the tests failed, while `error` and `timeout` mean TestFleet could not tell. The log and artifacts of old runs are removed by retention; they then answer `410`.
+
 ## Upgrade
 
 Set the new version in `TESTFLEET_IMAGE`, then:

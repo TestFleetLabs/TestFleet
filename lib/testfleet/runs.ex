@@ -565,9 +565,18 @@ defmodule TestFleet.Runs do
   @doc """
   Reduces over a run's stored log in order, in chunks of up to 1,000 lines, without
   loading it into memory: `fun.(lines, acc)` returns the new acc.
+
+  Options: only the lines `after:` a sequence number, and `through:` one
+  (Milestone 11, section 6).
   """
-  def reduce_log(%Run{id: id}, acc, fun) do
+  def reduce_log(%Run{id: id}, acc, fun, opts \\ []) do
     query = from l in LogLine, where: l.run_id == ^id, order_by: l.sequence
+
+    query =
+      Enum.reduce(opts, query, fn
+        {:after, sequence}, query -> from l in query, where: l.sequence > ^sequence
+        {:through, sequence}, query -> from l in query, where: l.sequence <= ^sequence
+      end)
 
     {:ok, acc} =
       Repo.transaction(
@@ -581,6 +590,11 @@ defmodule TestFleet.Runs do
       )
 
     acc
+  end
+
+  @doc "The sequence number of a run's last stored line, or 0 without lines."
+  def last_log_sequence(%Run{id: id}) do
+    Repo.one(from l in LogLine, where: l.run_id == ^id, select: max(l.sequence)) || 0
   end
 
   @doc "The last `limit` stored lines of a run, in order."

@@ -28,7 +28,10 @@ defmodule TestFleetWeb.API.RunJSON do
       finished_at: run.finished_at,
       exit_code: run.exit_code,
       error_message: run.error_message,
-      tests: tests(run)
+      tests: tests(run),
+      log_url: url(~p"/api/v1/runs/#{run}/log"),
+      log_truncated: run.log_truncated,
+      artifacts_url: url(~p"/api/v1/runs/#{run}/artifacts")
     }
   end
 

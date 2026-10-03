@@ -29,6 +29,11 @@ defmodule TestFleetWeb.Router do
     plug TestFleetWeb.APIAuth
   end
 
+  # The log and artifact files are not JSON; curl fetches them with any Accept.
+  pipeline :api_files do
+    plug TestFleetWeb.APIAuth
+  end
+
   # Everything behind a login (Milestone 10, section 6). /health is answered in the
   # endpoint, before the router.
   scope "/", TestFleetWeb do
@@ -113,6 +118,14 @@ defmodule TestFleetWeb.Router do
     post "/runs/:id/cancel", RunController, :cancel
     get "/projects/:project/test-definitions/:slug", TestDefinitionController, :show
     patch "/projects/:project/test-definitions/:slug", TestDefinitionController, :update
+    get "/runs/:id/artifacts", RunFileController, :artifacts
+  end
+
+  scope "/api/v1", TestFleetWeb.API do
+    pipe_through :api_files
+
+    get "/runs/:id/log", RunFileController, :log
+    get "/runs/:id/artifacts/*name", RunFileController, :artifact
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

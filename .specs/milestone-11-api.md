@@ -257,7 +257,7 @@ Controllers live in `TestFleetWeb.API` with a fallback controller that turns `{:
 `deploy/README.md` gains "Starting runs from CI":
 
 - creating a token (and the dedicated CI user of section 3)
-- the `curl` calls of section 1, and a wait loop that prints the log with `?after=` and exits non-zero unless the run passed, in POSIX shell and in PowerShell
+- the `curl` calls of section 1, and a wait loop that prints the log with `?after=` and exits non-zero unless the run passed, in POSIX shell and in PowerShell: `deploy/ci/testfleet-run.sh` and `deploy/ci/testfleet-run.ps1`, to copy into the application's repository
 - a GitHub Actions job and a GitLab CI job, both with the token as a masked secret and a concurrency guard (section 6)
 - the endpoint reference of section 6
 
@@ -276,6 +276,17 @@ The reference moves to the docs site once it exists.
 Each slice passes `mix precommit` on its own.
 
 **Status (2026-10-02):** slice A is built (704 tests).
+
+**Status (2026-10-03):** slice C is built (729 tests). Against the development server, both CI scripts updated the tag, started a run of the spike suite, streamed its log while it ran, and exited `1` for its failing tests; refused requests (unknown test definition, invalid tag, wrong token) exited `2` with TestFleet's message. The shell script ran in `alpine:3.22` with `curl` and `jq`, as in the GitLab example.
+
+Notes from slice C:
+
+- `GET /api/v1/runs/:id/log` and `GET /api/v1/runs/:id/artifacts/*name` are in their own `:api_files` pipeline without `accepts`; the artifact list is JSON, in `:api`. One controller, `TestFleetWeb.API.RunFileController`.
+- The log ends at the last line stored when the request came in (`Runs.last_log_sequence/1`), and that is the `TestFleet-Log-Sequence` header, sent before the body. Lines stored while it streams come with the next request, so a polling client neither misses nor repeats lines. Without lines after `after`, the body is empty and the header repeats `after`.
+- With `?after=`, the truncation notice is left out, so a polling client does not print it every time; the run's `log_truncated` says it instead.
+- `TestFleetWeb.ArtifactResponse` sends artifact files for the web UI and the API (`disposition: :attachment` there). `RunLogController.send_log/3` streams the log for both.
+- The scripts were found to need care with `set -e`: an error from `api` inside a pipeline did not stop the shell script, so it calls `api` only in plain assignments.
+- Seen on the way, not fixed: a suite that writes to stdout and stderr at the same instant can have its two lines stored in either order (run 3 of the walkthrough). This is in log collection (Milestone 4), not the API.
 
 **Status (2026-10-02):** slice B is built (716 tests).
 
