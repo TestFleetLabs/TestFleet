@@ -1,0 +1,142 @@
+---
+title: Install
+description: Run TestFleet in production with Docker Compose behind a reverse proxy.
+---
+
+import { Steps, Tabs, TabItem, Aside } from "@astrojs/starlight/components"
+
+TestFleet runs as three containers on one Docker host:
+
+| Service               | Image                             | Role                                                                                                                      |
+| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `testfleet`           | `ghcr.io/testfleetlabs/testfleet` | The application                                                                                                           |
+| `db`                  | `postgres:18-alpine`              | Configuration, runs, logs, results                                                                                        |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy`   | The only service with the Docker socket; lets TestFleet use containers, images, networks, and registry auth, nothing else |
+
+The test suites run as further containers on the same Docker Engine, started by TestFleet through the proxy.
+
+## Requirements
+
+- A 64-bit Linux host, `amd64` or `arm64`, with **Docker Engine and Compose v2.20 or later**
+- Memory for the stack (about 1 GB) plus what your suites need at the same time. Browser suites typically take 2–4 GB each.
+- Disk for the database (logs grow with chatty suites), artifacts (500 MiB per run at most, kept 30 days), and the suites' images
+- A reverse proxy (nginx, Traefik, Caddy) that terminates TLS, sets `X-Forwarded-Proto`, and passes WebSocket upgrades on `/live`
+- Network access from the host to the registries with your suite images, and to the systems your suites test
+
+## Install
+
+<Steps>
+
+1. Create a directory and download the Compose file and the configuration template:
+
+   ```sh
+   mkdir testfleet && cd testfleet
+   curl -fsSLO https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/compose.yaml
+   curl -fsSL -o .env https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/.env.example
+   chmod 600 .env
+   ```
+
+2. Fill in the required values in `.env`:
+
+   ```sh
+   openssl rand -base64 48   # SECRET_KEY_BASE
+   openssl rand -base64 32   # CLOAK_KEY
+   openssl rand -hex 24      # POSTGRES_PASSWORD
+   ```
+
+   ```ini title=".env"
+   PHX_HOST=testfleet.example.internal
+   SECRET_KEY_BASE=…
+   CLOAK_KEY=…
+   POSTGRES_PASSWORD=…
+   TESTFLEET_IMAGE=ghcr.io/testfleetlabs/testfleet:1.2.3
+   ```
+
+   Pin `TESTFLEET_IMAGE` to a release, so an upgrade is a deliberate change. All other settings are optional; see [Configuration](/operate/configuration/).
+
+3. Start it:
+
+   ```sh
+   docker compose up -d
+   docker compose ps          # all three running, testfleet healthy
+   ```
+
+   Migrations run on every start. TestFleet listens on `127.0.0.1:4000` (`TESTFLEET_PUBLISH`).
+
+4. Point the reverse proxy at it (below).
+
+5. Create the first admin with the one-time link from the log:
+
+   ```sh
+   docker compose logs testfleet | grep "No users yet"
+   ```
+
+   See [Users and access](/guides/users/#the-first-admin).
+
+</Steps>
+
+<Aside type="caution" title="Back up CLOAK_KEY">
+  `CLOAK_KEY` encrypts environment variables, registry passwords, and notification URLs. Keep `.env`
+  in your secret store and back it up with the database: a database restored without its key has
+  unreadable secrets.
+</Aside>
+
+## Reverse proxy
+
+TestFleet expects HTTPS on port 443 under `PHX_HOST`. It redirects plain HTTP requests to HTTPS (except on `localhost`), and its live pages need WebSockets on `/live`.
+
+<Tabs>
+<TabItem label="nginx">
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name testfleet.example.internal;
+  # ssl_certificate …; ssl_certificate_key …;
+
+  location / {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Caddy">
+
+```text title="Caddyfile"
+testfleet.example.internal {
+  reverse_proxy 127.0.0.1:4000
+}
+```
+
+Caddy passes WebSockets and `X-Forwarded-Proto` by itself.
+
+</TabItem>
+</Tabs>
+
+With another proxy, such as Traefik, the same three things matter: TLS, `X-Forwarded-Proto`, and WebSocket upgrades.
+
+Check the health endpoint from the host, and the whole path through the proxy:
+
+```sh
+curl http://127.0.0.1:4000/health
+curl -I https://testfleet.example.internal/users/log-in
+```
+
+## What the Compose file sets up
+
+- **Networks.** TestFleet, PostgreSQL, and the proxy share an internal network without a route out. TestFleet also joins the default network for outgoing notifications and the published port. Test containers run on a separate network, `TestFleet-runs`, which TestFleet creates; they cannot reach the database or the proxy.
+- **Hardening.** The TestFleet container runs with a read-only file system, as `nobody`, with all capabilities dropped and `no-new-privileges`. Only the proxy mounts the Docker socket, read-only.
+- **Volumes.** `testfleet_db` holds the database, `testfleet_artifacts` the artifacts. The TestFleet container itself holds nothing and can be recreated at any time.
+- **Restarts.** All services restart unless stopped. Running suites survive a restart of TestFleet: their containers keep going, and TestFleet picks them up when it is back.
+
+## Next steps
+
+- [Configuration](/operate/configuration/): limits, retention, SMTP
+- [Single sign-on](/operate/single-sign-on/) with Entra ID, AD FS, Keycloak, or any OpenID Connect provider
+- [Upgrade, back up, maintain](/operate/maintenance/)

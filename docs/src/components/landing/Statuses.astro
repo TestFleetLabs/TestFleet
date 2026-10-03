@@ -1,0 +1,114 @@
+---
+// The run statuses (main spec section 8), grouped the way people read them.
+const groups = [
+	{
+		label: 'On its way',
+		items: [
+			{ status: 'queued', tone: 'neutral', text: 'Waiting for a free slot under the limits' },
+			{ status: 'preparing', tone: 'active', text: 'Pulling the image, creating the container' },
+			{ status: 'running', tone: 'active', text: 'The suite is executing' },
+		],
+	},
+	{
+		label: 'About your application',
+		items: [
+			{ status: 'passed', tone: 'passed', text: 'Every test passed' },
+			{ status: 'failed', tone: 'failed', text: 'The suite ran, and tests failed' },
+			{ status: 'timeout', tone: 'failed', text: 'It ran longer than its timeout' },
+		],
+	},
+	{
+		label: 'About the infrastructure',
+		items: [
+			{ status: 'error', tone: 'error', text: 'TestFleet could not run it: registry, image, Docker, memory' },
+			{ status: 'cancelled', tone: 'neutral', text: 'Someone stopped it' },
+		],
+	},
+];
+---
+
+<div class="tf-statuses not-content">
+	{
+		groups.map((group) => (
+			<div class="group">
+				<p class="label">{group.label}</p>
+				<ul>
+					{group.items.map((item) => (
+						<li>
+							<span class={`pill ${item.tone}`}>{item.status}</span>
+							<span class="text">{item.text}</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		))
+	}
+</div>
+
+<style>
+	.tf-statuses {
+		display: grid;
+		gap: 1rem;
+		padding: 1.25rem;
+		border: 1px solid var(--tf-border);
+		border-radius: 0.9rem;
+		background: var(--tf-surface);
+	}
+
+	.label {
+		margin: 0 0 0.5rem;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	ul {
+		display: grid;
+		gap: 0.45rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	li {
+		display: grid;
+		grid-template-columns: 6.5rem 1fr;
+		align-items: center;
+		gap: 0.75rem;
+		margin: 0;
+		font-size: var(--sl-text-sm);
+	}
+
+	.text {
+		color: var(--sl-color-gray-2);
+	}
+
+	.pill {
+		justify-self: start;
+		padding: 0.1rem 0.6rem;
+		border-radius: 999px;
+		font-family: var(--__sl-font-mono);
+		font-size: 0.78rem;
+		font-weight: 600;
+		color: var(--tone);
+		background: color-mix(in srgb, var(--tone) 14%, transparent);
+	}
+
+	.passed {
+		--tone: var(--tf-passed);
+	}
+	.failed {
+		--tone: var(--tf-failed);
+	}
+	.error {
+		--tone: var(--tf-error);
+	}
+	.active {
+		--tone: var(--tf-active);
+	}
+	.neutral {
+		--tone: var(--tf-neutral);
+	}
+</style>

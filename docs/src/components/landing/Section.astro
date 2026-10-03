@@ -1,0 +1,97 @@
+---
+// A landing page section: copy on one side, a visual (code, a diagram) on the other.
+interface Props {
+	eyebrow: string;
+	title: string;
+	id?: string;
+	flip?: boolean;
+}
+
+const { eyebrow, title, id, flip = false } = Astro.props;
+---
+
+<section class:list={['tf-section', { flip }]} id={id}>
+	<div class="text">
+		<p class="eyebrow">{eyebrow}</p>
+		<h2 set:html={title} />
+		<div class="body"><slot /></div>
+	</div>
+	<div class="visual"><slot name="visual" /></div>
+</section>
+
+<style>
+	.tf-section {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 2rem;
+		align-items: center;
+		padding-block: clamp(2.5rem, 2rem + 4vw, 5rem);
+		border-top: 1px solid var(--tf-border);
+	}
+
+	.text,
+	.visual {
+		min-width: 0;
+	}
+
+	.eyebrow {
+		margin: 0;
+		color: var(--sl-color-accent-high);
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	:root[data-theme='light'] .eyebrow {
+		color: var(--sl-color-accent);
+	}
+
+	h2 {
+		margin: 0.6rem 0 0;
+		font-size: clamp(1.6rem, 1.1rem + 1.8vw, 2.4rem);
+		line-height: 1.15;
+		letter-spacing: -0.02em;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	.body {
+		margin-top: 1rem;
+		color: var(--sl-color-gray-2);
+		line-height: 1.65;
+	}
+
+	.body :global(p + p),
+	.body :global(p + ul),
+	.body :global(ul + p) {
+		margin-top: 0.85rem;
+	}
+
+	.body :global(ul) {
+		padding-inline-start: 1.1rem;
+	}
+
+	.body :global(li + li) {
+		margin-top: 0.35rem;
+	}
+
+	.visual :global(.expressive-code) {
+		margin: 0;
+	}
+
+	.visual :global(* + .expressive-code) {
+		margin-top: 0.85rem;
+	}
+
+	@media (min-width: 60rem) {
+		.tf-section {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+			gap: 4rem;
+		}
+
+		.tf-section.flip .text {
+			order: 2;
+		}
+	}
+</style>

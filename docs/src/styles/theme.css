@@ -1,0 +1,74 @@
+/*
+ * TestFleet's colours on top of Starlight. The accent is the indigo of the app's
+ * primary colour (assets/css/app.css); grays lean slightly blue like its base.
+ * Starlight's dark theme is :root, the light theme is [data-theme='light'].
+ */
+
+:root {
+  --sl-color-accent-low: #1d1a4d;
+  --sl-color-accent: #6b61f5;
+  --sl-color-accent-high: #cfcbff;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e9ebf2;
+  --sl-color-gray-2: #c1c5d3;
+  --sl-color-gray-3: #8a90a5;
+  --sl-color-gray-4: #555b70;
+  --sl-color-gray-5: #353a4c;
+  --sl-color-gray-6: #22263a;
+  --sl-color-black: #151826;
+
+  /* Run statuses, as the app colours them */
+  --tf-passed: #2fbf9b;
+  --tf-failed: #f0506e;
+  --tf-error: #f59e3b;
+  --tf-neutral: #8a90a5;
+  --tf-active: #6b9cff;
+
+  --tf-surface: #1b1e2e;
+  --tf-surface-raised: #23273a;
+  --tf-border: rgb(255 255 255 / 0.09);
+  --tf-glow: rgb(107 97 245 / 0.32);
+  --tf-terminal: #0f1120;
+  --tf-terminal-text: #d7daea;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #e2dfff;
+  --sl-color-accent: #4a3fd8;
+  --sl-color-accent-high: #241b75;
+
+  --sl-color-white: #141726;
+  --sl-color-gray-1: #23273a;
+  --sl-color-gray-2: #3b4055;
+  --sl-color-gray-3: #5d6378;
+  --sl-color-gray-4: #8d93a6;
+  --sl-color-gray-5: #c7cbd8;
+  --sl-color-gray-6: #eceef4;
+  --sl-color-gray-7: #f6f7fa;
+  --sl-color-black: #ffffff;
+
+  --tf-passed: #0f8f72;
+  --tf-failed: #d02c4c;
+  --tf-error: #b8650b;
+  --tf-neutral: #6b7186;
+  --tf-active: #2f63d6;
+
+  --tf-surface: #f7f7fc;
+  --tf-surface-raised: #ffffff;
+  --tf-border: rgb(20 23 38 / 0.1);
+  --tf-glow: rgb(74 63 216 / 0.18);
+  /* The terminal stays dark in both themes */
+  --tf-terminal: #12142a;
+  --tf-terminal-text: #d7daea;
+}
+
+/* Tables in reference pages: let wide ones scroll instead of squeezing */
+.sl-markdown-content table {
+  display: block;
+  overflow-x: auto;
+}
+
+.sl-markdown-content table code {
+  white-space: nowrap;
+}

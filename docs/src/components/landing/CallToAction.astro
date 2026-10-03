@@ -1,0 +1,56 @@
+---
+import { LinkButton } from '@astrojs/starlight/components';
+import { withBase, repository } from '../../lib/links';
+---
+
+<section class="tf-cta not-content">
+	<h2>Give your suites a home</h2>
+	<p>
+		Three containers on one Docker host, behind your reverse proxy. A Compose file, four
+		values in <code>.env</code>, and your first suite is running.
+	</p>
+	<div class="actions">
+		<LinkButton href={withBase('/start/quick-start/')} icon="right-arrow">Quick start</LinkButton>
+		<LinkButton href={repository} variant="secondary" icon="github" iconPlacement="start">
+			View on GitHub
+		</LinkButton>
+	</div>
+</section>
+
+<style>
+	.tf-cta {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+		margin-block: 2rem 1rem;
+		padding: clamp(2rem, 1.5rem + 3vw, 3.5rem) 1.5rem;
+		border: 1px solid var(--tf-border);
+		border-radius: 1.2rem;
+		text-align: center;
+		background:
+			radial-gradient(60% 120% at 50% 0%, var(--tf-glow), transparent 70%),
+			var(--tf-surface);
+	}
+
+	h2 {
+		margin: 0;
+		font-size: clamp(1.6rem, 1.1rem + 1.8vw, 2.4rem);
+		letter-spacing: -0.02em;
+		color: var(--sl-color-white);
+	}
+
+	p {
+		margin: 0;
+		max-width: 34rem;
+		color: var(--sl-color-gray-2);
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.5rem;
+	}
+</style>

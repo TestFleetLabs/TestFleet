@@ -1,0 +1,104 @@
+---
+// One pipeline for every run (main spec section 29), drawn with HTML so it follows
+// the theme and reflows on a phone.
+
+const triggers = ['Run now', 'Schedule', 'API'];
+const steps = [
+	{ title: 'Queued run', text: 'Every trigger creates the same record' },
+	{ title: 'Dispatcher', text: 'Admits it under the global and per-environment limits' },
+	{ title: 'Container', text: 'Pulled, started, hardened, watched until it exits' },
+	{ title: 'Result', text: 'Exit code and JUnit decide the status; artifacts are kept' },
+];
+---
+
+<div class="tf-pipeline not-content">
+	<div class="triggers">
+		{triggers.map((trigger) => <span class="trigger">{trigger}</span>)}
+	</div>
+	<ol>
+		{
+			steps.map((step, i) => (
+				<li>
+					<span class="num">{i + 1}</span>
+					<div>
+						<strong>{step.title}</strong>
+						<span>{step.text}</span>
+					</div>
+				</li>
+			))
+		}
+	</ol>
+</div>
+
+<style>
+	.tf-pipeline {
+		display: grid;
+		gap: 1rem;
+		padding: 1.25rem;
+		border: 1px solid var(--tf-border);
+		border-radius: 0.9rem;
+		background: var(--tf-surface);
+	}
+
+	.triggers {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.trigger {
+		padding: 0.25rem 0.7rem;
+		border: 1px dashed color-mix(in srgb, var(--sl-color-accent) 60%, transparent);
+		border-radius: 0.5rem;
+		color: var(--sl-color-gray-1);
+		font-size: var(--sl-text-sm);
+	}
+
+	ol {
+		display: grid;
+		gap: 0.6rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	li {
+		position: relative;
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: start;
+		gap: 0.8rem;
+		margin: 0;
+		padding: 0.8rem 0.9rem;
+		border-radius: 0.7rem;
+		background: var(--tf-surface-raised);
+		border: 1px solid var(--tf-border);
+	}
+
+	.num {
+		display: grid;
+		place-items: center;
+		width: 1.6rem;
+		height: 1.6rem;
+		border-radius: 50%;
+		background: var(--sl-color-accent);
+		color: #fff;
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+	}
+
+	li div {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		font-size: var(--sl-text-sm);
+	}
+
+	strong {
+		color: var(--sl-color-white);
+	}
+
+	li div span {
+		color: var(--sl-color-gray-2);
+	}
+</style>

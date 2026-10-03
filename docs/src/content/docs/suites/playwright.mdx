@@ -1,0 +1,119 @@
+---
+title: Playwright example
+description: Package a Playwright suite as a TestFleet image, with JUnit results, an HTML report, and traces.
+---
+
+import { FileTree, Steps } from "@astrojs/starlight/components"
+
+This example packages an existing Playwright suite. The same pattern works for Cypress, WebdriverIO, or pytest: start from an image with the browsers installed, copy the suite in, and point its reporters at `TestFleet_ARTIFACTS_DIR`.
+
+<FileTree>
+
+- customer-portal/
+  - src/ the application
+  - e2e/
+    - tests/
+      - checkout.spec.ts
+    - Dockerfile
+    - package.json
+    - playwright.config.ts
+
+</FileTree>
+
+## Configure the reporters
+
+Read the target from the environment, and write the JUnit report, the HTML report, and traces into the artifacts directory. Outside TestFleet the variable is not set, so a local run writes to `test-results/` as usual.
+
+```ts title="e2e/playwright.config.ts"
+import { defineConfig } from "@playwright/test"
+
+const artifacts = process.env.TestFleet_ARTIFACTS_DIR ?? "test-results"
+
+export default defineConfig({
+  testDir: "./tests",
+  // Failed tests stay failed: TestFleet should see what a user would see
+  retries: 0,
+  reporter: [
+    ["list"],
+    ["junit", { outputFile: `${artifacts}/junit.xml` }],
+    ["html", { outputFolder: `${artifacts}/playwright-report`, open: "never" }],
+  ],
+  outputDir: `${artifacts}/results`,
+  use: {
+    baseURL: process.env.BASE_URL,
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
+    video: "retain-on-failure",
+  },
+})
+```
+
+The `list` reporter prints one line per test, which is what you follow live on the run page.
+
+## Write the Dockerfile
+
+Use Microsoft's Playwright image with the same version as `@playwright/test` in your `package.json`. It contains the browsers and their system dependencies, and a non-root user, `pwuser`.
+
+```dockerfile title="e2e/Dockerfile"
+# Keep the version in step with @playwright/test in package.json
+FROM mcr.microsoft.com/playwright:v1.56.0-noble
+
+WORKDIR /suite
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+
+# The artifacts directory must belong to the user the suite runs as
+RUN mkdir -p /TestFleet/artifacts && chown -R pwuser:pwuser /TestFleet
+
+USER pwuser
+# Exec form: Playwright receives SIGTERM directly when a run is cancelled
+CMD ["npx", "playwright", "test"]
+```
+
+Leave the test definition's command empty: the image's `CMD` runs the suite.
+
+## Build and publish
+
+TestFleet pulls the image from a registry on every run of a tag, so the image has to be pushed. Tag it with the application's version, so the suite tested is the suite that belongs to the release.
+
+```sh
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t ghcr.io/acme/portal-e2e:1.4.2 --push e2e/
+```
+
+Build for `linux/arm64` too if TestFleet runs on an ARM host. The Playwright images exist for both platforms.
+
+For a private registry, an admin adds its credentials under **Registries** once. See [Registries](/guides/registries/).
+
+## Configure it in TestFleet
+
+<Steps>
+
+1. **Environment:** add `BASE_URL`, and the test user's credentials as **secret** variables, for example `E2E_USER` and `E2E_PASSWORD`.
+
+2. **Test definition:** image `ghcr.io/acme/portal-e2e:1.4.2`, no command. Browser suites usually want:
+
+   - a timeout that covers a slow day, for example 30 minutes
+   - 2 or more CPUs and 4096 MiB of memory, depending on the number of workers
+   - the default 2048 MiB of shared memory; Chromium crashes with Docker's default of 64 MiB
+
+3. **Run now.** The run page shows the `list` output live; when the run is finished, the tests panel shows each test's result, and the artifacts panel links the HTML report and the traces.
+
+</Steps>
+
+## Keep it in step with the application
+
+The application's pipeline builds and pushes the E2E image with the same version as the application, deploys, and then asks TestFleet to test that version:
+
+```sh
+sh ci/testfleet-run.sh customer-portal e2e staging 1.4.2
+```
+
+This updates the test definition's tag, starts a run, streams its log, and fails the pipeline unless the run passed. See [Run tests from a pipeline](/ci/pipelines/).
+
+## Tips
+
+- **Workers:** Playwright uses half the CPU cores it sees by default. With a CPU limit, set `workers` explicitly, for example `workers: 2` for a 2-CPU limit, so the browsers are not starved.
+- **Sharding:** a large suite can be split into several test definitions with the same image that run in parallel. Each gets the full command, one argument per line: `npx`, `playwright`, `test`, `--shard=1/3`, and so on for `2/3` and `3/3`. Raise the environment's concurrency limit so they can run at the same time.
+- **Viewing traces:** a trace is a `.zip` in the artifacts. Download it and open it with `npx playwright show-trace trace.zip`, or drop it on [trace.playwright.dev](https://trace.playwright.dev).

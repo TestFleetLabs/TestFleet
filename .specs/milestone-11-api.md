@@ -263,6 +263,8 @@ Controllers live in `TestFleetWeb.API` with a fallback controller that turns `{:
 
 The reference moves to the docs site once it exists.
 
+**Status (2026-10-03):** the docs site exists (`docs/`, Astro and Starlight). It has the endpoint reference (`docs/src/content/docs/ci/api.md`) and the CI guide (`ci/pipelines.mdx`). `deploy/README.md` still carries its copy until the site is published.
+
 ---
 
 ## 11. Slices

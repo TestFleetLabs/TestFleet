@@ -14,7 +14,7 @@ Each application keeps its own E2E suite in its own repository and ships it as a
 - keeps the run history and applies retention
 - sends notifications when a suite starts failing or recovers
 
-The full design lives in [.specs/tech-architecture-execution-spec.md](.specs/tech-architecture-execution-spec.md).
+The full design lives in [.specs/tech-architecture-execution-spec.md](.specs/tech-architecture-execution-spec.md). The user documentation and the website are in [docs/](docs/) (Astro and Starlight), published at [testfleetlabs.github.io/TestFleet](https://testfleetlabs.github.io/TestFleet/).
 
 ## Core concepts
 

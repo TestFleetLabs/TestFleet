@@ -1,0 +1,362 @@
+---
+// Replaces Starlight's hero (only the landing page has one): the headline, the
+// actions, and a run as the run page shows it. Links get the site's base path.
+import { LinkButton } from '@astrojs/starlight/components';
+import { withBase } from '../lib/links';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero || {};
+
+const lines: { text: string; kind?: 'ok' | 'skip' | 'muted' | 'masked' | 'summary' }[] = [
+	{ text: 'Running 44 tests using 4 workers', kind: 'muted' },
+	{ text: '  ✓  login › signs in with single sign-on (2.1s)', kind: 'ok' },
+	{ text: '  ✓  checkout › pays with card (4.8s)', kind: 'ok' },
+	{ text: '  ✓  checkout › applies a voucher (3.2s)', kind: 'ok' },
+	{ text: '  -  search › filters by region', kind: 'skip' },
+	{ text: '  ✓  account › updates the address (1.9s)', kind: 'ok' },
+	{ text: 'POST /api/orders  Authorization: Bearer [MASKED]', kind: 'masked' },
+	{ text: '  41 passed, 3 skipped (2.4m)', kind: 'summary' },
+];
+---
+
+<section class="tf-hero">
+	<div class="copy">
+		<p class="eyebrow">
+			<span class="pulse" aria-hidden="true"></span>
+			Self-hosted · any test framework · one Docker host
+		</p>
+		<h1 id="_top" data-page-title set:html={title} />
+		{tagline && <p class="tagline" set:html={tagline} />}
+		{
+			actions.length > 0 && (
+				<div class="actions">
+					{actions.map(({ link, text, variant, icon }) => (
+						<LinkButton href={withBase(link)} variant={variant} icon={icon?.name}>
+							{text}
+						</LinkButton>
+					))}
+				</div>
+			)
+		}
+	</div>
+
+	<figure class="console not-content" aria-label="A run of a Playwright suite in TestFleet">
+		<div class="chrome">
+			<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+			<span class="where">Run #1842 · customer-portal / e2e / staging</span>
+		</div>
+		<div class="facts">
+			<span class="status"><span class="dot" aria-hidden="true"></span>passed</span>
+			<span class="fact">ghcr.io/acme/portal-e2e:1.4.2</span>
+			<span class="fact">via CI pipeline</span>
+		</div>
+		<pre class="log"><code>{
+			lines.map((line, i) => (
+				<span class={`line ${line.kind ?? ''}`} style={`--i: ${i}`}>
+					<span class="seq" aria-hidden="true">{i + 1}</span>
+					<span class="text">{line.kind === 'masked'
+						? [line.text.replace('[MASKED]', ''), <mark>[MASKED]</mark>]
+						: line.text}</span>
+				</span>
+			))
+		}</code></pre>
+		<div class="results">
+			<span class="count ok"><strong>41</strong> passed</span>
+			<span class="count fail"><strong>0</strong> failed</span>
+			<span class="count skip"><strong>3</strong> skipped</span>
+			<span class="artifacts">junit.xml · playwright-report/ · 2 traces</span>
+		</div>
+	</figure>
+</section>
+
+<style>
+	.tf-hero {
+		position: relative;
+		display: grid;
+		/* minmax(0, …): the console's unwrapped lines must scroll, not widen the page */
+		grid-template-columns: minmax(0, 1fr);
+		gap: 3rem;
+		align-items: center;
+		padding-block: 2rem 1rem;
+	}
+
+	/* A soft glow behind the console, in the accent colour */
+	.tf-hero::before {
+		content: '';
+		position: absolute;
+		inset: -6rem 0 auto auto;
+		width: min(42rem, 100%);
+		aspect-ratio: 1;
+		// background: radial-gradient(closest-side, var(--tf-glow), transparent);
+		pointer-events: none;
+		z-index: -1;
+	}
+
+	.copy {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.eyebrow {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		width: fit-content;
+		margin: 0;
+		padding: 0.3rem 0.85rem;
+		border: 1px solid var(--tf-border);
+		border-radius: 999px;
+		background: var(--tf-surface);
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+	}
+
+	.pulse {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background: var(--tf-passed);
+		box-shadow: 0 0 0 0 var(--tf-passed);
+		animation: pulse 2.4s ease-out infinite;
+	}
+
+	@keyframes pulse {
+		0% {
+			box-shadow: 0 0 0 0 color-mix(in srgb, var(--tf-passed) 60%, transparent);
+		}
+		70%,
+		100% {
+			box-shadow: 0 0 0 0.5rem transparent;
+		}
+	}
+
+	h1 {
+		margin: 0;
+		font-size: clamp(2.2rem, 1.2rem + 3.6vw, 3.75rem);
+		line-height: 1.05;
+		letter-spacing: -0.03em;
+		font-weight: 700;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	h1 :global(.accent) {
+		background: linear-gradient(100deg, var(--sl-color-accent) 10%, #b26bff 90%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+
+	.tagline {
+		margin: 0;
+		max-width: 36rem;
+		font-size: clamp(var(--sl-text-base), 0.9rem + 0.5vw, var(--sl-text-xl));
+		line-height: 1.55;
+		color: var(--sl-color-gray-2);
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.5rem;
+	}
+
+	.actions :global(.sl-link-button) {
+		transition:
+			transform 160ms ease,
+			box-shadow 160ms ease;
+	}
+
+	.actions :global(.sl-link-button.primary:hover) {
+		transform: translateY(-1px);
+		box-shadow: 0 8px 24px -8px var(--tf-glow);
+	}
+
+	/* The console */
+	.console {
+		margin: 0;
+		min-width: 0;
+		border: 1px solid var(--tf-border);
+		border-radius: 0.9rem;
+		background: var(--tf-terminal);
+		color: var(--tf-terminal-text);
+		box-shadow:
+			0 1px 0 rgb(255 255 255 / 0.04) inset,
+			0 30px 60px -30px rgb(10 12 30 / 0.55);
+		overflow: hidden;
+		font-size: 0.8125rem;
+	}
+
+	.chrome {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.65rem 0.9rem;
+		border-bottom: 1px solid rgb(255 255 255 / 0.07);
+		color: #9ea3bd;
+	}
+
+	.dots {
+		display: inline-flex;
+		gap: 0.35rem;
+	}
+
+	.dots i {
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 50%;
+		background: rgb(255 255 255 / 0.14);
+	}
+
+	.where {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		font-family: var(--__sl-font-mono);
+		font-size: 0.75rem;
+	}
+
+	.facts {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.8rem 0.9rem 0.2rem;
+	}
+
+	.status {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.15rem 0.6rem;
+		border-radius: 999px;
+		background: rgb(47 191 155 / 0.14);
+		color: #4fd8b4;
+		font-weight: 600;
+	}
+
+	.status .dot {
+		width: 0.45rem;
+		height: 0.45rem;
+		border-radius: 50%;
+		background: currentColor;
+	}
+
+	.fact {
+		padding: 0.15rem 0.55rem;
+		border-radius: 0.4rem;
+		background: rgb(255 255 255 / 0.06);
+		color: #b4b8cf;
+		font-family: var(--__sl-font-mono);
+		font-size: 0.72rem;
+	}
+
+	.log {
+		margin: 0;
+		padding: 0.8rem 0.9rem;
+		background: transparent;
+		border: 0;
+		overflow-x: auto;
+		line-height: 1.7;
+	}
+
+	.log code {
+		display: grid;
+		background: none;
+		padding: 0;
+		color: inherit;
+		font-size: 0.78rem;
+	}
+
+	/* Flex, so the template's whitespace between the spans does not render */
+	.line {
+		display: flex;
+		white-space: nowrap;
+		animation: appear 420ms ease-out both;
+		animation-delay: calc(var(--i) * 260ms + 300ms);
+	}
+
+	@keyframes appear {
+		from {
+			opacity: 0;
+			transform: translateY(3px);
+		}
+	}
+
+	.seq {
+		flex: none;
+		width: 2.2em;
+		color: #565b78;
+		user-select: none;
+	}
+
+	.text {
+		white-space: pre;
+	}
+
+	.line.ok {
+		color: #8fe3c7;
+	}
+	.line.skip {
+		color: #8a8fa8;
+	}
+	.line.muted {
+		color: #a9aecb;
+	}
+	.line.summary {
+		color: #ffffff;
+		font-weight: 600;
+	}
+	.line mark {
+		padding: 0 0.25rem;
+		border-radius: 0.25rem;
+		background: rgb(245 158 59 / 0.18);
+		color: #ffc27a;
+	}
+
+	.results {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.35rem 1.1rem;
+		padding: 0.75rem 0.9rem;
+		border-top: 1px solid rgb(255 255 255 / 0.07);
+		background: rgb(255 255 255 / 0.025);
+		color: #a9aecb;
+	}
+
+	.count strong {
+		font-size: 1rem;
+		color: #ffffff;
+	}
+	.count.ok strong {
+		color: #4fd8b4;
+	}
+	.count.fail strong {
+		color: #ff8aa0;
+	}
+
+	.artifacts {
+		margin-inline-start: auto;
+		font-family: var(--__sl-font-mono);
+		font-size: 0.72rem;
+		color: #7d82a0;
+	}
+
+	@media (min-width: 60rem) {
+		.tf-hero {
+			grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+			padding-block: clamp(3rem, 2rem + 6vmin, 6rem) 2rem;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.pulse,
+		.line {
+			animation: none;
+		}
+	}
+</style>

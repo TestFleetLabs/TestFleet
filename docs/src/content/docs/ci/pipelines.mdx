@@ -1,0 +1,181 @@
+---
+title: Run tests from a pipeline
+description: Start a TestFleet run after a deployment, stream its log into the job, and fail the job unless the tests passed.
+---
+
+import { Steps, Tabs, TabItem, Aside } from "@astrojs/starlight/components"
+
+A deployment pipeline can hand its freshly deployed environment to TestFleet, wait for the result, and fail when the tests fail:
+
+```text
+build app 1.4.2 and its E2E image 1.4.2 → deploy to staging
+  → TestFleet: use portal-e2e:1.4.2, run it on staging, wait
+  → pass or fail the pipeline on the run's status
+```
+
+Updating the test definition's image tag is part of the step on purpose. The E2E image is versioned with the application, so when staging moves to 1.4.2, its tests move too, both for this run and for every scheduled run after it.
+
+## Set up
+
+<Steps>
+
+1. **Create a token.** In TestFleet, **Settings → API tokens → New token**. It is shown once. A token acts as the user who created it, so create it as a dedicated user such as `ci@example.com` (invite one, and accept the invitation), and the pipeline keeps working when its author leaves. See [API tokens](/guides/users/#api-tokens).
+
+2. **Store it in the CI system** as a masked secret, `TESTFLEET_TOKEN`.
+
+3. **Copy a script into the application's repository**, for example as `ci/testfleet-run.sh`:
+
+   - [`testfleet-run.sh`](https://github.com/TestFleetLabs/TestFleet/blob/main/deploy/ci/testfleet-run.sh) for POSIX shells, needs `curl` and `jq`
+   - [`testfleet-run.ps1`](https://github.com/TestFleetLabs/TestFleet/blob/main/deploy/ci/testfleet-run.ps1) for PowerShell 7
+
+   ```sh
+   mkdir -p ci
+   curl -fsSL -o ci/testfleet-run.sh \
+     https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/ci/testfleet-run.sh
+   ```
+
+</Steps>
+
+## Use the script
+
+```sh
+export TESTFLEET_URL=https://testfleet.example.internal
+export TESTFLEET_TOKEN=tf_…
+sh ci/testfleet-run.sh customer-portal e2e staging 1.4.2
+```
+
+```text
+TestFleet: e2e now uses ghcr.io/acme/portal-e2e:1.4.2
+TestFleet: run 1842 of ghcr.io/acme/portal-e2e:1.4.2 on staging
+TestFleet: https://testfleet.example.internal/runs/1842
+…the suite's output, as it runs…
+TestFleet: run 1842 passed (41 passed, 0 failed, 3 skipped)
+```
+
+| Argument          |                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `customer-portal` | The project's slug, as in the web UI's URLs                                                                  |
+| `e2e`             | The test definition's slug                                                                                   |
+| `staging`         | The environment's slug                                                                                       |
+| `1.4.2`           | Optional: the E2E image's new tag. The test definition is updated first. Without it, the current image runs. |
+
+| Environment variable     |                                         |
+| ------------------------ | --------------------------------------- |
+| `TESTFLEET_URL`          | TestFleet's address                     |
+| `TESTFLEET_TOKEN`        | The API token                           |
+| `TESTFLEET_POLL_SECONDS` | How often to check the run, default `5` |
+
+**Exit status:** `0` when the run passed, `1` when its tests failed, `2` for anything else: an infrastructure error, a timeout, a cancelled run, or a refused request (with TestFleet's message, such as `No environment "stagign" in project "customer-portal"`). Only `passed` passes the job.
+
+The PowerShell script takes the same arguments: `pwsh ci/testfleet-run.ps1 customer-portal e2e staging 1.4.2`.
+
+If the job itself is cancelled, the TestFleet run keeps going. Cancel it on the run page, or with `POST /api/v1/runs/:id/cancel`.
+
+<Aside type="caution" title="One deployment per environment at a time">
+  If two pipelines update the tag and start a run at the same moment, one of them can end up testing
+  the other's image. Let pipelines that deploy the same environment wait for each other, as the
+  examples below do with GitHub's `concurrency` and GitLab's `resource_group`. The run's response
+  names the image it actually uses.
+</Aside>
+
+## Examples
+
+<Tabs>
+<TabItem label="GitHub Actions">
+
+GitHub-hosted runners cannot reach a TestFleet inside your network; use a self-hosted runner that can.
+
+```yaml title=".github/workflows/deploy.yml"
+e2e:
+  needs: deploy-staging
+  runs-on: [self-hosted]
+  concurrency: staging
+  steps:
+    - uses: actions/checkout@v4
+    - run: sh ci/testfleet-run.sh customer-portal e2e staging "${{ github.ref_name }}"
+      env:
+        TESTFLEET_URL: https://testfleet.example.internal
+        TESTFLEET_TOKEN: ${{ secrets.TESTFLEET_TOKEN }}
+```
+
+</TabItem>
+<TabItem label="GitLab CI">
+
+```yaml title=".gitlab-ci.yml"
+e2e:staging:
+  stage: verify
+  needs: ["deploy:staging"]
+  resource_group: staging
+  image: alpine:3.22
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - sh ci/testfleet-run.sh customer-portal e2e staging "$CI_COMMIT_TAG"
+  variables:
+    TESTFLEET_URL: https://testfleet.example.internal
+  # TESTFLEET_TOKEN: a masked CI/CD variable
+```
+
+</TabItem>
+<TabItem label="Azure Pipelines">
+
+```yaml title="azure-pipelines.yml"
+- stage: e2e_staging
+  dependsOn: deploy_staging
+  jobs:
+    - deployment: e2e
+      environment: staging # an environment with an exclusive lock check
+      pool: self-hosted
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - checkout: self
+              - pwsh: ./ci/testfleet-run.ps1 customer-portal e2e staging "$(Build.SourceBranchName)"
+                env:
+                  TESTFLEET_URL: https://testfleet.example.internal
+                  TESTFLEET_TOKEN: $(TESTFLEET_TOKEN)
+```
+
+</TabItem>
+<TabItem label="Jenkins">
+
+```groovy title="Jenkinsfile"
+stage('E2E on staging') {
+  options { lock('staging') }   // Lockable Resources plugin
+  environment {
+    TESTFLEET_URL   = 'https://testfleet.example.internal'
+    TESTFLEET_TOKEN = credentials('testfleet-token')
+  }
+  steps {
+    sh "sh ci/testfleet-run.sh customer-portal e2e staging ${env.TAG_NAME}"
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Without the script
+
+The script is a thin wrapper around three API calls. Any language with an HTTP client can do the same:
+
+```sh
+api=https://testfleet.example.internal/api/v1
+auth="Authorization: Bearer $TESTFLEET_TOKEN"
+
+# 1. Point the test definition at the new image tag
+curl -fsS -X PATCH -H "$auth" -H 'Content-Type: application/json' \
+  -d '{"tag": "1.4.2"}' "$api/projects/customer-portal/test-definitions/e2e"
+
+# 2. Start a run
+curl -fsS -X POST -H "$auth" -H 'Content-Type: application/json' \
+  -d '{"test_definition": "e2e", "environment": "staging"}' \
+  "$api/projects/customer-portal/runs"
+# → 201 {"id": 1842, "status": "queued", "final": false, …}
+
+# 3. Poll until "final" is true, then read "status"
+curl -fsS -H "$auth" "$api/runs/1842"
+```
+
+To print the log while waiting, fetch `GET /runs/1842/log?after=<n>` on each poll and pass the `TestFleet-Log-Sequence` response header as the next `after`. See the [API reference](/ci/api/).

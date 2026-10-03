@@ -1,0 +1,60 @@
+---
+// "Whatever your suite uses": TestFleet only sees a container.
+const names = ['Playwright', 'Cypress', 'Selenium', 'pytest', 'Jest', 'xUnit', 'k6', 'a shell script'];
+---
+
+<div class="tf-frameworks not-content">
+	<p>Runs any suite that fits in a container</p>
+	<ul>
+		{names.map((name) => <li>{name}</li>)}
+	</ul>
+</div>
+
+<style>
+	.tf-frameworks {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.9rem;
+		padding-block: 1.5rem 2.5rem;
+	}
+
+	p {
+		margin: 0;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+	}
+
+	ul {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.5rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	li {
+		margin: 0;
+		padding: 0.35rem 0.85rem;
+		border: 1px solid var(--tf-border);
+		border-radius: 999px;
+		background: var(--tf-surface);
+		color: var(--sl-color-gray-1);
+		font-size: var(--sl-text-sm);
+		transition:
+			border-color 160ms ease,
+			color 160ms ease;
+	}
+
+	li:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+
+	li:last-child {
+		font-style: italic;
+		color: var(--sl-color-gray-2);
+	}
+</style>

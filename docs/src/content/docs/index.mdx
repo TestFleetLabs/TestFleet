@@ -1,0 +1,144 @@
+---
+title: TestFleet
+description: Self-hosted scheduling, execution, and monitoring for containerized end-to-end test suites. Any framework, one Docker host.
+template: splash
+editUrl: false
+lastUpdated: false
+pagefind: false
+hero:
+  title: Tests belong to the application. <span class="accent">Execution belongs to TestFleet.</span>
+  tagline: Ship your end-to-end suite as a container image. TestFleet schedules it, runs it in isolation against each environment, streams its output, keeps its results, and tells you when something breaks.
+  actions:
+    - text: Quick start
+      link: /start/quick-start/
+      icon: right-arrow
+    - text: Read the docs
+      link: /start/introduction/
+      variant: minimal
+      icon: open-book
+---
+
+import Frameworks from "../../components/landing/Frameworks.astro"
+import Features from "../../components/landing/Features.astro"
+import Section from "../../components/landing/Section.astro"
+import Pipeline from "../../components/landing/Pipeline.astro"
+import Statuses from "../../components/landing/Statuses.astro"
+import CallToAction from "../../components/landing/CallToAction.astro"
+
+<Frameworks />
+
+<Features />
+
+<Section eyebrow="The contract" title="Your suite stays yours. It only needs to fit in a container.">
+
+The suite lives in the application's repository, versioned with the code it tests. TestFleet asks for very little:
+
+- configuration arrives as environment variables
+- exit code `0` means passed
+- logs go to stdout and stderr
+- JUnit XML and any other files go to `/TestFleet/artifacts/`
+
+That is the whole contract. Playwright, Cypress, pytest, or a shell script all fit.
+
+[Read the container contract →](/suites/container-contract/)
+
+<Fragment slot="visual">
+
+```dockerfile title="Dockerfile"
+FROM mcr.microsoft.com/playwright:v1.56.0-noble
+WORKDIR /suite
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN mkdir -p /TestFleet/artifacts && chown -R pwuser /TestFleet
+USER pwuser
+CMD ["npx", "playwright", "test"]
+```
+
+```text title="What the container gets"
+BASE_URL=https://staging.portal.example.com    # from the environment
+API_TOKEN=••••••••                             # a secret, masked in logs
+TestFleet_RUN_ID=1842                          # set by TestFleet
+TestFleet_ENVIRONMENT=staging
+TestFleet_ARTIFACTS_DIR=/TestFleet/artifacts
+```
+
+</Fragment>
+</Section>
+
+<Section eyebrow="One pipeline" title="Run now, on a schedule, or from CI. Same path every time." flip>
+
+A click, a cron schedule, and an API call all create the same queued run. The dispatcher starts it when the global limit and the environment's own limit allow, so a burst of runs never overloads the host or the environment they test.
+
+Each run records the exact image digest it used, so a run from last month can be traced to what it actually tested.
+
+<Fragment slot="visual">
+	<Pipeline />
+</Fragment>
+</Section>
+
+<Section eyebrow="Honest results" title="A failing test is not a broken registry.">
+
+TestFleet keeps **failed** (your tests found a problem) apart from **error** (TestFleet could not run them). An unreachable registry, a missing image, or a container killed for memory never shows up as a red test.
+
+The exit code and the JUnit report decide together: a suite that crashes in its setup, or swallows its own exit code, still gets the right status.
+
+[How the status is decided →](/guides/runs/#how-the-final-status-is-decided)
+
+<Fragment slot="visual">
+	<Statuses />
+</Fragment>
+</Section>
+
+<Section eyebrow="CI integration" title="Deploy, test, and gate the release in one step." flip>
+
+After a deployment, the pipeline points the test definition at the matching E2E image, starts a run, streams its log into the job, and fails the job unless the run passed. One script for POSIX shells, one for PowerShell.
+
+[Run tests from a pipeline →](/ci/pipelines/)
+
+<Fragment slot="visual">
+
+```yaml title=".github/workflows/deploy.yml"
+e2e:
+  needs: deploy-staging
+  runs-on: [self-hosted]
+  concurrency: staging
+  steps:
+    - uses: actions/checkout@v4
+    - run: sh ci/testfleet-run.sh customer-portal e2e staging "${{ github.ref_name }}"
+      env:
+        TESTFLEET_URL: https://testfleet.example.internal
+        TESTFLEET_TOKEN: ${{ secrets.TESTFLEET_TOKEN }}
+```
+
+```text title="Job output"
+TestFleet: e2e now uses ghcr.io/acme/portal-e2e:1.4.2
+TestFleet: run 1842 of ghcr.io/acme/portal-e2e:1.4.2 on staging
+…the suite's output, as it runs…
+TestFleet: run 1842 passed (41 passed, 0 failed, 3 skipped)
+```
+
+</Fragment>
+</Section>
+
+<Section eyebrow="Self-hosted" title="Your network, your data, one Docker host.">
+
+TestFleet runs as three containers: the app, PostgreSQL, and a Docker socket proxy that only allows the calls TestFleet needs. Test containers run on their own network and cannot reach TestFleet's database.
+
+It runs on any 64-bit Linux host with Docker, `amd64` or `arm64`, down to a Raspberry Pi. Log in with your company's identity provider over OpenID Connect, or with passwords and invitations.
+
+[Install TestFleet →](/operate/install/)
+
+<Fragment slot="visual">
+
+```sh title="On the server"
+curl -fsSLO https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/compose.yaml
+curl -fsSL -o .env https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/.env.example
+# fill in PHX_HOST, SECRET_KEY_BASE, CLOAK_KEY, POSTGRES_PASSWORD
+docker compose up -d
+```
+
+</Fragment>
+</Section>
+
+<CallToAction />

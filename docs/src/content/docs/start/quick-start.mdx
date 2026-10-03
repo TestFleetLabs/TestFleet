@@ -1,0 +1,93 @@
+---
+title: Quick start
+description: Install TestFleet with Docker Compose and run a first check against a website.
+---
+
+import { Steps, Aside } from "@astrojs/starlight/components"
+
+This guide installs TestFleet on a machine with Docker and runs a first, tiny suite: a container that checks a website answers. It takes a few minutes. For a production setup behind a reverse proxy, continue with [Install](/operate/install/) afterwards.
+
+You need a 64-bit Linux host (or a laptop) with **Docker Engine and Compose v2.20 or later**, and `openssl` to generate secrets.
+
+## Install
+
+<Steps>
+
+1. Download the Compose file and the configuration template into a new directory:
+
+   ```sh
+   mkdir testfleet && cd testfleet
+   curl -fsSLO https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/compose.yaml
+   curl -fsSL -o .env https://raw.githubusercontent.com/TestFleetLabs/TestFleet/main/deploy/.env.example
+   ```
+
+2. Fill in the four required values in `.env`. Generate the secrets with:
+
+   ```sh
+   openssl rand -base64 48   # SECRET_KEY_BASE
+   openssl rand -base64 32   # CLOAK_KEY
+   openssl rand -hex 24      # POSTGRES_PASSWORD
+   ```
+
+   For a trial on your own machine, set `PHX_HOST=localhost`. On a server, use the host name your users will open.
+
+   <Aside type="caution" title="Keep CLOAK_KEY safe">
+     `CLOAK_KEY` encrypts environment variables, registry passwords, and notification URLs. A
+     database restored without it has unreadable secrets. Back it up with the database.
+   </Aside>
+
+3. Start the stack:
+
+   ```sh
+   docker compose up -d
+   docker compose ps          # testfleet, db, and docker-socket-proxy are up
+   ```
+
+   TestFleet listens on `127.0.0.1:4000` and runs its database migrations on every start.
+
+4. Create the first admin. While TestFleet has no users, it writes a one-time setup link to its log:
+
+   ```sh
+   docker compose logs testfleet | grep "No users yet"
+   # No users yet. Create the first admin at https://localhost/setup?token=…
+   ```
+
+   The link uses `https://<PHX_HOST>`, as a reverse proxy would serve it. For a trial without one, open the same path on `http://localhost:4000` instead: `http://localhost:4000/setup?token=…`. TestFleet only redirects to HTTPS for other host names.
+
+</Steps>
+
+## Run a first check
+
+This "suite" is the smallest thing that fits the [container contract](/suites/container-contract/): a stock Alpine image whose command fetches a URL. It exits `0` when the site answers and non-zero when it does not.
+
+<Steps>
+
+1. **Projects → New project.** Name it `Website`.
+
+2. **New environment** on the project page. Name it `production`, and add a variable `BASE_URL` with the address of a website you want to check, such as `https://example.com`.
+
+3. **New test definition.** Name it `Smoke`, with:
+
+   - **Image:** `alpine:3`
+   - **Command**, one argument per line (there is no shell unless you start one, as here):
+
+     ```text
+     sh
+     -c
+     wget -q --spider "$BASE_URL" && echo "$BASE_URL answers"
+     ```
+
+   Leave the timeout and limits at their defaults.
+
+4. On the test definition's page, the **Run now** panel lists the project's environments. Start a run on `production`. The run page opens and follows the run live: `queued`, `preparing` while Docker pulls `alpine:3`, `running`, and finally `passed`, with the log line `https://example.com answers`.
+
+5. Change `BASE_URL` to an address that does not exist and run it again: the run ends `failed`, because the command exited non-zero.
+
+</Steps>
+
+## Next steps
+
+- Schedule the check: **New schedule** on the project page, for example `*/15 * * * *` against `production`. See [Schedules](/guides/schedules/).
+- Get told when it breaks: an admin adds a channel under **Notifications**. See [Notifications](/guides/notifications/).
+- Package a real suite: [The container contract](/suites/container-contract/) and the [Playwright example](/suites/playwright/).
+- Put TestFleet behind TLS for your team: [Install](/operate/install/).
