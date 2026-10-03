@@ -128,9 +128,18 @@ jobs:
   # The production image, booted with the production Compose file on an empty
   # database (.specs/milestone-9-deployment.md, section 9). A smoke test: it builds,
   # starts, migrates, and answers /health. Its layers are cached for `publish`.
+  # Each platform builds on a native runner: compiling under emulation is slow.
   image:
-    name: Production image
-    runs-on: ubuntu-latest
+    name: Production image (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         working-directory: deploy
@@ -144,10 +153,11 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/${{ matrix.arch }}
           load: true
           tags: testfleet:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.arch }}
 
       - name: Generate .env
         run: |
@@ -176,11 +186,22 @@ jobs:
   # Publishes the image to GHCR once everything above is green (Milestone 9,
   # section 11): main and sha-<short> for every push to main; 1.2.3, 1.2, and latest
   # for a v1.2.3 tag. Pull requests never publish.
+  #
+  # One image for linux/amd64 and linux/arm64 (a Raspberry Pi, for example): each
+  # platform is pushed by digest from its native runner, from the layers `image`
+  # cached, then `manifest` puts both under the tags.
   publish:
-    name: Publish image
+    name: Publish image (${{ matrix.arch }})
     if: github.event_name == 'push'
     needs: [check, docker, image]
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -205,6 +226,57 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # For the labels only; the tags are put on in `manifest`.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/testfleetlabs/testfleet
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=ghcr.io/testfleetlabs/testfleet,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+
+      - name: Export the digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  manifest:
+    name: Publish multi-platform image
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -217,10 +289,12 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+      - name: Put both platforms under the tags
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/testfleetlabs/testfleet@sha256:%s ' *)
+
+      - name: Inspect
+        run: docker buildx imagetools inspect "ghcr.io/testfleetlabs/testfleet:${{ steps.meta.outputs.version }}"

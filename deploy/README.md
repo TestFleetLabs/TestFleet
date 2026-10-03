@@ -209,7 +209,13 @@ services:
 | `latest` | the newest release (not prereleases like `v1.3.0-rc.1`) |
 | `main`, `sha-<commit>` | every commit on `main`, once CI is green |
 
-Only `linux/amd64` is published for now.
+Every tag holds images for `linux/amd64` and `linux/arm64`; Docker pulls the one that fits the host.
+
+### Raspberry Pi and other ARM hosts
+
+TestFleet runs on a Raspberry Pi 4 or 5 with a 64-bit OS (`uname -m` says `aarch64`); 32-bit Raspberry Pi OS is not supported. The stack itself needs about 1 GB of memory; the test containers need what they always need, so a Pi with 8 GB is a comfortable minimum for browser suites.
+
+The suites run on the same host, so **their images must exist for `linux/arm64` too.** The Playwright images (`mcr.microsoft.com/playwright`) do; your own suite image needs a multi-platform build (`docker buildx build --platform linux/amd64,linux/arm64 …`). An amd64-only image fails the run with an error like "no matching manifest for linux/arm64".
 
 ## Trying it on a development machine
 

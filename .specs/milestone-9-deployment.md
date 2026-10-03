@@ -37,7 +37,7 @@ The main spec defines the deployment model (section 51, and the amendment "TestF
 
 | What | Milestone |
 |------|-----------|
-| `linux/arm64` images, Docker Hub | later |
+| Docker Hub (`linux/arm64` images were added later, section 10) | later |
 | Release automation (changelog, GitHub releases) | later |
 | TLS inside TestFleet (it runs behind a reverse proxy, section 6) | – |
 | Authentication | later (main spec section 52, milestone 1) |
@@ -159,7 +159,7 @@ A fourth job, `publish`, pushes the image to `ghcr.io/testfleetlabs/testfleet` (
 
 - A release tag must match the version in `mix.exs` (`v` + version); otherwise `publish` fails before building.
 - `docker/metadata-action` adds the OCI labels, among them `org.opencontainers.image.source`, which links the package to the repository.
-- Only `linux/amd64`.
+- **`linux/amd64` and `linux/arm64`** (added 2026-10-03, for a Raspberry Pi; it was out of scope at first). Each platform builds on a native GitHub runner (`ubuntu-latest`, `ubuntu-24.04-arm`) instead of under QEMU emulation, where compiling the release is slow. `image` smoke-tests both platforms. `publish` pushes each platform by digest from its runner, and a fifth job, `manifest`, puts both digests under the tags with `docker buildx imagetools create`. The arm runners are free for public repositories only.
 - The package has to be made public once, in the organization's package settings, after the first push: GHCR creates packages private.
 
 `deploy/compose.yaml` has no `build:`; servers pull. `.env.example` sets `TESTFLEET_IMAGE`, and the README asks to pin a version there, so an upgrade is a deliberate change.
