@@ -34,4 +34,4 @@ A new page needs a file in `src/content/docs/` and an entry in the `sidebar` of 
 
 Write links between pages from the site root, with a trailing slash: `[API reference](/ci/api/)`. The site is served under `/TestFleet/` on GitHub Pages; a remark plugin adds that base to Markdown links, and components use `withBase()` from `src/lib/links.ts`.
 
-For a custom domain, build with `DOCS_SITE=https://docs.example.com DOCS_BASE=/`.
+For a custom domain, build with `DOCS_SITE=https://testfleet.io`; the base then defaults to `/` (override with `DOCS_BASE`). In CI, both come from the repository's Actions variables of the same names.

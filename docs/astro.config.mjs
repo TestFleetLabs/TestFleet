@@ -5,10 +5,11 @@ import { defineConfig } from "astro/config"
 
 import baseLinks from "./src/plugins/base-links.mjs"
 
-// GitHub Pages serves the site at https://testfleetlabs.github.io/TestFleet/. For a
-// custom domain, build with DOCS_SITE=https://docs.example.com DOCS_BASE=/
-const site = process.env.DOCS_SITE ?? "https://testfleetlabs.github.io"
-const base = process.env.DOCS_BASE ?? "/TestFleet"
+// Without DOCS_SITE, the site is built for https://testfleetlabs.github.io/TestFleet/.
+// With a custom domain (DOCS_SITE=https://testfleet.io), it is served from the root,
+// unless DOCS_BASE says otherwise. `||`: CI passes unset variables as empty strings.
+const site = process.env.DOCS_SITE || "https://testfleetlabs.github.io"
+const base = process.env.DOCS_BASE || (process.env.DOCS_SITE ? "/" : "/TestFleet")
 
 const repository = "https://github.com/TestFleetLabs/TestFleet"
 

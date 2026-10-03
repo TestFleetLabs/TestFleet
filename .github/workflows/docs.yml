@@ -27,12 +27,18 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
           cache-dependency-path: docs/package-lock.json
 
       - run: npm ci
+      # Repository variables (Settings → Secrets and variables → Actions → Variables),
+      # not the github-pages environment's: this job does not use that environment.
+      # DOCS_SITE=https://testfleet.io for the custom domain; unset for github.io.
       - run: npm run build
+        env:
+          DOCS_SITE: ${{ vars.DOCS_SITE }}
+          DOCS_BASE: ${{ vars.DOCS_BASE }}
 
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request'
