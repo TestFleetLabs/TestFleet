@@ -137,3 +137,11 @@ mix testfleet.try --image testfleet/fixture-suite:dev --env FIXTURE_MODE=chatty
 ## What's next
 
 Planned directions include a CLI on top of the API, remote runners and other execution backends (ECS, Kubernetes), object storage for artifacts, and finer permissions. The roadmap is section 45 of the spec.
+
+## Contributing
+
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Contributors accept the [Contributor License Agreement](CLA.md) once, through a bot comment on their first pull request.
+
+## License
+
+TestFleet is free software under the [GNU Affero General Public License v3.0](LICENSE). You can use, self-host, and modify it; if you offer a modified version to others over a network, you must make its source available to them.

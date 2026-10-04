@@ -103,6 +103,8 @@ ENV ARTIFACTS_DIR=/app/artifacts
 
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/testfleet ./
+# The image distributes TestFleet, so it carries its license (AGPL-3.0)
+COPY LICENSE /app/LICENSE
 
 USER nobody
 

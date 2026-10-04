@@ -2298,7 +2298,7 @@ Built from a Mix release (`mix phx.gen.release --docker`, adapted), in two stage
 - **builder:** `hexpm/elixir` with the versions of `.tool-versions`; compiles the release with minified, digested assets.
 - **runner:** `debian:<same>-slim` with the release only, plus `curl` for the health check, and `libsctp1` only to keep OTP's socket module from logging a warning on every start. Runs as `nobody`.
 
-The image contains Erlang, the release, and compiled assets. It does not contain PostgreSQL, test suite images, browsers, or test code; E2E containers are never baked into it. `/app/artifacts` exists in the image, owned by `nobody`, so a named volume mounted there is writable without setup.
+The image contains Erlang, the release, compiled assets, and the license (`/app/LICENSE`, AGPL-3.0). It does not contain PostgreSQL, test suite images, browsers, or test code; E2E containers are never baked into it. `/app/artifacts` exists in the image, owned by `nobody`, so a named volume mounted there is writable without setup.
 
 Runtime configuration comes from environment variables; the image is never rebuilt per environment.
 
