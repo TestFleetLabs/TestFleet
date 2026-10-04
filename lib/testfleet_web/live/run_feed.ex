@@ -1,8 +1,9 @@
 defmodule TestFleetWeb.RunFeed do
   @moduledoc """
-  A LiveView stream of the newest runs, kept current from the `runs` topic.
+  A LiveView stream of the newest runs, kept current from the organization's runs
+  topic (`Runs.subscribe/1` with the scope).
 
-      socket = RunFeed.init(socket, :runs, Runs.list_runs(limit: 20))
+      socket = RunFeed.init(socket, :runs, Runs.list_runs(socket.assigns.current_scope, limit: 20))
 
       def handle_info({event, %Run{}} = message, socket)
           when event in [:run_created, :run_updated, :run_finished] do

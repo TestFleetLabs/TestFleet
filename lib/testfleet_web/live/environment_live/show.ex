@@ -12,7 +12,7 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
 
   @impl true
   def mount(%{"slug" => slug, "env" => env}, _session, socket) do
-    project = Projects.get_project_by_slug!(slug)
+    project = Projects.get_project_by_slug!(socket.assigns.current_scope, slug)
     environment = Environments.get_environment!(project, env)
     variables = Enum.map(environment.variables, &Environments.redact/1)
 

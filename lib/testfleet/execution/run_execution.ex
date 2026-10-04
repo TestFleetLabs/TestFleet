@@ -415,6 +415,10 @@ defmodule TestFleet.Execution.RunExecution do
         "TestFleet.stop_grace_seconds" => to_string(request.stop_grace_seconds)
       }
       |> put_present("TestFleet.project_id", request.project_id && to_string(request.project_id))
+      |> put_present(
+        "TestFleet.organization_id",
+        request.organization_id && to_string(request.organization_id)
+      )
       |> put_present("TestFleet.instance", request.instance_id)
       # The keys, not the values: an attaching process reads the values from the
       # container's environment.

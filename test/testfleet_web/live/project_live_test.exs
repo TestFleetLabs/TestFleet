@@ -39,7 +39,9 @@ defmodule TestFleetWeb.ProjectLiveTest do
         |> follow_redirect(conn, ~p"/projects/customer-portal")
 
       assert has_element?(show, "#project")
-      assert Projects.get_project_by_slug!("customer-portal").name == "Customer Portal"
+
+      assert Projects.get_project_by_slug!(org_scope(), "customer-portal").name ==
+               "Customer Portal"
     end
 
     # Fields left out of form/3 are taken from the rendered DOM, like a browser does.
@@ -89,7 +91,7 @@ defmodule TestFleetWeb.ProjectLiveTest do
       view |> form("#project-form", project: %{name: "", slug: "Bad Slug"}) |> render_submit()
 
       assert has_element?(view, "#project-form")
-      assert Projects.list_projects() == []
+      assert Projects.list_projects(org_scope()) == []
     end
   end
 
@@ -104,7 +106,7 @@ defmodule TestFleetWeb.ProjectLiveTest do
         |> render_submit()
         |> follow_redirect(conn, ~p"/projects/portal")
 
-      assert Projects.get_project_by_slug!("portal").name == "Portal"
+      assert Projects.get_project_by_slug!(org_scope(), "portal").name == "Portal"
     end
   end
 
@@ -131,7 +133,7 @@ defmodule TestFleetWeb.ProjectLiveTest do
         |> follow_redirect(conn, ~p"/projects")
 
       refute has_element?(index, "#projects-#{project.id}")
-      assert Projects.list_projects() == []
+      assert Projects.list_projects(org_scope()) == []
     end
 
     test "an unknown slug is a 404", %{conn: conn} do

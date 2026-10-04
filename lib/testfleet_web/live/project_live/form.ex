@@ -19,7 +19,7 @@ defmodule TestFleetWeb.ProjectLive.Form do
   end
 
   defp apply_action(socket, :edit, %{"slug" => slug}) do
-    project = Projects.get_project_by_slug!(slug)
+    project = Projects.get_project_by_slug!(socket.assigns.current_scope, slug)
 
     socket
     |> assign(:page_title, gettext("Edit %{name}", name: project.name))
@@ -38,7 +38,7 @@ defmodule TestFleetWeb.ProjectLive.Form do
   end
 
   defp save(socket, :new, params) do
-    case Projects.create_project(params) do
+    case Projects.create_project(socket.assigns.current_scope, params) do
       {:ok, project} ->
         {:noreply,
          socket

@@ -27,7 +27,7 @@ defmodule TestFleetWeb.RegistryLive.Form do
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    registry = id |> Registries.get_registry!() |> Registries.redact()
+    registry = Registries.get_registry!(socket.assigns.current_scope, id) |> Registries.redact()
 
     socket
     |> assign(:page_title, gettext("Edit %{name}", name: registry.name))
@@ -50,10 +50,11 @@ defmodule TestFleetWeb.RegistryLive.Form do
     result =
       case socket.assigns.registry do
         %Registry{id: nil} ->
-          Registries.create_registry(params)
+          Registries.create_registry(socket.assigns.current_scope, params)
 
         %Registry{id: id} ->
-          id |> Registries.get_registry!() |> Registries.update_registry(params)
+          Registries.get_registry!(socket.assigns.current_scope, id)
+          |> Registries.update_registry(params)
       end
 
     case result do
@@ -74,12 +75,15 @@ defmodule TestFleetWeb.RegistryLive.Form do
   def handle_event("test_connection", _params, socket) do
     params = socket.assigns.form.params
     registry_id = socket.assigns.registry.id
+    scope = socket.assigns.current_scope
 
     {:noreply,
      socket
      |> assign(:connection, :testing)
      |> start_async(:test_connection, fn ->
-       registry = if registry_id, do: Registries.get_registry!(registry_id), else: %Registry{}
+       registry =
+         if registry_id, do: Registries.get_registry!(scope, registry_id), else: %Registry{}
+
        Registries.test_connection(registry, params)
      end)}
   end

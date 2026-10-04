@@ -16,7 +16,7 @@ defmodule TestFleetWeb.API.RunFileController do
   action_fallback TestFleetWeb.API.FallbackController
 
   def log(conn, %{"id" => id} = params) do
-    with {:ok, run} <- Lookup.run(id),
+    with {:ok, run} <- Lookup.run(conn.assigns.current_scope, id),
          :ok <- not_expired(run.logs_expired_at, "log"),
          {:ok, after_sequence} <- after_param(params) do
       RunLogController.send_log(conn, run, after: after_sequence)
@@ -24,7 +24,7 @@ defmodule TestFleetWeb.API.RunFileController do
   end
 
   def artifacts(conn, %{"id" => id}) do
-    with {:ok, run} <- Lookup.run(id),
+    with {:ok, run} <- Lookup.run(conn.assigns.current_scope, id),
          :ok <- not_expired(run.artifacts_expired_at, "artifacts") do
       render(conn, :artifacts, run: run, artifacts: Artifacts.list_artifacts(run))
     end
@@ -33,7 +33,7 @@ defmodule TestFleetWeb.API.RunFileController do
   def artifact(conn, %{"id" => id, "name" => segments}) do
     name = Enum.join(segments, "/")
 
-    with {:ok, run} <- Lookup.run(id),
+    with {:ok, run} <- Lookup.run(conn.assigns.current_scope, id),
          :ok <- not_expired(run.artifacts_expired_at, "artifacts"),
          {:ok, artifact} <- fetch_artifact(run, name) do
       # :error when the row has no file (a crash during retention)
@@ -45,7 +45,7 @@ defmodule TestFleetWeb.API.RunFileController do
   end
 
   defp fetch_artifact(run, name) do
-    case Artifacts.get_artifact(run.id, name) do
+    case Artifacts.get_artifact(run, name) do
       nil -> not_found(run, name)
       artifact -> {:ok, artifact}
     end

@@ -3,6 +3,7 @@ defmodule TestFleet.OrganizationsFixtures do
   Test helpers for creating organizations through `TestFleet.Organizations`.
   """
 
+  alias TestFleet.Accounts.Scope
   alias TestFleet.Organizations
 
   @doc """
@@ -19,4 +20,11 @@ defmodule TestFleet.OrganizationsFixtures do
 
     organization
   end
+
+  @doc """
+  A scope within the organization (default: the installation's), without a user:
+  for calling the contexts in tests.
+  """
+  def org_scope(organization \\ Organizations.single!()),
+    do: %Scope{organization: organization}
 end

@@ -19,7 +19,7 @@ defmodule TestFleet.NotificationsTest do
 
       refute raw =~ "secret-token"
       assert hint == "hooks.slack.com/…"
-      assert Notifications.get_channel!(channel.id).url == slack_url()
+      assert Notifications.get_channel!(org_scope(), channel.id).url == slack_url()
     end
 
     test "the signing secret is encrypted too" do
@@ -69,14 +69,20 @@ defmodule TestFleet.NotificationsTest do
     end
 
     test "a new URL channel needs a URL" do
-      assert {:error, changeset} = Notifications.create_channel(%{name: "Slack", kind: :slack})
+      assert {:error, changeset} =
+               Notifications.create_channel(org_scope(), %{name: "Slack", kind: :slack})
+
       assert "can't be blank" in errors_on(changeset).url
     end
 
     test "URLs must be http(s) with a host" do
       for url <- ["ftp://example.com/hook", "hooks.slack.com/services/x", "https://"] do
         assert {:error, changeset} =
-                 Notifications.create_channel(%{name: "Hook", kind: :webhook, url: url})
+                 Notifications.create_channel(org_scope(), %{
+                   name: "Hook",
+                   kind: :webhook,
+                   url: url
+                 })
 
         assert errors_on(changeset).url != [], "accepted #{url}"
       end
@@ -98,7 +104,7 @@ defmodule TestFleet.NotificationsTest do
       assert channel.url == nil
 
       assert {:error, changeset} =
-               Notifications.create_channel(%{
+               Notifications.create_channel(org_scope(), %{
                  name: "Mail",
                  kind: :email,
                  recipients_text: "qa@example.com, not-an-address"
@@ -107,14 +113,22 @@ defmodule TestFleet.NotificationsTest do
       assert ["not an email address: not-an-address"] = errors_on(changeset).recipients_text
 
       assert {:error, changeset} =
-               Notifications.create_channel(%{name: "Mail", kind: :email, recipients_text: " "})
+               Notifications.create_channel(org_scope(), %{
+                 name: "Mail",
+                 kind: :email,
+                 recipients_text: " "
+               })
 
       assert ["enter at least one address"] = errors_on(changeset).recipients_text
 
       many = Enum.map_join(1..21, ",", &"user#{&1}@example.com")
 
       assert {:error, changeset} =
-               Notifications.create_channel(%{name: "Mail", kind: :email, recipients_text: many})
+               Notifications.create_channel(org_scope(), %{
+                 name: "Mail",
+                 kind: :email,
+                 recipients_text: many
+               })
 
       assert ["at most 20 addresses"] = errors_on(changeset).recipients_text
     end
@@ -123,7 +137,11 @@ defmodule TestFleet.NotificationsTest do
       channel_fixture(name: "E2E Alerts")
 
       assert {:error, changeset} =
-               Notifications.create_channel(%{name: "e2e alerts", kind: :slack, url: slack_url()})
+               Notifications.create_channel(org_scope(), %{
+                 name: "e2e alerts",
+                 kind: :slack,
+                 url: slack_url()
+               })
 
       assert "is already used by another channel" in errors_on(changeset).name
     end
@@ -136,7 +154,7 @@ defmodule TestFleet.NotificationsTest do
 
     test "a secret is too short below 16 characters" do
       assert {:error, changeset} =
-               Notifications.create_channel(%{
+               Notifications.create_channel(org_scope(), %{
                  name: "Hook",
                  kind: :webhook,
                  url: "https://example.com/hook",

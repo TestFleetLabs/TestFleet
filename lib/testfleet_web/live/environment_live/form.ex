@@ -6,7 +6,7 @@ defmodule TestFleetWeb.EnvironmentLive.Form do
 
   @impl true
   def mount(%{"slug" => slug} = params, _session, socket) do
-    project = Projects.get_project_by_slug!(slug)
+    project = Projects.get_project_by_slug!(socket.assigns.current_scope, slug)
 
     {:ok,
      socket

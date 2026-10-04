@@ -19,7 +19,7 @@ defmodule TestFleetWeb.DashboardLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Runs.subscribe()
+      Runs.subscribe(socket.assigns.current_scope)
       Execution.subscribe_system()
       :timer.send_interval(@stats_refresh, :refresh_stats)
     end
@@ -31,7 +31,7 @@ defmodule TestFleetWeb.DashboardLive do
      |> assign(:docker, Execution.docker_status())
      |> assign_stats()
      |> assign_queue()
-     |> RunFeed.init(:recent, Runs.list_runs(limit: @recent_limit))
+     |> RunFeed.init(:recent, Runs.list_runs(socket.assigns.current_scope, limit: @recent_limit))
      |> assign_upcoming()}
   end
 
@@ -41,16 +41,28 @@ defmodule TestFleetWeb.DashboardLive do
   defp assign_upcoming(socket) do
     socket
     |> assign(:overdue_before, DateTime.add(DateTime.utc_now(), -@overdue_after_seconds))
-    |> stream(:upcoming, Schedules.list_upcoming(@upcoming_limit), reset: true)
+    |> stream(:upcoming, Schedules.list_upcoming(socket.assigns.current_scope, @upcoming_limit),
+      reset: true
+    )
   end
 
   defp assign_stats(socket),
-    do: assign(socket, :stats, Runs.dashboard_stats(socket.assigns.timezone))
+    do:
+      assign(
+        socket,
+        :stats,
+        Runs.dashboard_stats(socket.assigns.current_scope, socket.assigns.timezone)
+      )
 
   # The queue is reloaded rather than patched: when a run leaves it, the next
   # waiting run moves up into the list.
   defp assign_queue(socket) do
-    runs = Runs.list_runs(statuses: [:queued], oldest_first: true, limit: @queue_limit)
+    runs =
+      Runs.list_runs(socket.assigns.current_scope,
+        statuses: [:queued],
+        oldest_first: true,
+        limit: @queue_limit
+      )
 
     socket
     |> assign(:queued_ids, Enum.map(runs, & &1.id))

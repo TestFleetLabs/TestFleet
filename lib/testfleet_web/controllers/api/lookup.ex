@@ -1,12 +1,12 @@
 defmodule TestFleetWeb.API.Lookup do
   @moduledoc """
-  Finds what an API request names, by slug or id. Not
-  found is `{:error, :not_found, message}`, naming what is missing.
+  Finds what an API request names, by slug or id, within the token's
+  organization (the scope). Not found is `{:error, :not_found, message}`, naming what is missing.
   """
   alias TestFleet.{Environments, Projects, Runs, TestDefinitions}
 
-  def project(slug) do
-    case Projects.get_project_by_slug(slug) do
+  def project(scope, slug) do
+    case Projects.get_project_by_slug(scope, slug) do
       nil -> {:error, :not_found, ~s(No project "#{slug}".)}
       project -> {:ok, project}
     end
@@ -26,9 +26,9 @@ defmodule TestFleetWeb.API.Lookup do
     end
   end
 
-  def run(id) do
+  def run(scope, id) do
     with {id, ""} <- Integer.parse(id),
-         %{} = run <- Runs.get_run(id) do
+         %{} = run <- Runs.get_run(scope, id) do
       {:ok, run}
     else
       _ -> {:error, :not_found, ~s(No run "#{id}".)}

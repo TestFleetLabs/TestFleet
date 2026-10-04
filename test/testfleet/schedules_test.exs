@@ -174,11 +174,11 @@ defmodule TestFleet.SchedulesTest do
     schedule_fixture(project: project, test_definition: disabled_definition, now: @now)
     TestDefinitions.update_test_definition(disabled_definition, %{enabled: false})
 
-    upcoming = Schedules.list_upcoming(10)
+    upcoming = Schedules.list_upcoming(org_scope(), 10)
 
     assert Enum.map(upcoming, & &1.id) == [first.id, second.id]
     assert hd(upcoming).test_definition.project.id == project.id
-    assert [_] = Schedules.list_upcoming(1)
+    assert [_] = Schedules.list_upcoming(org_scope(), 1)
   end
 
   test "deleting the test definition or the environment deletes the schedule",

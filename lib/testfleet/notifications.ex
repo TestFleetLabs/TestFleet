@@ -2,14 +2,15 @@ defmodule TestFleet.Notifications do
   @moduledoc """
   Notification channels and deliveries.
 
-  Channels are global: without authentication there are no users to own them.
-  Their webhook URLs and signing secrets are credentials: encrypted at rest, and
+  Channels belong to an organization and only receive its events; system events
+  are delivered only in `:single` mode. Their webhook URLs and signing secrets are credentials: encrypted at rest, and
   removed by `redact/1` before a channel reaches a template, a form, or a stream.
   Deliveries are sent by `TestFleet.Notifications.DeliveryWorker`; Oban job args
   carry the delivery id only, because Oban stores them in plain JSON.
 
-  Deliveries are broadcast on the `notifications` topic as `{:delivery, delivery}`
-  (with its channel) when they are created and after every attempt.
+  Deliveries are broadcast on their organization's `notifications:<organization_id>`
+  topic as `{:delivery, delivery}` (with its channel) when they are created and
+  after every attempt.
   """
 
   import Ecto.Query, warn: false
@@ -26,6 +27,9 @@ defmodule TestFleet.Notifications do
     Transitions
   }
 
+  alias TestFleet.Accounts.Scope
+  alias TestFleet.Organizations
+  alias TestFleet.Projects.Project
   alias TestFleet.Repo
   alias TestFleet.Runs
   alias TestFleet.Runs.Run
@@ -49,16 +53,23 @@ defmodule TestFleet.Notifications do
 
   ## Channels
 
-  def list_channels do
-    Repo.all(from c in Channel, order_by: [asc: fragment("lower(?)", c.name)])
+  @doc "The scope's organization's channels, by name."
+  def list_channels(%Scope{} = scope) do
+    Repo.all(
+      from c in Channel,
+        where: c.organization_id == ^organization_id(scope),
+        order_by: [asc: fragment("lower(?)", c.name)]
+    )
   end
 
-  def get_channel!(id), do: Repo.get!(Channel, id)
+  def get_channel!(%Scope{} = scope, id),
+    do: Repo.get_by!(Channel, organization_id: organization_id(scope), id: id)
 
-  def get_channel(id), do: Repo.get(Channel, id)
+  def get_channel(%Scope{} = scope, id),
+    do: Repo.get_by(Channel, organization_id: organization_id(scope), id: id)
 
-  def create_channel(attrs) do
-    %Channel{organization_id: TestFleet.Organizations.single!().id}
+  def create_channel(%Scope{} = scope, attrs) do
+    %Channel{organization_id: organization_id(scope)}
     |> Channel.changeset(attrs)
     |> Repo.insert()
   end
@@ -117,9 +128,15 @@ defmodule TestFleet.Notifications do
     end
   end
 
-  @doc "The number of subscriptions per channel id."
-  def subscription_counts do
-    Repo.all(from s in Subscription, group_by: s.channel_id, select: {s.channel_id, count(s.id)})
+  @doc "The number of subscriptions per channel id, for the organization's channels."
+  def subscription_counts(%Scope{} = scope) do
+    Repo.all(
+      from s in Subscription,
+        join: c in assoc(s, :channel),
+        where: c.organization_id == ^organization_id(scope),
+        group_by: s.channel_id,
+        select: {s.channel_id, count(s.id)}
+    )
     |> Map.new()
   end
 
@@ -135,12 +152,25 @@ defmodule TestFleet.Notifications do
     )
   end
 
-  def get_subscription!(id), do: Repo.get!(Subscription, id)
+  def get_subscription!(%Channel{id: channel_id}, id),
+    do: Repo.get_by!(Subscription, channel_id: channel_id, id: id)
 
-  def create_subscription(%Channel{id: channel_id}, attrs) do
+  @doc "Subscribes a channel; the project must belong to the channel's organization."
+  def create_subscription(%Channel{id: channel_id, organization_id: organization_id}, attrs) do
     %Subscription{channel_id: channel_id}
     |> Subscription.changeset(attrs)
+    |> validate_project_in(organization_id)
     |> Repo.insert()
+  end
+
+  defp validate_project_in(changeset, organization_id) do
+    Ecto.Changeset.validate_change(changeset, :project_id, fn :project_id, project_id ->
+      if Repo.exists?(
+           from p in Project, where: p.id == ^project_id and p.organization_id == ^organization_id
+         ),
+         do: [],
+         else: [project_id: "does not exist"]
+    end)
   end
 
   def delete_subscription(%Subscription{} = subscription), do: Repo.delete(subscription)
@@ -149,8 +179,9 @@ defmodule TestFleet.Notifications do
     do: Subscription.changeset(subscription, attrs)
 
   @doc """
-  The enabled channels with a subscription to `event` that covers `run`: all
-  projects, its project, or its project's environment. Each channel once.
+  The enabled channels of the run's organization with a subscription to `event`
+  that covers `run`: all projects, its project, or its project's environment.
+  Each channel once.
   """
   def channels_for(event, %Run{} = run) do
     project_id =
@@ -162,6 +193,7 @@ defmodule TestFleet.Notifications do
       from c in Channel,
         join: s in Subscription,
         on: s.channel_id == c.id,
+        where: c.organization_id == ^run.organization_id,
         where: c.enabled and fragment("? = ANY(?)", ^event, s.events),
         where:
           is_nil(s.project_id) or
@@ -210,8 +242,17 @@ defmodule TestFleet.Notifications do
   subscription to it; only subscriptions for all projects can have one.
   `dedupe_key` names the episode, so an event is delivered once per episode.
   `data` is stored with the delivery and rendered when it is sent: never secrets.
+
+  System events concern the whole installation: in `:multi` mode they are not
+  delivered to organizations; the operators monitor the installation themselves.
   """
   def notify_system(event, dedupe_key, data) do
+    if Organizations.multi?(),
+      do: {:ok, []},
+      else: do_notify_system(event, dedupe_key, data)
+  end
+
+  defp do_notify_system(event, dedupe_key, data) do
     Repo.all(
       from c in Channel,
         join: s in Subscription,
@@ -255,17 +296,34 @@ defmodule TestFleet.Notifications do
 
   ## Deliveries
 
-  def subscribe_deliveries, do: Phoenix.PubSub.subscribe(TestFleet.PubSub, @topic)
+  @doc "Subscribes to the deliveries of the scope's organization's channels."
+  def subscribe_deliveries(%Scope{} = scope),
+    do: Phoenix.PubSub.subscribe(TestFleet.PubSub, topic(organization_id(scope)))
+
+  defp topic(organization_id), do: "#{@topic}:#{organization_id}"
 
   # Broadcast deliveries reach pages: their channel is redacted.
   defp broadcast_delivery(%Delivery{} = delivery) do
-    Phoenix.PubSub.broadcast(TestFleet.PubSub, @topic, {:delivery, with_channel(delivery)})
+    delivery = with_channel(delivery)
+
+    Phoenix.PubSub.broadcast(
+      TestFleet.PubSub,
+      topic(delivery.channel.organization_id),
+      {:delivery, delivery}
+    )
+
     delivery
   end
 
-  @doc "The newest deliveries, with their (redacted) channel."
-  def list_recent_deliveries(limit \\ 50) do
-    Repo.all(from d in Delivery, order_by: [desc: d.id], limit: ^limit)
+  @doc "The organization's newest deliveries, with their (redacted) channel."
+  def list_recent_deliveries(%Scope{} = scope, limit \\ 50) do
+    Repo.all(
+      from d in Delivery,
+        join: c in assoc(d, :channel),
+        where: c.organization_id == ^organization_id(scope),
+        order_by: [desc: d.id],
+        limit: ^limit
+    )
     |> with_channel()
   end
 
@@ -359,4 +417,6 @@ defmodule TestFleet.Notifications do
   end
 
   defp short(reason), do: String.slice(reason, 0, 500)
+
+  defp organization_id(%Scope{organization: %{id: id}}), do: id
 end

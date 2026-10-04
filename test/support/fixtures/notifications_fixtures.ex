@@ -6,13 +6,19 @@ defmodule TestFleet.NotificationsFixtures do
   `TestFleet.Notifications` (see `config/test.exs`); stub it before sending.
   """
 
+  import TestFleet.OrganizationsFixtures, only: [org_scope: 0, org_scope: 1]
+
   @slack_url "https://hooks.slack.com/services/T000/B000/secret-token-123"
 
   def slack_url, do: @slack_url
 
-  @doc "A Slack channel unless `kind:` says otherwise; URL kinds get a URL with a token."
+  @doc """
+  A Slack channel of `:organization` (default: the installation's) unless `kind:`
+  says otherwise; URL kinds get a URL with a token.
+  """
   def channel_fixture(attrs \\ %{}) do
-    attrs = Map.new(attrs)
+    {organization, attrs} = attrs |> Map.new() |> Map.pop(:organization)
+    scope = if organization, do: org_scope(organization), else: org_scope()
     unique = System.unique_integer([:positive])
 
     defaults =
@@ -27,7 +33,7 @@ defmodule TestFleet.NotificationsFixtures do
       defaults
       |> Map.put(:name, "Channel #{unique}")
       |> Map.merge(attrs)
-      |> TestFleet.Notifications.create_channel()
+      |> then(&TestFleet.Notifications.create_channel(scope, &1))
 
     channel
   end

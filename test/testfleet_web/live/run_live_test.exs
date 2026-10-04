@@ -63,7 +63,7 @@ defmodule TestFleetWeb.RunLiveTest do
         |> render_click()
         |> follow_redirect(conn)
 
-      assert [run] = Runs.list_runs(test_definition: context.test_definition)
+      assert [run] = Runs.list_runs(org_scope(), test_definition: context.test_definition)
       assert %{status: :queued, trigger: :manual, image: "e2e:1.17"} = run
       assert has_element?(run_view, "#run-status[data-status='queued']")
 

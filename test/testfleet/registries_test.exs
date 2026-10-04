@@ -15,8 +15,8 @@ defmodule TestFleet.RegistriesTest do
 
   describe "create_registry/1" do
     test "stores the password encrypted" do
-      assert {:ok, registry} = Registries.create_registry(@valid)
-      assert Registries.get_registry!(registry.id).password == "s3cret-token"
+      assert {:ok, registry} = Registries.create_registry(org_scope(), @valid)
+      assert Registries.get_registry!(org_scope(), registry.id).password == "s3cret-token"
 
       %{rows: [[stored]]} =
         Repo.query!("SELECT password_encrypted FROM registries WHERE id = $1", [registry.id])
@@ -25,7 +25,7 @@ defmodule TestFleet.RegistriesTest do
     end
 
     test "requires name, host, username, and password" do
-      assert {:error, changeset} = Registries.create_registry(%{})
+      assert {:error, changeset} = Registries.create_registry(org_scope(), %{})
 
       assert %{name: [_], host: [_], username: [_], password: ["can't be blank"]} =
                errors_on(changeset)
@@ -38,7 +38,7 @@ defmodule TestFleet.RegistriesTest do
             {"localhost:5055", "localhost:5055"},
             {"ghcr.io", "ghcr.io"}
           ] do
-        {:ok, registry} = Registries.create_registry(%{@valid | host: entered})
+        {:ok, registry} = Registries.create_registry(org_scope(), %{@valid | host: entered})
         assert registry.host == stored
       end
     end
@@ -51,7 +51,9 @@ defmodule TestFleet.RegistriesTest do
             {"-registry.com", "is not a valid host name"},
             {"registry.com:", "is not a valid host name"}
           ] do
-        assert {:error, changeset} = Registries.create_registry(%{@valid | host: host})
+        assert {:error, changeset} =
+                 Registries.create_registry(org_scope(), %{@valid | host: host})
+
         assert %{host: [^message]} = errors_on(changeset), "#{inspect(host)}"
       end
     end
@@ -59,7 +61,7 @@ defmodule TestFleet.RegistriesTest do
     test "allows one registry per host" do
       registry_fixture(host: "registry.company.com")
 
-      assert {:error, changeset} = Registries.create_registry(@valid)
+      assert {:error, changeset} = Registries.create_registry(org_scope(), @valid)
       assert %{host: ["already has credentials"]} = errors_on(changeset)
     end
   end
@@ -71,14 +73,14 @@ defmodule TestFleet.RegistriesTest do
       assert {:ok, _} = Registries.update_registry(registry, %{name: "Renamed", password: ""})
 
       assert %Registry{name: "Renamed", password: "old-token"} =
-               Registries.get_registry!(registry.id)
+               Registries.get_registry!(org_scope(), registry.id)
     end
 
     test "a new password replaces the current one" do
       registry = registry_fixture(password: "old-token")
 
       assert {:ok, _} = Registries.update_registry(registry, %{password: "new-token"})
-      assert Registries.get_registry!(registry.id).password == "new-token"
+      assert Registries.get_registry!(org_scope(), registry.id).password == "new-token"
     end
   end
 
@@ -88,23 +90,27 @@ defmodule TestFleet.RegistriesTest do
       local = registry_fixture(host: "localhost:5055")
       hub = registry_fixture(host: "docker.io")
 
-      assert Registries.get_registry_for_image("registry.company.com/customer-a/e2e:1.17").id ==
+      assert Registries.get_registry_for_image(
+               org_scope(),
+               "registry.company.com/customer-a/e2e:1.17"
+             ).id ==
                company.id
 
       assert Registries.get_registry_for_image(
+               org_scope(),
                "localhost:5055/fixture-suite@sha256:" <> String.duplicate("a", 64)
              ).id ==
                local.id
 
-      assert Registries.get_registry_for_image("playwright/e2e:1").id == hub.id
-      assert Registries.get_registry_for_image("alpine").id == hub.id
+      assert Registries.get_registry_for_image(org_scope(), "playwright/e2e:1").id == hub.id
+      assert Registries.get_registry_for_image(org_scope(), "alpine").id == hub.id
     end
 
     test "returns nil for unknown hosts and invalid references" do
       registry_fixture(host: "registry.company.com")
 
-      assert Registries.get_registry_for_image("ghcr.io/org/e2e:1") == nil
-      assert Registries.get_registry_for_image("e2e:") == nil
+      assert Registries.get_registry_for_image(org_scope(), "ghcr.io/org/e2e:1") == nil
+      assert Registries.get_registry_for_image(org_scope(), "e2e:") == nil
     end
   end
 

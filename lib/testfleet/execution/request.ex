@@ -15,6 +15,7 @@ defmodule TestFleet.Execution.Request do
     :run_id,
     :image,
     :project_id,
+    :organization_id,
     # Labels the container, so the reconciler knows its own
     :instance_id,
     :environment_name,
@@ -39,6 +40,7 @@ defmodule TestFleet.Execution.Request do
           run_id: pos_integer(),
           image: String.t(),
           project_id: pos_integer() | nil,
+          organization_id: pos_integer() | nil,
           instance_id: String.t() | nil,
           environment_name: String.t() | nil,
           registry_auth: %{username: String.t(), password: String.t()} | nil,

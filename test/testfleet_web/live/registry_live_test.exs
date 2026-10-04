@@ -32,7 +32,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
 
       refute has_element?(view, "#registries-#{registry.id}")
       assert has_element?(view, "#registries-empty")
-      assert Registries.list_registries() == []
+      assert Registries.list_registries(org_scope()) == []
     end
   end
 
@@ -53,7 +53,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
         |> render_submit()
         |> follow_redirect(conn, ~p"/registries")
 
-      assert [registry] = Registries.list_registries()
+      assert [registry] = Registries.list_registries(org_scope())
       assert {registry.host, registry.password} == {"registry.company.com", "s3cret-token"}
       assert has_element?(index, "#registries-#{registry.id}")
     end
@@ -67,7 +67,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
 
       assert has_element?(view, "#registry-form #registry_host.border-error")
       assert has_element?(view, "#registry-form #registry_password.border-error")
-      assert Registries.list_registries() == []
+      assert Registries.list_registries(org_scope()) == []
     end
 
     test "editing with an empty password keeps it", %{conn: conn} do
@@ -78,7 +78,8 @@ defmodule TestFleetWeb.RegistryLiveTest do
       |> form("#registry-form", registry: %{name: "Renamed", password: ""})
       |> render_submit()
 
-      assert %{name: "Renamed", password: "s3cret-token"} = Registries.get_registry!(registry.id)
+      assert %{name: "Renamed", password: "s3cret-token"} =
+               Registries.get_registry!(org_scope(), registry.id)
     end
 
     # Security: these checks are about what reaches the browser, so they look at the HTML.

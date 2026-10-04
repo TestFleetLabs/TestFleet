@@ -13,7 +13,7 @@ defmodule TestFleetWeb.API.RunController do
 
   def create(conn, %{"project" => project_slug}) do
     with {:ok, body} <- Body.fetch(conn, ~w(test_definition environment)),
-         {:ok, project} <- Lookup.project(project_slug),
+         {:ok, project} <- Lookup.project(conn.assigns.current_scope, project_slug),
          {:ok, test_definition} <- Lookup.test_definition(project, body["test_definition"]),
          {:ok, environment} <- Lookup.environment(project, body["environment"]),
          {:ok, run} <-
@@ -30,18 +30,19 @@ defmodule TestFleetWeb.API.RunController do
   end
 
   def show(conn, %{"id" => id}) do
-    with {:ok, run} <- Lookup.run(id), do: render(conn, :show, run: run)
+    with {:ok, run} <- Lookup.run(conn.assigns.current_scope, id),
+         do: render(conn, :show, run: run)
   end
 
   # Idempotent: a finished run is answered as it is. An active run reaches
   # `cancelled` once its container has stopped.
   def cancel(conn, %{"id" => id}) do
-    with {:ok, run} <- Lookup.run(id) do
+    with {:ok, run} <- Lookup.run(conn.assigns.current_scope, id) do
       :ok = Runs.cancel_run(run)
 
       conn
       |> put_status(:accepted)
-      |> render(:show, run: Runs.get_run!(run.id))
+      |> render(:show, run: Runs.get_run!(conn.assigns.current_scope, run.id))
     end
   end
 end

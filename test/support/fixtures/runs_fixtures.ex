@@ -20,7 +20,7 @@ defmodule TestFleet.RunsFixtures do
     {project, attrs} =
       Map.pop_lazy(attrs, :project, fn ->
         case attrs do
-          %{test_definition: %{project_id: id}} -> TestFleet.Projects.get_project!(id)
+          %{test_definition: %{project_id: id}} -> Repo.get!(TestFleet.Projects.Project, id)
           _ -> project_fixture()
         end
       end)

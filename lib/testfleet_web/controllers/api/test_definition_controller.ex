@@ -13,7 +13,7 @@ defmodule TestFleetWeb.API.TestDefinitionController do
   action_fallback TestFleetWeb.API.FallbackController
 
   def show(conn, %{"project" => project_slug, "slug" => slug}) do
-    with {:ok, project} <- Lookup.project(project_slug),
+    with {:ok, project} <- Lookup.project(conn.assigns.current_scope, project_slug),
          {:ok, test_definition} <- Lookup.test_definition(project, slug) do
       render(conn, :show, test_definition: test_definition, project: project)
     end
@@ -22,7 +22,7 @@ defmodule TestFleetWeb.API.TestDefinitionController do
   def update(conn, %{"project" => project_slug, "slug" => slug}) do
     with {:ok, body} <- Body.fetch(conn, [], ~w(image tag)),
          {:ok, change} <- image_change(body),
-         {:ok, project} <- Lookup.project(project_slug),
+         {:ok, project} <- Lookup.project(conn.assigns.current_scope, project_slug),
          {:ok, test_definition} <- Lookup.test_definition(project, slug),
          {:ok, test_definition} <- TestDefinitions.update_image(test_definition, change) do
       render(conn, :show, test_definition: test_definition, project: project)

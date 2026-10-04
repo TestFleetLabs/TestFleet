@@ -57,7 +57,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
       view |> element("#toggle-channel-#{channel.id}") |> render_click()
       assert has_element?(view, "#channel-#{channel.id}-disabled")
-      refute Notifications.get_channel!(channel.id).enabled
+      refute Notifications.get_channel!(org_scope(), channel.id).enabled
 
       view |> element("#toggle-channel-#{channel.id}") |> render_click()
       refute has_element?(view, "#channel-#{channel.id}-disabled")
@@ -70,7 +70,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       view |> element("#delete-channel-#{channel.id}") |> render_click()
 
       refute has_element?(view, "#channels-#{channel.id}")
-      assert Notifications.get_channel(channel.id) == nil
+      assert Notifications.get_channel(org_scope(), channel.id) == nil
     end
   end
 
@@ -89,7 +89,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
       # A new channel opens its page, to choose what it receives.
       assert [%{id: id, name: "#e2e-alerts", kind: :slack, url: url}] =
-               Notifications.list_channels()
+               Notifications.list_channels(org_scope())
 
       assert_redirect(view, ~p"/notifications/channels/#{id}/edit")
       assert url == slack_url()
@@ -106,7 +106,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       |> render_submit()
 
       assert [%{id: id, kind: :email, email_recipients: ["qa@example.com"]}] =
-               Notifications.list_channels()
+               Notifications.list_channels(org_scope())
 
       assert_redirect(view, ~p"/notifications/channels/#{id}/edit")
     end
@@ -149,7 +149,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       |> render_submit()
 
       assert_redirect(view, ~p"/notifications")
-      stored = Notifications.get_channel!(channel.id)
+      stored = Notifications.get_channel!(org_scope(), channel.id)
       assert stored.name == "Renamed"
       assert stored.url == channel.url
       assert stored.signing_secret == "a-long-signing-secret"
@@ -177,7 +177,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
       assert has_element?(view, "#test-ok")
       assert_received {:host, "receiver.example.com"}
-      assert Notifications.list_channels() == []
+      assert Notifications.list_channels(org_scope()) == []
     end
 
     test "send test on an invalid form asks to fix it", %{conn: conn} do

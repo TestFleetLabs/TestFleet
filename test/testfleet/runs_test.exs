@@ -89,20 +89,26 @@ defmodule TestFleet.RunsTest do
       second = run_fixture(test_definition: context.test_definition)
       other = run_fixture()
 
-      assert [other.id, second.id, first.id] == Enum.map(Runs.list_runs(), & &1.id)
-      assert [other.id] == Enum.map(Runs.list_runs(limit: 1), & &1.id)
+      assert [other.id, second.id, first.id] == Enum.map(Runs.list_runs(org_scope()), & &1.id)
+      assert [other.id] == Enum.map(Runs.list_runs(org_scope(), limit: 1), & &1.id)
 
       assert [second.id, first.id] ==
-               Enum.map(Runs.list_runs(project: context.project), & &1.id)
+               Enum.map(Runs.list_runs(org_scope(), project: context.project), & &1.id)
 
       assert [second.id, first.id] ==
-               Enum.map(Runs.list_runs(test_definition: context.test_definition), & &1.id)
+               Enum.map(
+                 Runs.list_runs(org_scope(), test_definition: context.test_definition),
+                 & &1.id
+               )
 
       assert [first.id] ==
-               Enum.map(Runs.list_runs(project: context.project, statuses: [:passed]), & &1.id)
+               Enum.map(
+                 Runs.list_runs(org_scope(), project: context.project, statuses: [:passed]),
+                 & &1.id
+               )
 
       assert [first.id, second.id, other.id] ==
-               Enum.map(Runs.list_runs(oldest_first: true), & &1.id)
+               Enum.map(Runs.list_runs(org_scope(), oldest_first: true), & &1.id)
     end
   end
 
@@ -125,7 +131,7 @@ defmodule TestFleet.RunsTest do
       run(context, status: :error, finished_at: today)
       run(context, status: :cancelled, finished_at: today)
 
-      assert Runs.dashboard_stats("Europe/Vienna", now) == %{
+      assert Runs.dashboard_stats(org_scope(), "Europe/Vienna", now) == %{
                running: 2,
                queued: 1,
                passed_today: 1,
@@ -134,7 +140,8 @@ defmodule TestFleet.RunsTest do
              }
 
       # In UTC, the day began at 00:00 UTC on Sep 27: nothing finished today.
-      assert %{passed_today: 0, failed_today: 0} = Runs.dashboard_stats("Etc/UTC", now)
+      assert %{passed_today: 0, failed_today: 0} =
+               Runs.dashboard_stats(org_scope(), "Etc/UTC", now)
     end
 
     test "a day without midnight starts when the clock jumps", context do
@@ -142,7 +149,7 @@ defmodule TestFleet.RunsTest do
       now = ~U[2026-03-29 10:00:00Z]
       run(context, status: :passed, finished_at: ~U[2026-03-28 22:30:00.000000Z])
 
-      assert %{passed_today: 1} = Runs.dashboard_stats("Asia/Beirut", now)
+      assert %{passed_today: 1} = Runs.dashboard_stats(org_scope(), "Asia/Beirut", now)
     end
   end
 

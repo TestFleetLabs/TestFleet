@@ -19,13 +19,13 @@ defmodule TestFleetWeb.RunLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    run = Runs.get_run!(id)
+    run = Runs.get_run!(socket.assigns.current_scope, id)
 
     # Subscribed before the history is loaded: a batch that overlaps it updates
     # the same lines (DOM id `log-<sequence>`) instead of repeating them.
     if connected?(socket) do
       Runs.subscribe(run.id)
-      Notifications.subscribe_deliveries()
+      Notifications.subscribe_deliveries(socket.assigns.current_scope)
     end
 
     lines = Runs.list_log_tail(run, @history_lines)
@@ -147,7 +147,8 @@ defmodule TestFleetWeb.RunLive.Show do
     # A queued run is cancelled now. An active one records the request (shown as
     # "Cancelling…", also after a reload) and stops its container first, up to the
     # grace period; the final status arrives through `run:<id>`.
-    {:noreply, assign_run(socket, Runs.get_run!(socket.assigns.run.id))}
+    {:noreply,
+     assign_run(socket, Runs.get_run!(socket.assigns.current_scope, socket.assigns.run.id))}
   end
 
   @impl true

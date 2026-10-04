@@ -11,10 +11,10 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
 
   @impl true
   def mount(%{"slug" => slug, "id" => id}, _session, socket) do
-    project = Projects.get_project_by_slug!(slug)
+    project = Projects.get_project_by_slug!(socket.assigns.current_scope, slug)
     test_definition = TestDefinitions.get_test_definition!(project, id)
 
-    if connected?(socket), do: Runs.subscribe()
+    if connected?(socket), do: Runs.subscribe(socket.assigns.current_scope)
 
     {:ok,
      socket
@@ -24,7 +24,10 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
      |> assign(:environments, Environments.list_environments(project))
      |> RunFeed.init(
        :runs,
-       Runs.list_runs(test_definition: test_definition, limit: @recent_runs)
+       Runs.list_runs(socket.assigns.current_scope,
+         test_definition: test_definition,
+         limit: @recent_runs
+       )
      )}
   end
 

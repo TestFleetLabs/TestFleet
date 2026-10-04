@@ -31,14 +31,17 @@ defmodule TestFleet.Schedules do
     )
   end
 
-  @doc "The next enabled schedules of all projects, with test definition, project, and environment."
-  def list_upcoming(limit) do
+  @doc """
+  The next enabled schedules of all the organization's projects, with test
+  definition, project, and environment.
+  """
+  def list_upcoming(%TestFleet.Accounts.Scope{organization: %{id: organization_id}}, limit) do
     Repo.all(
       from s in Schedule,
         join: t in assoc(s, :test_definition),
         join: p in assoc(t, :project),
         join: e in assoc(s, :environment),
-        where: s.enabled and t.enabled,
+        where: s.enabled and t.enabled and p.organization_id == ^organization_id,
         order_by: [asc: s.next_run_at],
         limit: ^limit,
         preload: [test_definition: {t, project: p}, environment: e]
@@ -47,7 +50,7 @@ defmodule TestFleet.Schedules do
 
   @doc """
   Enabled schedules of enabled test definitions whose `next_run_at` is before
-  `cutoff`, oldest first, preloaded like `list_upcoming/1`. While the tick works,
+  `cutoff`, oldest first, preloaded like `list_upcoming/2`. While the tick works,
   none is ever more than a minute late.
   """
   def list_overdue(%DateTime{} = cutoff) do

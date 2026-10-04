@@ -10,7 +10,7 @@ defmodule TestFleetWeb.RunLogController do
   alias TestFleet.Runs
 
   def show(conn, %{"id" => id}) do
-    case Runs.get_run!(id) do
+    case Runs.get_run!(conn.assigns.current_scope, id) do
       %{logs_expired_at: %DateTime{} = expired_at} ->
         conn
         |> put_resp_content_type("text/plain")

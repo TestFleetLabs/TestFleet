@@ -12,7 +12,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
 
   @impl true
   def mount(%{"slug" => slug} = params, _session, socket) do
-    project = Projects.get_project_by_slug!(slug)
+    project = Projects.get_project_by_slug!(socket.assigns.current_scope, slug)
 
     {:ok,
      socket
@@ -46,16 +46,16 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
 
     socket
     |> assign(:form, form)
-    |> assign(:image_source, resolve_image_source(image))
+    |> assign(:image_source, resolve_image_source(socket.assigns.current_scope, image))
   end
 
   # Where the image will be pulled from: a registry with credentials, anonymously, or
   # nothing to say yet.
-  defp resolve_image_source(image) when image in [nil, ""], do: nil
+  defp resolve_image_source(_scope, image) when image in [nil, ""], do: nil
 
-  defp resolve_image_source(image) do
+  defp resolve_image_source(scope, image) do
     with {:ok, %ImageRef{host: host}} <- ImageRef.parse(image) do
-      case Registries.get_registry_for_image(image) do
+      case Registries.get_registry_for_image(scope, image) do
         nil -> {:anonymous, host}
         registry -> {:registry, Registries.redact(registry)}
       end

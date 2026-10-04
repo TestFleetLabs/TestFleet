@@ -17,20 +17,27 @@ defmodule TestFleetWeb.NotificationLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Notifications.subscribe_deliveries()
+    if connected?(socket), do: Notifications.subscribe_deliveries(socket.assigns.current_scope)
 
-    channels = Enum.map(Notifications.list_channels(), &Notifications.redact/1)
+    channels =
+      Enum.map(Notifications.list_channels(socket.assigns.current_scope), &Notifications.redact/1)
 
     {:ok,
      socket
      |> assign(:page_title, gettext("Notifications"))
      |> assign(:timezone, Timezones.default())
      |> assign(:channel_count, length(channels))
-     |> assign(:subscription_counts, Notifications.subscription_counts())
+     |> assign(
+       :subscription_counts,
+       Notifications.subscription_counts(socket.assigns.current_scope)
+     )
      |> assign(:email_unconfigured?, email_unconfigured?(channels))
      |> assign(:testing, MapSet.new())
      |> stream(:channels, channels)
-     |> stream(:deliveries, Notifications.list_recent_deliveries(@recent_deliveries))}
+     |> stream(
+       :deliveries,
+       Notifications.list_recent_deliveries(socket.assigns.current_scope, @recent_deliveries)
+     )}
   end
 
   @impl true
@@ -43,7 +50,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
   @impl true
   def handle_event("send_test", %{"id" => id}, socket) do
     id = String.to_integer(id)
-    channel = Notifications.get_channel!(id)
+    channel = Notifications.get_channel!(socket.assigns.current_scope, id)
 
     {:noreply,
      socket
@@ -53,7 +60,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
   end
 
   def handle_event("toggle", %{"id" => id}, socket) do
-    channel = Notifications.get_channel!(id)
+    channel = Notifications.get_channel!(socket.assigns.current_scope, id)
     {:ok, channel} = Notifications.set_channel_enabled(channel, not channel.enabled)
 
     message =
@@ -68,7 +75,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
-    channel = Notifications.get_channel!(id)
+    channel = Notifications.get_channel!(socket.assigns.current_scope, id)
     {:ok, _} = Notifications.delete_channel(channel)
 
     {:noreply,
@@ -103,7 +110,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
     socket = update(socket, :testing, &MapSet.delete(&1, id))
 
     # The channel may have been deleted meanwhile.
-    case Notifications.get_channel(id) do
+    case Notifications.get_channel(socket.assigns.current_scope, id) do
       nil -> {:noreply, socket}
       channel -> {:noreply, stream_insert(socket, :channels, Notifications.redact(channel))}
     end

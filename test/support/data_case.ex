@@ -26,6 +26,7 @@ defmodule TestFleet.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import TestFleet.DataCase
+      import TestFleet.OrganizationsFixtures, only: [org_scope: 0, org_scope: 1]
     end
   end
 

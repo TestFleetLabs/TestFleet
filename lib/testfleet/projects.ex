@@ -5,26 +5,32 @@ defmodule TestFleet.Projects do
 
   import Ecto.Query, warn: false
 
+  alias TestFleet.Accounts.Scope
   alias TestFleet.Projects.Project
   alias TestFleet.Repo
 
-  @doc "Returns all projects, ordered by name."
-  def list_projects do
+  @doc "The scope's organization's projects, ordered by name."
+  def list_projects(%Scope{} = scope) do
     Project
+    |> where([p], p.organization_id == ^organization_id(scope))
     |> order_by([p], asc: fragment("lower(?)", p.name))
     |> Repo.all()
   end
 
-  def get_project!(id), do: Repo.get!(Project, id)
+  @doc "Gets a project by its slug. Raises `Ecto.NoResultsError` if the organization has none."
+  def get_project_by_slug!(%Scope{} = scope, slug),
+    do: Repo.get_by!(Project, organization_id: organization_id(scope), slug: slug)
 
-  @doc "Gets a project by its slug. Raises `Ecto.NoResultsError` if there is none."
-  def get_project_by_slug!(slug), do: Repo.get_by!(Project, slug: slug)
+  @doc "Gets a project of the organization by its slug, or nil."
+  def get_project_by_slug(%Scope{} = scope, slug) when is_binary(slug),
+    do: Repo.get_by(Project, organization_id: organization_id(scope), slug: slug)
 
-  @doc "Gets a project by its slug, or nil."
-  def get_project_by_slug(slug) when is_binary(slug), do: Repo.get_by(Project, slug: slug)
+  @doc "Gets a project of the organization by its id. Raises `Ecto.NoResultsError` if there is none."
+  def get_project!(%Scope{} = scope, id),
+    do: Repo.get_by!(Project, organization_id: organization_id(scope), id: id)
 
-  def create_project(attrs) do
-    %Project{organization_id: TestFleet.Organizations.single!().id}
+  def create_project(%Scope{} = scope, attrs) do
+    %Project{organization_id: organization_id(scope)}
     |> Project.changeset(attrs)
     |> Repo.insert()
   end
@@ -48,4 +54,6 @@ defmodule TestFleet.Projects do
   def change_project(%Project{} = project, attrs \\ %{}) do
     Project.changeset(project, attrs)
   end
+
+  defp organization_id(%Scope{organization: %{id: id}}), do: id
 end

@@ -11,12 +11,12 @@ defmodule TestFleetWeb.RunLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Runs.subscribe()
+    if connected?(socket), do: Runs.subscribe(socket.assigns.current_scope)
 
     {:ok,
      socket
      |> assign(:page_title, gettext("Runs"))
-     |> RunFeed.init(:runs, Runs.list_runs(limit: @limit))}
+     |> RunFeed.init(:runs, Runs.list_runs(socket.assigns.current_scope, limit: @limit))}
   end
 
   @impl true

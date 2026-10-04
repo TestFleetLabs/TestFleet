@@ -35,7 +35,8 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    channel = id |> Notifications.get_channel!() |> Notifications.redact()
+    channel =
+      Notifications.get_channel!(socket.assigns.current_scope, id) |> Notifications.redact()
 
     subscriptions = Notifications.list_subscriptions(channel)
 
@@ -43,7 +44,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
     |> assign(:page_title, gettext("Edit %{name}", name: channel.name))
     |> assign(:channel, channel)
     |> assign_form(Notifications.change_channel(channel))
-    |> assign(:projects, Projects.list_projects())
+    |> assign(:projects, Projects.list_projects(socket.assigns.current_scope))
     |> assign(:subscription_count, length(subscriptions))
     |> stream(:subscriptions, subscriptions)
     |> assign_subscription_form(new_subscription(channel, %{}))
@@ -60,6 +61,14 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
     Notifications.change_subscription(%Subscription{channel_id: channel.id}, params)
   end
 
+  # Only projects of the organization (the page's list); the id comes from the form.
+  defp environments(projects, project_id) do
+    case Enum.find(projects, &(&1.id == project_id)) do
+      %Project{} = project -> Environments.list_environments(project)
+      nil -> []
+    end
+  end
+
   defp assign_subscription_form(socket, changeset, opts \\ []) do
     project_id = Ecto.Changeset.get_field(changeset, :project_id)
 
@@ -67,10 +76,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
     |> assign(:subscription_form, to_form(changeset, opts))
     |> assign(:subscription_events, Ecto.Changeset.get_field(changeset, :events) || [])
     |> assign(:subscription_project_id, project_id)
-    |> assign(
-      :environments,
-      if(project_id, do: Environments.list_environments(%Project{id: project_id}), else: [])
-    )
+    |> assign(:environments, environments(socket.assigns.projects, project_id))
   end
 
   # Choosing another project drops an environment of the previous one, and a
@@ -103,10 +109,11 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
     result =
       case socket.assigns.channel do
         %Channel{id: nil} ->
-          Notifications.create_channel(params)
+          Notifications.create_channel(socket.assigns.current_scope, params)
 
         %Channel{id: id} ->
-          id |> Notifications.get_channel!() |> Notifications.update_channel(params)
+          Notifications.get_channel!(socket.assigns.current_scope, id)
+          |> Notifications.update_channel(params)
       end
 
     case {result, socket.assigns.channel.id} do
@@ -159,7 +166,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
   end
 
   def handle_event("delete_subscription", %{"id" => id}, socket) do
-    subscription = Notifications.get_subscription!(id)
+    subscription = Notifications.get_subscription!(socket.assigns.channel, id)
 
     # Only this channel's subscriptions can be deleted from its page.
     if subscription.channel_id == socket.assigns.channel.id do
@@ -177,12 +184,15 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
   def handle_event("send_test", _params, socket) do
     params = socket.assigns.form.params
     channel_id = socket.assigns.channel.id
+    scope = socket.assigns.current_scope
 
     {:noreply,
      socket
      |> assign(:test_result, :sending)
      |> start_async(:send_test, fn ->
-       channel = if channel_id, do: Notifications.get_channel!(channel_id), else: %Channel{}
+       channel =
+         if channel_id, do: Notifications.get_channel!(scope, channel_id), else: %Channel{}
+
        Notifications.send_test(channel, params)
      end)}
   end

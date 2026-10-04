@@ -6,7 +6,8 @@ defmodule TestFleet.Runs do
   `trigger`. The dispatcher starts them.
 
   Every change is broadcast with the run's test definition, project, and
-  environment preloaded, on `run:<id>` and on `runs`:
+  environment preloaded, on `run:<id>`, on its organization's `runs:<organization_id>`,
+  and on `runs` (all organizations, for the dispatcher only):
 
       {:run_created, run}
       {:run_updated, run}
@@ -17,7 +18,7 @@ defmodule TestFleet.Runs do
 
   import Ecto.Query, warn: false
 
-  alias TestFleet.Accounts.{APIToken, User}
+  alias TestFleet.Accounts.{APIToken, Scope, User}
   alias TestFleet.Artifacts
   alias TestFleet.Artifacts.Storage
   alias TestFleet.Environments.Environment
@@ -39,35 +40,50 @@ defmodule TestFleet.Runs do
 
   ## PubSub
 
-  @doc "Subscribes to changes of all runs."
+  @doc "Internal, for the dispatcher: subscribes to changes of all organizations' runs."
   def subscribe, do: Phoenix.PubSub.subscribe(TestFleet.PubSub, @topic)
 
-  @doc "Subscribes to changes of one run."
+  @doc """
+  Subscribes to changes of the scope's organization's runs, or of one run (found
+  through the scope first).
+  """
+  def subscribe(%Scope{organization: %{id: organization_id}}),
+    do: Phoenix.PubSub.subscribe(TestFleet.PubSub, organization_topic(organization_id))
+
   def subscribe(run_id), do: Phoenix.PubSub.subscribe(TestFleet.PubSub, run_topic(run_id))
 
   defp run_topic(run_id), do: "run:#{run_id}"
+  defp organization_topic(organization_id), do: "#{@topic}:#{organization_id}"
 
   ## Reading
 
-  @doc "Gets a run with its test definition (and project) and environment."
-  def get_run!(id), do: Run |> Repo.get!(id) |> preload()
+  @doc """
+  Gets a run of the scope's organization with its test definition (and project)
+  and environment. Raises `Ecto.NoResultsError` for another organization's run.
+  """
+  def get_run!(%Scope{} = scope, id),
+    do: Run |> Repo.get_by!(id: id, organization_id: organization_id(scope)) |> preload()
 
-  @doc "Like `get_run!/1`, but nil when there is no such run."
-  def get_run(id) do
-    if run = Repo.get(Run, id), do: preload(run)
+  @doc "Like `get_run!/2`, but nil when the organization has no such run."
+  def get_run(%Scope{} = scope, id) do
+    if run = Repo.get_by(Run, id: id, organization_id: organization_id(scope)), do: preload(run)
   end
 
+  @doc "Internal, for background processes: gets any organization's run, preloaded."
+  def get_run!(id), do: Run |> Repo.get!(id) |> preload()
+
   @doc """
-  Runs, newest first, preloaded like `get_run!/1`.
+  The scope's organization's runs, newest first, preloaded like `get_run!/2`.
 
   Options: `:limit` (default #{@default_limit}), `:project`, `:test_definition`,
   `:statuses`, and `oldest_first: true`.
   """
-  def list_runs(opts \\ []) do
+  def list_runs(%Scope{} = scope, opts \\ []) do
     direction = if opts[:oldest_first], do: :asc, else: :desc
 
     query =
       from r in Run,
+        where: r.organization_id == ^organization_id(scope),
         order_by: [{^direction, r.id}],
         limit: ^Keyword.get(opts, :limit, @default_limit)
 
@@ -101,16 +117,17 @@ defmodule TestFleet.Runs do
     do: Repo.exists?(from r in Run, where: r.environment_id == ^id)
 
   @doc """
-  The dashboard figures: `running` (`preparing` +
+  The organization's dashboard figures: `running` (`preparing` +
   `running`), `queued`, and the runs that finished today as `passed`, `failed`, or
   `timeout`. "Today" is the calendar day of `now` in `timezone`.
   """
-  def dashboard_stats(timezone, now \\ DateTime.utc_now()) do
+  def dashboard_stats(%Scope{} = scope, timezone, now \\ DateTime.utc_now()) do
     since = start_of_day(now, timezone)
 
     counts =
       Repo.all(
         from r in Run,
+          where: r.organization_id == ^organization_id(scope),
           where:
             r.status in ^[:queued | Run.active_statuses()] or
               (r.status in [:passed, :failed, :timeout] and r.finished_at >= ^since),
@@ -171,7 +188,7 @@ defmodule TestFleet.Runs do
           Repo.insert!(%Run{
             trigger: trigger,
             status: :queued,
-            organization_id: organization_id(test_definition),
+            organization_id: project_organization_id(test_definition),
             test_definition_id: test_definition.id,
             environment_id: environment.id,
             triggered_by_user_id: user && user.id,
@@ -214,7 +231,7 @@ defmodule TestFleet.Runs do
         run = %Run{
           trigger: :schedule,
           status: :queued,
-          organization_id: organization_id(test_definition),
+          organization_id: project_organization_id(test_definition),
           schedule_id: schedule.id,
           scheduled_for: usec(scheduled_for),
           test_definition_id: test_definition.id,
@@ -237,7 +254,7 @@ defmodule TestFleet.Runs do
   end
 
   # A run belongs to its project's organization.
-  defp organization_id(%TestDefinition{project_id: project_id}) do
+  defp project_organization_id(%TestDefinition{project_id: project_id}) do
     Repo.one!(from p in Project, where: p.id == ^project_id, select: p.organization_id)
   end
 
@@ -391,7 +408,7 @@ defmodule TestFleet.Runs do
     %{test_definition: test_definition, environment: environment} = run
 
     registry_auth =
-      case Registries.get_registry_for_image(run.image) do
+      case Registries.get_registry_for_image(run.organization_id, run.image) do
         nil -> nil
         registry -> %{username: registry.username, password: registry.password}
       end
@@ -399,6 +416,7 @@ defmodule TestFleet.Runs do
     Request.new(
       run_id: run.id,
       project_id: test_definition.project_id,
+      organization_id: run.organization_id,
       instance_id: TestFleet.Instance.id(),
       environment_name: environment.slug,
       image: run.image,
@@ -410,13 +428,17 @@ defmodule TestFleet.Runs do
       cpu_limit: test_definition.cpu_limit,
       memory_limit: test_definition.memory_limit,
       shm_size: test_definition.shm_size_bytes,
-      pull_policy: :auto,
+      pull_policy: pull_policy(),
       pull_timeout_ms: Execution.pull_timeout(),
       stop_grace_seconds: @stop_grace_seconds,
       artifact_path: Storage.run_dir(run.id),
       max_artifact_bytes: Artifacts.max_bytes()
     )
   end
+
+  # Organizations share the Docker host's image cache: with several of them, every
+  # run pulls with its own organization's credentials.
+  defp pull_policy, do: if(TestFleet.Organizations.multi?(), do: :always, else: :auto)
 
   ## Recording execution (see `TestFleet.Runs.Recorder`)
 
@@ -699,8 +721,11 @@ defmodule TestFleet.Runs do
   defp broadcast(%Run{} = run, event) do
     message = {event, run}
     Phoenix.PubSub.broadcast(TestFleet.PubSub, run_topic(run.id), message)
+    Phoenix.PubSub.broadcast(TestFleet.PubSub, organization_topic(run.organization_id), message)
     Phoenix.PubSub.broadcast(TestFleet.PubSub, @topic, message)
   end
+
+  defp organization_id(%Scope{organization: %{id: id}}), do: id
 
   # The columns are utc_datetime_usec; Docker's StartedAt may come with less precision.
   defp usec(%DateTime{microsecond: {value, _precision}} = datetime),

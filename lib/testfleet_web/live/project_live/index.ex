@@ -8,7 +8,7 @@ defmodule TestFleetWeb.ProjectLive.Index do
     {:ok,
      socket
      |> assign(:page_title, gettext("Projects"))
-     |> stream(:projects, Projects.list_projects())}
+     |> stream(:projects, Projects.list_projects(socket.assigns.current_scope))}
   end
 
   @impl true

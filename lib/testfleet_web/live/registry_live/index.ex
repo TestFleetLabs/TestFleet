@@ -9,7 +9,8 @@ defmodule TestFleetWeb.RegistryLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    registries = Enum.map(Registries.list_registries(), &Registries.redact/1)
+    registries =
+      Enum.map(Registries.list_registries(socket.assigns.current_scope), &Registries.redact/1)
 
     {:ok,
      socket
@@ -20,7 +21,7 @@ defmodule TestFleetWeb.RegistryLive.Index do
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    registry = Registries.get_registry!(id)
+    registry = Registries.get_registry!(socket.assigns.current_scope, id)
     {:ok, _} = Registries.delete_registry(registry)
 
     {:noreply,

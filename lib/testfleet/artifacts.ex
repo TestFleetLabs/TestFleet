@@ -29,12 +29,8 @@ defmodule TestFleet.Artifacts do
   The artifact of a run with exactly this name, or `nil`. Downloads look names up
   here and never build a file path from a request.
   """
-  def get_artifact(run_id, name) when is_binary(name) do
-    with {run_id, ""} <- Integer.parse(to_string(run_id)) do
-      Repo.get_by(Artifact, run_id: run_id, name: name)
-    else
-      _ -> nil
-    end
+  def get_artifact(%Run{id: run_id}, name) when is_binary(name) do
+    Repo.get_by(Artifact, run_id: run_id, name: name)
   end
 
   @doc "The file of an artifact."
