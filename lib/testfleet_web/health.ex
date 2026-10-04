@@ -1,7 +1,6 @@
 defmodule TestFleetWeb.Health do
   @moduledoc """
-  `GET /health`, for the container's health check and the reverse proxy
-  (Milestone 9, section 5).
+  `GET /health`, for the container's health check and the reverse proxy.
 
   Healthy means the database answers. Docker's reachability is reported, but does not
   make TestFleet unhealthy: restarting TestFleet does not bring Docker back, and the

@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.RegistryConnectionTest do
-  # "Test connection" against the spike registry through the real Docker Engine.
-  # Needs: docker compose --profile spike up -d (see .specs/execution-spike-spec.md).
+  # "Test connection" against the fixture registry through the real Docker Engine.
+  # Needs: docker compose --profile registry up -d.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
@@ -12,14 +12,14 @@ defmodule TestFleetWeb.RegistryConnectionTest do
 
   @moduletag :docker
 
-  @spike %{host: "localhost:5055", username: "spike", password: "spike-password"}
+  @registry %{host: "localhost:5055", username: "fixture", password: "fixture-password"}
 
   test "the context logs in with good credentials and reports bad ones" do
-    assert :ok = Registries.test_connection(%TestFleet.Registries.Registry{}, @spike)
+    assert :ok = Registries.test_connection(%TestFleet.Registries.Registry{}, @registry)
 
     assert {:error, message} =
              Registries.test_connection(%TestFleet.Registries.Registry{}, %{
-               @spike
+               @registry
                | password: "wrong"
              })
 
@@ -30,7 +30,7 @@ defmodule TestFleetWeb.RegistryConnectionTest do
     {:ok, view, _html} = live(conn, ~p"/registries/new")
 
     view
-    |> form("#registry-form", registry: Map.put(@spike, :name, "Spike"))
+    |> form("#registry-form", registry: Map.put(@registry, :name, "Fixtures"))
     |> render_change()
 
     view |> element("#test-connection") |> render_click()
@@ -40,7 +40,7 @@ defmodule TestFleetWeb.RegistryConnectionTest do
   end
 
   test "an existing registry is tested with its stored password", %{conn: conn} do
-    registry = registry_fixture(Map.put(@spike, :name, "Spike"))
+    registry = registry_fixture(Map.put(@registry, :name, "Fixtures"))
     {:ok, view, _html} = live(conn, ~p"/registries/#{registry.id}/edit")
 
     view |> element("#test-connection") |> render_click()
@@ -53,7 +53,9 @@ defmodule TestFleetWeb.RegistryConnectionTest do
     {:ok, view, _html} = live(conn, ~p"/registries/new")
 
     view
-    |> form("#registry-form", registry: %{@spike | password: "wrong"} |> Map.put(:name, "Spike"))
+    |> form("#registry-form",
+      registry: %{@registry | password: "wrong"} |> Map.put(:name, "Fixtures")
+    )
     |> render_change()
 
     view |> element("#test-connection") |> render_click()

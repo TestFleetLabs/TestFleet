@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.IndexTest do
-  # The Users page (Milestone 10, section 9).
+  # The Users page.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest

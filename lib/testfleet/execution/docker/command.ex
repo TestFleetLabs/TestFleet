@@ -1,6 +1,6 @@
 defmodule TestFleet.Execution.Docker.Command do
   @moduledoc """
-  The Docker Engine API operations TestFleet uses (main spec section 18). No other
+  The Docker Engine API operations TestFleet uses. No other
   module builds Docker URLs.
 
   Failures return `{:error, %{status: status, message: message, reason: reason}}`.

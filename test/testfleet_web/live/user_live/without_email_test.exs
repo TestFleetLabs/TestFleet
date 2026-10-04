@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.WithoutEmailTest do
-  # Without SMTP (Milestone 10, section 4): no magic links, no email change, and
+  # Without SMTP: no magic links, no email change, and
   # invitation links are only shown. Not async: turns email off in the application
   # environment.
   use TestFleetWeb.ConnCase, async: false

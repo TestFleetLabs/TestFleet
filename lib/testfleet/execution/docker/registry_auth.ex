@@ -1,6 +1,6 @@
 defmodule TestFleet.Execution.Docker.RegistryAuth do
   @moduledoc """
-  Builds the `X-Registry-Auth` header for a single pull (main spec section 38).
+  Builds the `X-Registry-Auth` header for a single pull.
 
   TestFleet never runs `docker login` and never writes a Docker config file.
   """

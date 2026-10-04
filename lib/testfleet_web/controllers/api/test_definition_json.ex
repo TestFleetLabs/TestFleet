@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.API.TestDefinitionJSON do
-  @moduledoc "A test definition as the API returns it (Milestone 11, section 6)."
+  @moduledoc "A test definition as the API returns it."
 
   def show(%{test_definition: test_definition, project: project}) do
     %{

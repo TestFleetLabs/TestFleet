@@ -19,7 +19,7 @@ defmodule TestFleet.Repo.Migrations.CreateRuns do
       add :image_digest, :string
 
       add :container_id, :string
-      # Docker's timestamp of the last stored log line, in nanoseconds (main spec section 32)
+      # Docker's timestamp of the last stored log line, in nanoseconds
       add :last_log_timestamp, :bigint
 
       add :queued_at, :utc_datetime_usec, null: false

@@ -9,7 +9,7 @@ defmodule TestFleet.Repo.Migrations.CreateSchedules do
 
       add :cron_expression, :string, null: false
       add :timezone, :string, null: false
-      # UTC; computed from the cron expression in the schedule's timezone (main spec section 28)
+      # UTC; computed from the cron expression in the schedule's timezone
       add :next_run_at, :utc_datetime, null: false
       add :overlap_policy, :string, null: false, default: "skip"
       add :enabled, :boolean, null: false, default: true

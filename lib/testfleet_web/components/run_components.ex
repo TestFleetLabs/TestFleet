@@ -80,7 +80,7 @@ defmodule TestFleetWeb.RunComponents do
   def triggered_by(%{triggered_by_user: %TestFleet.Accounts.User{email: email}}), do: email
   def triggered_by(_run), do: nil
 
-  @doc "The name of the token that started an API run (Milestone 11, section 8), or nil."
+  @doc "The name of the token that started an API run, or nil."
   def triggered_via(%{trigger: :api, api_token: %TestFleet.Accounts.APIToken{name: name}}),
     do: name
 

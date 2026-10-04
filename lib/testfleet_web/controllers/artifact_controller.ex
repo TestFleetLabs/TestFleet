@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.ArtifactController do
   @moduledoc """
-  Serves one artifact of a run (Milestone 6, section 7). The name is looked up in
+  Serves one artifact of a run. The name is looked up in
   the run's `artifacts` rows; unknown names are 404. `TestFleetWeb.ArtifactResponse`
   sends the file with its safety headers.
   """

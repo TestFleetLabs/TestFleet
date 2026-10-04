@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications.Message do
   @moduledoc """
-  What a notification says, independent of where it goes (Milestone 8, section 8).
+  What a notification says, independent of where it goes.
   `TestFleet.Notifications.Format` turns it into an email, Slack blocks, an Adaptive
   Card, or webhook JSON.
 
@@ -32,7 +32,7 @@ defmodule TestFleet.Notifications.Message do
         }
 
   @doc """
-  The message of a run event (Milestone 8, section 8). `run` has its environment
+  The message of a run event. `run` has its environment
   and its test definition with the project; `data` is the delivery's (the previous
   status and run id); `failures` names up to three failed tests and counts all.
   """
@@ -173,7 +173,7 @@ defmodule TestFleet.Notifications.Message do
   end
 
   @doc """
-  The message of a system event (Milestone 8, section 7), from the data the
+  The message of a system event, from the data the
   watchdog stored with the delivery. Times are shown in the default timezone.
   """
   def system_event(event, data, occurred_at) do

@@ -1,6 +1,6 @@
 defmodule TestFleet.Results do
   @moduledoc """
-  Test results parsed from a run's JUnit report (main spec section 10, Milestone 6).
+  Test results parsed from a run's JUnit report.
 
   `TestFleet.Results.JUnit` parses during execution; `Runs.finish/2` stores the
   rows with the run's final status.
@@ -44,7 +44,7 @@ defmodule TestFleet.Results do
   @doc """
   The names of a run's first `limit` failed or errored tests, as
   `"<classname> › <name>"`, and how many failed in all. Names only: failure
-  messages stay on the run page (Milestone 8, section 8).
+  messages stay on the run page.
   """
   def failure_summary(%Run{id: run_id}, limit \\ 3) do
     failures = from t in TestResult, where: t.run_id == ^run_id and t.status in ^@failures

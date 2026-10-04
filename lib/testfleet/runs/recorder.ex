@@ -1,6 +1,6 @@
 defmodule TestFleet.Runs.Recorder do
   @moduledoc """
-  Persists the events of a run's execution (Milestone 3, section 7).
+  Persists the events of a run's execution.
 
   Runs inside the run's `RunExecution` process, so runs are recorded in parallel.
   Every write is a guarded transition: an event that arrives late, or twice, never

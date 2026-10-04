@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.DeliveryWorkerTest do
-  # Milestone 8, section 8: attempts, retries, and what a delivery records.
+  # Attempts, retries, and what a delivery records.
   use TestFleet.DataCase, async: true
 
   import TestFleet.NotificationsFixtures

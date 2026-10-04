@@ -1,11 +1,11 @@
 defmodule TestFleet.Notifications.DeliveryWorker do
   @moduledoc """
-  Sends one delivery (Milestone 8, section 8). The args hold the delivery id only:
+  Sends one delivery. The args hold the delivery id only:
   Oban stores them in plain JSON, and the message is rendered from current data.
 
   Up to 5 attempts with Oban's backoff for `429`, `5xx`, and transport errors;
   other failures end the delivery at once (`{:cancel, reason}`). Retrying
-  deliveries is not retrying runs: runs are never retried (main spec section 35).
+  deliveries is not retrying runs: runs are never retried.
   """
   use Oban.Worker, queue: :notifications, max_attempts: 5
 

@@ -4,7 +4,7 @@ defmodule TestFleetWeb.UserSessionController do
   alias TestFleet.Accounts
   alias TestFleetWeb.UserAuth
 
-  # After the first-run setup or accepting an invitation (Milestone 10, section 4)
+  # After the first-run setup or accepting an invitation
   def create(conn, %{"_action" => "welcome"} = params) do
     create(conn, params, gettext("Welcome to TestFleet!"))
   end
@@ -13,7 +13,7 @@ defmodule TestFleetWeb.UserSessionController do
     create(conn, params, gettext("Welcome back!"))
   end
 
-  # "SSO button only" (Milestone 10, section 4): no password or magic-link login
+  # "SSO button only": no password or magic-link login
   defp create(conn, params, info) do
     if Accounts.password_login_enabled?() do
       create_session(conn, params, info)

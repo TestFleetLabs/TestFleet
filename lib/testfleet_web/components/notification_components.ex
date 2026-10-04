@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.NotificationComponents do
   @moduledoc """
-  Pieces of the notification pages (Milestone 8, section 9). Channels passed here
+  Pieces of the notification pages. Channels passed here
   must be redacted (`TestFleet.Notifications.redact/1`).
   """
   use TestFleetWeb, :html

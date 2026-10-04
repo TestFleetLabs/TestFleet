@@ -1,14 +1,13 @@
 defmodule TestFleetWeb.NotificationLive.ChannelForm do
   @moduledoc """
-  Creates and edits a notification channel, with "Send test" (Milestone 8,
-  section 4).
+  Creates and edits a notification channel, with "Send test".
 
   The URL and the signing secret never reach the browser: the form is built from a
   redacted channel, and the stored one is only loaded where it is needed, when
   saving or sending a test. What the user types is echoed back while editing (the
   browser has it anyway).
 
-  An existing channel also has its subscriptions here (section 5): what it receives,
+  An existing channel also has its subscriptions here: what it receives,
   from which projects and environments. A new channel opens here after saving.
   """
   use TestFleetWeb, :live_view

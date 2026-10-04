@@ -1,6 +1,6 @@
 # Deploying TestFleet
 
-TestFleet runs as three containers on one Docker host: TestFleet itself, PostgreSQL, and a Docker socket proxy. TestFleet starts the test containers on the host's Docker Engine through the proxy. Design and reasoning: [.specs/milestone-9-deployment.md](../.specs/milestone-9-deployment.md).
+TestFleet runs as three containers on one Docker host: TestFleet itself, PostgreSQL, and a Docker socket proxy. TestFleet starts the test containers on the host's Docker Engine through the proxy. The full guide is at [testfleet.io/operate/install](https://testfleet.io/operate/install/); design and reasoning are in section 43 of the [specification](../.specs/tech-architecture-execution-spec.md).
 
 ## Requirements
 
@@ -75,7 +75,7 @@ TestFleet logs in with one OpenID Connect provider. It is found through the prov
 
 ## Starting runs from CI
 
-A deployment pipeline can start the E2E suite after it deploys, wait for the result, and fail when the tests fail. Design: [.specs/milestone-11-api.md](../.specs/milestone-11-api.md).
+A deployment pipeline can start the E2E suite after it deploys, wait for the result, and fail when the tests fail. The full guide is at [testfleet.io/ci/pipelines](https://testfleet.io/ci/pipelines/); the design is section 38 of the [specification](../.specs/tech-architecture-execution-spec.md).
 
 ### A token
 

@@ -1,6 +1,6 @@
 defmodule TestFleet.Artifacts.Storage do
   @moduledoc """
-  Where artifact files live (main spec section 11, Milestone 6 section 4). The only
+  Where artifact files live. The only
   module that turns a run or a storage key into a file path.
 
   One backend so far, the local filesystem: a run's files are under

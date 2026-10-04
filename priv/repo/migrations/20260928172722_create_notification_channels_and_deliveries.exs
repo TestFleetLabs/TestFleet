@@ -1,7 +1,7 @@
 defmodule TestFleet.Repo.Migrations.CreateNotificationChannelsAndDeliveries do
   use Ecto.Migration
 
-  # Milestone 8, sections 4 and 8
+  # Notification channels (their URLs and signing secrets encrypted) and deliveries
   def change do
     create table(:notification_channels) do
       add :name, :string, null: false

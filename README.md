@@ -14,7 +14,7 @@ Each application keeps its own E2E suite in its own repository and ships it as a
 - keeps the run history and applies retention
 - sends notifications when a suite starts failing or recovers
 
-The full design lives in [.specs/tech-architecture-execution-spec.md](.specs/tech-architecture-execution-spec.md). The user documentation and the website are in [docs/](docs/) (Astro and Starlight), published at [testfleetlabs.github.io/TestFleet](https://testfleetlabs.github.io/TestFleet/).
+The full design lives in [.specs/tech-architecture-execution-spec.md](.specs/tech-architecture-execution-spec.md). The user documentation and the website are in [docs/](docs/) (Astro and Starlight), published at [testfleet.io](https://testfleet.io).
 
 ## Core concepts
 
@@ -116,31 +116,24 @@ Before committing, run:
 mix precommit        # compile with warnings as errors, format, test
 ```
 
-Tests that drive real containers are tagged `:docker` and excluded by default. They need the fixture images and the spike registry (see [.specs/execution-spike-spec.md](.specs/execution-spike-spec.md), section 9):
+Tests that drive real containers are tagged `:docker` and excluded by default. They need the fixture suite image, pushed to the fixture registry (section 44 of the spec lists the fixture's modes):
 
 ```bash
-docker build -t testfleet/spike-suite:dev test/support/fixtures/spike_suite
-docker compose --profile spike up -d registry   # then push the fixture, see the spec
-mix test --only docker
+docker build -t testfleet/fixture-suite:dev test/support/fixtures/suite
+docker compose --profile registry up -d registry
+docker tag testfleet/fixture-suite:dev localhost:5055/fixture-suite:dev
+echo fixture-password | docker login localhost:5055 -u fixture --password-stdin
+docker push localhost:5055/fixture-suite:dev
+docker logout localhost:5055
+DOCKER_HOST=tcp://localhost:2375 mix test --only docker
 ```
 
 To watch a single container go through the execution engine:
 
 ```bash
-mix testfleet.spike --image testfleet/spike-suite:dev --env SPIKE_MODE=chatty
+mix testfleet.try --image testfleet/fixture-suite:dev --env FIXTURE_MODE=chatty
 ```
 
-## Roadmap
+## What's next
 
-The MVP is built in milestones (section 52 of the spec):
-
-1. **Application skeleton:** Phoenix, LiveView, PostgreSQL, Oban, OIDC sign-on, navigation
-2. **Test configuration:** projects, registries, test definitions, environments, variables, schedules
-3. **Manual execution:** "Run now" through the dispatcher and the Docker Engine API
-4. **Live output:** log streaming with batching, secret masking, and log limits
-5. **Scheduling:** minute tick, timezone/DST handling, missed-slot coalescing, overlap policy
-6. **Results and artifacts:** JUnit parsing, artifact downloads, size limits, retention
-7. **Reliability:** cancellation, timeouts, cleanup, reconciliation, orphan and image cleanup
-8. **Notifications:** email, Slack/Teams, webhooks, transition-based and missed-schedule alerts
-
-Before milestone 3, a standalone execution spike (section 53) proves start, streaming, timeout, cancellation, artifact collection, private registry pulls, and reattaching against the Docker Engine API.
+Planned directions include a CLI on top of the API, remote runners and other execution backends (ECS, Kubernetes), object storage for artifacts, and finer permissions. The roadmap is section 45 of the spec.

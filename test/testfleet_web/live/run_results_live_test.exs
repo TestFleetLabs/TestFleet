@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.RunResultsLiveTest do
-  # Milestone 6 section 7: the tests and artifacts panels, and counts in run lists.
+  # The tests and artifacts panels, and counts in run lists.
   use TestFleetWeb.ConnCase, async: true
 
   import Ecto.Query

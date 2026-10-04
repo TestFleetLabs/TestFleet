@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.Integration.ReconcilerTest do
-  # The reconciler (Milestone 7, section 4) against real containers. A crash is
+  # The reconciler against real containers. A crash is
   # simulated by killing the run's process, which leaves the container as a crash
   # of TestFleet would. A restart additionally stops the dispatcher.
   #
@@ -49,7 +49,7 @@ defmodule TestFleet.Execution.Integration.ReconcilerTest do
     )
 
     environment = environment_fixture(project: project, max_concurrent_runs: 1)
-    variable_fixture(environment, %{key: "SPIKE_MODE", value: "hang"})
+    variable_fixture(environment, %{key: "FIXTURE_MODE", value: "hang"})
 
     %{
       environment: environment,
@@ -179,7 +179,7 @@ defmodule TestFleet.Execution.Integration.ReconcilerTest do
     spec = %{
       "Image" => fixture_image(),
       # `tick` needs none of the variables TestFleet sets; `hang` does.
-      "Env" => ["SPIKE_MODE=tick", "SPIKE_TICKS=600"],
+      "Env" => ["FIXTURE_MODE=tick", "FIXTURE_TICKS=600"],
       "Labels" => labels,
       "HostConfig" => %{"AutoRemove" => false}
     }
@@ -329,7 +329,7 @@ defmodule TestFleet.Execution.Integration.ReconcilerTest do
   end
 
   describe "database failure" do
-    # Milestone 7, section 7: the recorder raises, the process crashes with its
+    # The recorder raises, the process crashes with its
     # container running, and the next pass reattaches.
     setup do
       on_exit(&TestFleet.FlakyRecorder.disarm/0)

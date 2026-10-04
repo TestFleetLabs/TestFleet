@@ -6,7 +6,7 @@ defmodule TestFleet.Repo.Migrations.CreateUsersAuthTables do
 
     create table(:users) do
       add :email, :citext, null: false
-      # Invited and OIDC-only users have no password (Milestone 10, section 3)
+      # Invited and OIDC-only users have no password
       add :hashed_password, :string
       add :confirmed_at, :utc_datetime
       add :role, :string, null: false, default: "member"

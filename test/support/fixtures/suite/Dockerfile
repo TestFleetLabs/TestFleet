@@ -1,4 +1,4 @@
-# Fixture test suite for the execution spike (.specs/execution-spike-spec.md, section 9).
+# Fixture test suite for the Docker integration tests (the spec's "Testing" section).
 FROM alpine:3
 
 RUN adduser -D -u 10001 suite \

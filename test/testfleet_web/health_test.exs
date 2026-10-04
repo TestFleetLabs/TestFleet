@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.HealthTest do
-  # Milestone 9 section 5: the health endpoint.
+  # The health endpoint.
   use TestFleetWeb.ConnCase, async: true
 
   test "GET /health answers 200 with the Docker status", %{conn: conn} do

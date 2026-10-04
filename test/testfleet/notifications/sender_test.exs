@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.SenderTest do
-  # Milestone 8, section 8: sending, and which failures are worth retrying.
+  # Sending, and which failures are worth retrying.
   use ExUnit.Case, async: true
 
   import Swoosh.TestAssertions

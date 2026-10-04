@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.Integration.MaskingTest do
-  # Milestone 4, section 4: no output event ever carries a secret value.
+  # No output event ever carries a secret value.
   use TestFleet.DockerCase, async: true
 
   @secret "s3cret-value-42"
@@ -8,11 +8,11 @@ defmodule TestFleet.Execution.Integration.MaskingTest do
     {%Result{status: :passed}, lines} =
       run!(
         environment: %{
-          "SPIKE_MODE" => "secret",
-          "SPIKE_SECRET" => @secret,
-          "SPIKE_PLAIN" => "plain-value"
+          "FIXTURE_MODE" => "secret",
+          "FIXTURE_SECRET" => @secret,
+          "FIXTURE_PLAIN" => "plain-value"
         },
-        secret_keys: ["SPIKE_SECRET"]
+        secret_keys: ["FIXTURE_SECRET"]
       )
 
     # stdout and stderr are separate streams; their order relative to each other is
@@ -26,15 +26,15 @@ defmodule TestFleet.Execution.Integration.MaskingTest do
   test "the container records the secret keys, never the values, as a label" do
     {request, _pid} =
       start_run!(
-        environment: %{"SPIKE_MODE" => "hang", "SPIKE_SECRET" => @secret},
-        secret_keys: ["SPIKE_SECRET"]
+        environment: %{"FIXTURE_MODE" => "hang", "FIXTURE_SECRET" => @secret},
+        secret_keys: ["FIXTURE_SECRET"]
       )
 
     await_output(request.run_id, &(&1.content == "tick 1"))
 
     {:ok, info} = Command.inspect(RunExecution.container_name(request.run_id))
     labels = info["Config"]["Labels"]
-    assert labels["TestFleet.secret_keys"] == "SPIKE_SECRET"
+    assert labels["TestFleet.secret_keys"] == "FIXTURE_SECRET"
     refute Enum.any?(labels, fn {_key, value} -> value =~ @secret end)
 
     :ok = Execution.cancel(request.run_id)

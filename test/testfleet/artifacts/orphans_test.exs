@@ -1,6 +1,5 @@
 defmodule TestFleet.Artifacts.OrphansTest do
-  # Milestone 7, section 8. Each test has its own root, so the files of other
-  # tests' runs are never in sight.
+  # Each test has its own root, so the files of other tests' runs are never in sight.
   use TestFleet.DataCase, async: true
 
   import TestFleet.RunsFixtures

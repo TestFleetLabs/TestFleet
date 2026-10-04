@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.LoginTest do
-  # The login page (Milestone 10, section 4). Without SMTP: login_without_email_test.exs.
+  # The login page. Without SMTP: login_without_email_test.exs.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest

@@ -1,5 +1,5 @@
 defmodule TestFleet.ImageCleanupTest do
-  # Milestone 7, section 8: which digests are due, from the database alone.
+  # Which digests are due, from the database alone.
   use TestFleet.DataCase, async: true
 
   import TestFleet.ProjectsFixtures

@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.SSOOnlyTest do
-  # "SSO button only" with AUTH_PASSWORD_LOGIN=false (Milestone 10, section 4).
+  # "SSO button only" with AUTH_PASSWORD_LOGIN=false.
   # Not async: turns password login off in the application environment.
   use TestFleetWeb.ConnCase, async: false
 

@@ -1,9 +1,9 @@
 defmodule TestFleet.Execution.Request do
   @moduledoc """
-  Everything needed to execute one run (main spec section 14).
+  Everything needed to execute one run.
 
   `pull_policy` defaults to `:auto`: images referenced by digest are pulled only when
-  missing locally, images referenced by tag are always pulled (main spec section 39).
+  missing locally, images referenced by tag are always pulled.
   `:if_missing` and `:never` exist for locally built images.
   """
 
@@ -15,7 +15,7 @@ defmodule TestFleet.Execution.Request do
     :run_id,
     :image,
     :project_id,
-    # Labels the container, so the reconciler knows its own (Milestone 7, section 3)
+    # Labels the container, so the reconciler knows its own
     :instance_id,
     :environment_name,
     :registry_auth,

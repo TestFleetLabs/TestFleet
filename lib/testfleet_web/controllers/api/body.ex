@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.Body do
   @moduledoc """
-  Reads an API request's JSON body of string fields (Milestone 11, section 5).
+  Reads an API request's JSON body of string fields.
   Unknown fields are refused, so a typo like `"enviroment"` fails loudly instead of
   being ignored.
   """

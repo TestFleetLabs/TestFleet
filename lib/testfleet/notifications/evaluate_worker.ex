@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications.EvaluateWorker do
   @moduledoc """
-  Evaluates a run that just became final (Milestone 8, section 6):
+  Evaluates a run that just became final:
   `TestFleet.Notifications.evaluate_run/1`.
 
   `TestFleet.Runs` inserts this job in the same transaction that makes the run

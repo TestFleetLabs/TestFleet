@@ -1,4 +1,4 @@
-# TestFleet in production (.specs/milestone-9-deployment.md). See README.md.
+# TestFleet in production. See README.md.
 #
 #   cp .env.example .env    # then fill it in
 #   docker compose up -d

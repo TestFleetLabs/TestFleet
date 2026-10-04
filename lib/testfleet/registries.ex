@@ -1,7 +1,7 @@
 defmodule TestFleet.Registries do
   @moduledoc """
-  Registry credentials, resolved by the host of an image reference (main spec
-  section 38). Images whose host has no registry are pulled anonymously.
+  Registry credentials, resolved by the host of an image reference.
+  Images whose host has no registry are pulled anonymously.
   """
 
   import Ecto.Query, warn: false

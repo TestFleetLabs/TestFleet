@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.Integration.StopTest do
-  # Spike steps 3 and 4: timeout and cancellation.
+  # Timeout and cancellation.
   use TestFleet.DockerCase, async: true
 
   # Durations are measured on Docker's clock (StartedAt to FinishedAt), the deadline
@@ -12,7 +12,7 @@ defmodule TestFleet.Execution.Integration.StopTest do
       tmp_dir: tmp_dir
     } do
       {result, lines} =
-        run!(environment: %{"SPIKE_MODE" => "hang"}, timeout_seconds: 3, artifact_path: tmp_dir)
+        run!(environment: %{"FIXTURE_MODE" => "hang"}, timeout_seconds: 3, artifact_path: tmp_dir)
 
       assert result.status == :timeout
       assert "terminated" in contents(lines)
@@ -21,7 +21,7 @@ defmodule TestFleet.Execution.Integration.StopTest do
     end
 
     test "a suite that ignores SIGTERM is killed after the grace period" do
-      {result, lines} = run!(environment: %{"SPIKE_MODE" => "ignore_term"}, timeout_seconds: 3)
+      {result, lines} = run!(environment: %{"FIXTURE_MODE" => "ignore_term"}, timeout_seconds: 3)
 
       assert result.status == :timeout
       refute "terminated" in contents(lines)
@@ -33,7 +33,7 @@ defmodule TestFleet.Execution.Integration.StopTest do
 
   describe "cancellation" do
     test "cancels a running suite" do
-      {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+      {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
       await_output(request.run_id, &(&1.content == "tick 1"))
 
       assert :ok = Execution.cancel(request.run_id)
@@ -42,7 +42,7 @@ defmodule TestFleet.Execution.Integration.StopTest do
     end
 
     test "is idempotent, also after the run finished" do
-      {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+      {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
       await_output(request.run_id, &(&1.content == "tick 1"))
 
       assert :ok = Execution.cancel(request.run_id)
@@ -54,7 +54,7 @@ defmodule TestFleet.Execution.Integration.StopTest do
     end
 
     test "cancelling while preparing creates no container" do
-      {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "pass"})
+      {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "pass"})
       assert :ok = Execution.cancel(request.run_id)
 
       assert {%Result{status: :cancelled, container_id: nil}, []} = await_finished(request.run_id)

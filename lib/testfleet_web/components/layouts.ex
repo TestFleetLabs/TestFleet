@@ -245,7 +245,7 @@ defmodule TestFleetWeb.Layouts do
     """
   end
 
-  # Members do not see the admin pages (Milestone 10, section 5).
+  # Members do not see the admin pages.
   defp nav_items(admin?) do
     [
       {:dashboard, gettext("Dashboard"), "hero-squares-2x2", ~p"/"},

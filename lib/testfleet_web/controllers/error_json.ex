@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.ErrorJSON do
   @moduledoc """
   Renders errors on JSON requests, raised before or outside a controller (a
-  malformed body, a crash), in the API's error format (Milestone 11, section 5):
+  malformed body, a crash), in the API's error format:
 
       {"error": {"code": "bad_request", "message": "Bad Request"}}
 

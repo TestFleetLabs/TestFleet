@@ -49,8 +49,7 @@ defmodule TestFleetWeb.ConnCase do
   end
 
   @doc """
-  Like `register_and_log_in_user/1`, with an admin: for the admin pages
-  (Milestone 10, section 5).
+  Like `register_and_log_in_user/1`, with an admin: for the admin pages.
 
       setup :register_and_log_in_admin
   """

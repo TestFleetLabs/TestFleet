@@ -1,5 +1,5 @@
 defmodule TestFleet.Accounts.OIDCTest do
-  # OIDC identities and their four modes (Milestone 10, section 7).
+  # OIDC identities and their four modes.
   # Not async: some tests change the OIDC configuration.
   use TestFleet.DataCase, async: false
 

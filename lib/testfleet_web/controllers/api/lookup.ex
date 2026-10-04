@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.Lookup do
   @moduledoc """
-  Finds what an API request names, by slug or id (Milestone 11, section 5). Not
+  Finds what an API request names, by slug or id. Not
   found is `{:error, :not_found, message}`, naming what is missing.
   """
   alias TestFleet.{Environments, Projects, Runs, TestDefinitions}

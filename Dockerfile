@@ -76,7 +76,7 @@ RUN mix release
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE} AS final
 
-# curl for the health check (Milestone 9, section 5); libsctp1 keeps OTP's socket
+# curl for the health check; libsctp1 keeps OTP's socket
 # module from warning on every start
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates curl libsctp1 \
@@ -92,7 +92,6 @@ ENV LC_ALL=en_US.UTF-8
 
 WORKDIR "/app"
 # /app/artifacts is owned by nobody, so a named volume mounted there is writable
-# (Milestone 9, section 7)
 RUN mkdir /app/artifacts && chown nobody /app /app/artifacts
 
 # set runner ENV
@@ -110,5 +109,5 @@ USER nobody
 EXPOSE 4000
 
 # Compose runs it with `init: true`, which reaps processes and forwards signals.
-# Migrates, then starts the server (Milestone 9, section 4).
+# Migrates, then starts the server.
 CMD ["/app/bin/start"]

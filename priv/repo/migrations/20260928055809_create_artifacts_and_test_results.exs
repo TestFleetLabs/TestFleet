@@ -2,7 +2,7 @@ defmodule TestFleet.Repo.Migrations.CreateArtifactsAndTestResults do
   use Ecto.Migration
 
   def change do
-    # Milestone 6 section 3. Neither table has `updated_at`: rows never change.
+    # Neither table has `updated_at`: rows never change.
     create table(:artifacts) do
       add :run_id, references(:runs, on_delete: :delete_all), null: false
       # Relative to the artifacts directory, e.g. screenshots/login.png
@@ -19,7 +19,7 @@ defmodule TestFleet.Repo.Migrations.CreateArtifactsAndTestResults do
 
     create table(:test_results) do
       add :run_id, references(:runs, on_delete: :delete_all), null: false
-      # Copied from the run: a test's identity across runs (main spec section 10)
+      # Copied from the run: a test's identity across runs
       add :test_definition_id, references(:test_definitions, on_delete: :delete_all), null: false
 
       add :suite, :text, null: false
@@ -45,7 +45,7 @@ defmodule TestFleet.Repo.Migrations.CreateArtifactsAndTestResults do
       add :tests_skipped, :integer
       add :warnings, {:array, :text}, null: false, default: []
 
-      # Retention (slice D)
+      # Retention
       add :pinned, :boolean, null: false, default: false
       add :artifacts_expired_at, :utc_datetime_usec
       add :logs_expired_at, :utc_datetime_usec

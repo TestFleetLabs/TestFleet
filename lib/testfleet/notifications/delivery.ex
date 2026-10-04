@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications.Delivery do
   @moduledoc """
-  One notification to one channel (Milestone 8, section 8), sent by
+  One notification to one channel, sent by
   `TestFleet.Notifications.DeliveryWorker`.
 
   The message is rendered when it is sent, from `event`, the run, and `data`.

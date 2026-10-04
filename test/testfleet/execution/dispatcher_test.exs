@@ -190,7 +190,7 @@ defmodule TestFleet.Execution.DispatcherTest do
   end
 
   describe "Docker check" do
-    # Milestone 7, section 7: a fake ping the test switches.
+    # A fake ping the test switches.
     setup do
       docker = start_supervised!({Agent, fn -> {:error, %{message: "connection refused"}} end})
       TestFleet.Execution.subscribe_system()

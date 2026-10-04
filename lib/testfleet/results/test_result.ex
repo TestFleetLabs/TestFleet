@@ -1,7 +1,7 @@
 defmodule TestFleet.Results.TestResult do
   @moduledoc """
-  One test case of a run's JUnit report (main spec section 10, Milestone 6
-  section 3). `test_definition_id`, `suite`, `classname`, and `name` identify a
+  One test case of a run's JUnit report.
+  `test_definition_id`, `suite`, `classname`, and `name` identify a
   test across runs.
 
   Written with the run's final status by `TestFleet.Runs.finish/2`, never changed.

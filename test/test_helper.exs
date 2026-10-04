@@ -1,5 +1,5 @@
 # Tests tagged :docker need the Docker socket proxy and the fixture images:
-# mix test --only docker (see .specs/execution-spike-spec.md, section 9)
+# mix test --only docker (see the "Testing" section of the spec)
 ExUnit.start(exclude: [:docker])
 
 # Run ids of the test database start at 10^9, so its containers (TestFleet-run-<id>)

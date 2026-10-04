@@ -8,13 +8,13 @@ defmodule TestFleet.Execution.Docker.RegistryAuthTest do
   end
 
   test "encodes credentials as URL-safe base64 JSON" do
-    auth = %{username: "spike", password: "p?ss>word/+"}
+    auth = %{username: "fixture", password: "p?ss>word/+"}
     [{"x-registry-auth", header}] = RegistryAuth.headers(auth, "localhost:5000")
 
     refute header =~ ~r/[+\/]/
 
     assert header |> Base.url_decode64!() |> Jason.decode!() == %{
-             "username" => "spike",
+             "username" => "fixture",
              "password" => "p?ss>word/+",
              "serveraddress" => "localhost:5000"
            }

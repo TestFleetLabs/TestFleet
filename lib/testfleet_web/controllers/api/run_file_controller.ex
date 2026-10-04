@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.RunFileController do
   @moduledoc """
-  A run's log and artifacts over the API (Milestone 11, section 6).
+  A run's log and artifacts over the API.
 
   The log is plain text, streamed like the web download. `?after=<sequence>` sends
   only newer lines, and `TestFleet-Log-Sequence` names the last line sent, so a

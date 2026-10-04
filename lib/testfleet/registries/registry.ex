@@ -1,6 +1,6 @@
 defmodule TestFleet.Registries.Registry do
   @moduledoc """
-  Credentials for a container registry (main spec sections 6 and 38).
+  Credentials for a container registry.
 
   `host` is matched against the host of image references, so it is stored the way
   `TestFleet.Execution.Docker.ImageRef` reports hosts: lowercase, without scheme or

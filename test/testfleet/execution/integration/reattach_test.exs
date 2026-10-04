@@ -1,12 +1,12 @@
 defmodule TestFleet.Execution.Integration.ReattachTest do
-  # Spike step 7: resume a run after its process died.
+  # Resume a run after its process died.
   #
   # These tests sleep on purpose: the point is that the container keeps working in
   # real time while no process is attached.
   use TestFleet.DockerCase, async: true
 
   test "resumes the log stream without gaps or duplicates" do
-    {request, pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+    {request, pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
     before = await_output(request.run_id, &(&1.content == "tick 2"))
     kill_process(pid)
 
@@ -28,7 +28,7 @@ defmodule TestFleet.Execution.Integration.ReattachTest do
   end
 
   test "the original deadline survives the reattach" do
-    {request, pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"}, timeout_seconds: 5)
+    {request, pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"}, timeout_seconds: 5)
     before = await_output(request.run_id, &(&1.content == "tick 2"))
     kill_process(pid)
     Process.sleep(1_000)
@@ -44,7 +44,7 @@ defmodule TestFleet.Execution.Integration.ReattachTest do
   end
 
   test "reattaching after the deadline stops the container right away" do
-    {request, pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"}, timeout_seconds: 2)
+    {request, pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"}, timeout_seconds: 2)
     await_output(request.run_id, &(&1.content == "tick 1"))
     kill_process(pid)
     Process.sleep(2_500)
@@ -81,7 +81,7 @@ defmodule TestFleet.Execution.Integration.ReattachTest do
   end
 
   test "a container removed while nothing was attached is an error" do
-    {request, pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+    {request, pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
     await_output(request.run_id, &(&1.content == "tick 1"))
     kill_process(pid)
     :ok = Command.remove(RunExecution.container_name(request.run_id))

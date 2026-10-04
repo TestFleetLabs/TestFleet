@@ -1,8 +1,7 @@
 defmodule TestFleet.Notifications.Transitions do
   @moduledoc """
-  Decides whether a run that just became final changed its series' state
-  (Milestone 8, section 6). A series is all runs of one test definition in one
-  environment.
+  Decides whether a run that just became final changed its series' state. A
+  series is all runs of one test definition in one environment.
 
   Verdicts: `passed` is green; `failed` and `timeout` are red; `error` has none (an
   infrastructure problem says nothing about the application); `cancelled` is

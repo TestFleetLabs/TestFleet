@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications do
   @moduledoc """
-  Notification channels and deliveries (Milestone 8).
+  Notification channels and deliveries.
 
   Channels are global: without authentication there are no users to own them.
   Their webhook URLs and signing secrets are credentials: encrypted at rest, and
@@ -96,7 +96,7 @@ defmodule TestFleet.Notifications do
   end
 
   @doc """
-  Sends a `test` message right away, not through Oban (Milestone 8, section 4).
+  Sends a `test` message right away, not through Oban.
 
   `channel` is the stored channel, or a new `%Channel{}`; `attrs` are the form
   values. An empty URL or signing secret uses the stored one, as when saving.
@@ -206,7 +206,7 @@ defmodule TestFleet.Notifications do
   ## System events
 
   @doc """
-  Delivers a system event (Milestone 8, section 7) to every enabled channel with a
+  Delivers a system event to every enabled channel with a
   subscription to it; only subscriptions for all projects can have one.
   `dedupe_key` names the episode, so an event is delivered once per episode.
   `data` is stored with the delivery and rendered when it is sent: never secrets.

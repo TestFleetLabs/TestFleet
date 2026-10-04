@@ -1,7 +1,7 @@
 defmodule TestFleet.Repo.Migrations.CreateNotificationSubscriptions do
   use Ecto.Migration
 
-  # Milestone 8, section 5
+  # Which events of which projects and environments a channel receives
   def change do
     create table(:notification_subscriptions) do
       add :channel_id, references(:notification_channels, on_delete: :delete_all), null: false

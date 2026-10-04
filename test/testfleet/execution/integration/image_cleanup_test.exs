@@ -1,7 +1,7 @@
 defmodule TestFleet.Execution.Integration.ImageCleanupTest do
-  # Milestone 7, section 8: removing images by digest against real Docker.
+  # Removing images by digest against real Docker.
   #
-  # Each test commits its own image from the fixture and pushes it to the spike
+  # Each test commits its own image from the fixture and pushes it to the fixture
   # registry, so it has a digest reference no other test uses.
   use TestFleet.DataCase, async: true
 

@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.PullCoordinatorTest do
-  # Milestone 7 section 6: one pull per image reference.
+  # One pull per image reference.
   use ExUnit.Case, async: true
 
   alias TestFleet.Execution.PullCoordinator

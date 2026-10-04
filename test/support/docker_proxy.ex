@@ -1,7 +1,7 @@
 defmodule TestFleet.DockerProxy do
   @moduledoc """
   A TCP proxy in front of the Docker Engine, to break TestFleet's connections the
-  way a restarted socket proxy or daemon does (Milestone 7, section 7).
+  way a restarted socket proxy or daemon does.
 
   `interrupt/1` closes every open connection and stops listening, so new connections
   are refused; `resume/1` listens again on the same port.

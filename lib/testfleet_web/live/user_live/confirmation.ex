@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.UserLive.Confirmation do
   @moduledoc """
-  The page a magic link opens. Only active users get magic links (Milestone 10,
-  section 4), so there is nothing to confirm: the button logs in.
+  The page a magic link opens. Only active users get magic links, so there is
+  nothing to confirm: the button logs in.
   """
   use TestFleetWeb, :live_view
 

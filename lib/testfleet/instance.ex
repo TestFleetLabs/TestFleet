@@ -1,6 +1,6 @@
 defmodule TestFleet.Instance do
   @moduledoc """
-  This database's identity (Milestone 7, section 3). Containers carry it as the
+  This database's identity. Containers carry it as the
   label `TestFleet.instance`, so the reconciler can tell its own orphans from the
   containers of another database on the same Docker host (dev and test, or staging
   and production).

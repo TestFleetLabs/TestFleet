@@ -1,7 +1,7 @@
 defmodule TestFleet.Repo.Migrations.CreateUserIdentities do
   use Ecto.Migration
 
-  # OIDC identities (Milestone 10, section 7): a user's account at the provider,
+  # OIDC identities: a user's account at the provider,
   # matched by the provider's subject, never by email.
   def change do
     create table(:user_identities) do

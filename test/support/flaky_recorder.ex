@@ -1,8 +1,8 @@
 defmodule TestFleet.FlakyRecorder do
   @moduledoc """
   `TestFleet.Runs.Recorder`, except that the first output batch after `arm/0` raises
-  instead of being stored, like a database write failing mid-run (Milestone 7,
-  section 7). One-shot and global: for tests that are not async.
+  instead of being stored, like a database write failing mid-run.
+  One-shot and global: for tests that are not async.
   """
   @behaviour TestFleet.Execution.Handler
 

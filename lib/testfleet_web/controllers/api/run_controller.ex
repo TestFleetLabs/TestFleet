@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.API.RunController do
   @moduledoc """
-  Starts, reads, and cancels runs from CI (Milestone 11, section 6). API runs go
-  through the same pipeline as every other run (main spec section 29): they are
+  Starts, reads, and cancels runs from CI. API runs go
+  through the same pipeline as every other run: they are
   created `queued` with `trigger = api`, the token's user, and the token.
   """
   use TestFleetWeb, :controller
@@ -34,7 +34,7 @@ defmodule TestFleetWeb.API.RunController do
   end
 
   # Idempotent: a finished run is answered as it is. An active run reaches
-  # `cancelled` once its container has stopped (main spec section 26).
+  # `cancelled` once its container has stopped.
   def cancel(conn, %{"id" => id}) do
     with {:ok, run} <- Lookup.run(id) do
       :ok = Runs.cancel_run(run)

@@ -1,9 +1,9 @@
 defmodule TestFleet.Execution.Integration.StreamTest do
-  # Spike step 2: stream stdout/stderr, demultiplexed and split into lines.
+  # Stream stdout/stderr, demultiplexed and split into lines.
   use TestFleet.DockerCase, async: true
 
   test "lines arrive tagged by stream, with timestamps and consecutive sequence numbers" do
-    {%Result{status: :passed}, lines} = run!(environment: %{"SPIKE_MODE" => "pass"})
+    {%Result{status: :passed}, lines} = run!(environment: %{"FIXTURE_MODE" => "pass"})
 
     assert Enum.map(lines, & &1.sequence) == Enum.to_list(1..length(lines))
     assert Enum.all?(lines, &is_integer(&1.timestamp))
@@ -13,7 +13,7 @@ defmodule TestFleet.Execution.Integration.StreamTest do
   end
 
   test "a chatty suite loses no lines and keeps a 40 KB line whole" do
-    {result, lines} = run!(environment: %{"SPIKE_MODE" => "chatty"})
+    {result, lines} = run!(environment: %{"FIXTURE_MODE" => "chatty"})
 
     assert result.status == :passed
     assert length(lines) == 100_001
@@ -26,7 +26,7 @@ defmodule TestFleet.Execution.Integration.StreamTest do
   end
 
   test "output arrives in batches of at most 500 lines, all before the result" do
-    {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "chatty"})
+    {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "chatty"})
 
     batch_sizes = collect_batch_sizes(request.run_id, [])
 
@@ -37,12 +37,12 @@ defmodule TestFleet.Execution.Integration.StreamTest do
   end
 
   test "output without a trailing newline arrives as one line" do
-    {%Result{status: :passed}, lines} = run!(environment: %{"SPIKE_MODE" => "partial"})
+    {%Result{status: :passed}, lines} = run!(environment: %{"FIXTURE_MODE" => "partial"})
     assert contents(lines) == ["no newline at all"]
   end
 
   test "output arrives while the container is still running" do
-    {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+    {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
     await_output(request.run_id, &(&1.content == "tick 2"))
 
     :ok = Execution.cancel(request.run_id)

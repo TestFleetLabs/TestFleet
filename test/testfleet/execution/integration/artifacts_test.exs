@@ -1,6 +1,5 @@
 defmodule TestFleet.Execution.Integration.ArtifactsTest do
-  # Spike step 5, and Milestone 6 slice A: collect the artifacts directory and the
-  # JUnit results out of the stopped container.
+  # Collect the artifacts directory and the JUnit results out of the stopped container.
   use TestFleet.DockerCase, async: true
 
   @moduletag :tmp_dir
@@ -11,7 +10,7 @@ defmodule TestFleet.Execution.Integration.ArtifactsTest do
     {result, _lines} =
       run!(
         [
-          environment: Map.merge(%{"SPIKE_MODE" => mode}, attrs[:env] || %{}),
+          environment: Map.merge(%{"FIXTURE_MODE" => mode}, attrs[:env] || %{}),
           artifact_path: tmp_dir
         ] ++
           Keyword.delete(attrs, :env)
@@ -23,7 +22,7 @@ defmodule TestFleet.Execution.Integration.ArtifactsTest do
   defp names(result), do: Enum.map(result.artifacts, & &1.path)
 
   test "copies nested artifacts with their contents", %{tmp_dir: tmp_dir} do
-    {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "pass"}, artifact_path: tmp_dir)
+    {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "pass"}, artifact_path: tmp_dir)
     {result, _} = await_finished(request.run_id)
 
     assert [%{path: "reports/index.html"}, %{path: "summary.txt", size_bytes: size}] =
@@ -111,7 +110,7 @@ defmodule TestFleet.Execution.Integration.ArtifactsTest do
     test "over the limit, only the JUnit files are kept", %{tmp_dir: tmp_dir} do
       result =
         run_mode!(tmp_dir, "big_artifacts",
-          env: %{"SPIKE_ARTIFACT_MB" => "3"},
+          env: %{"FIXTURE_ARTIFACT_MB" => "3"},
           max_artifact_bytes: 1024 * 1024
         )
 
@@ -125,7 +124,7 @@ defmodule TestFleet.Execution.Integration.ArtifactsTest do
     test "under the limit, everything is kept", %{tmp_dir: tmp_dir} do
       result =
         run_mode!(tmp_dir, "big_artifacts",
-          env: %{"SPIKE_ARTIFACT_MB" => "1"},
+          env: %{"FIXTURE_ARTIFACT_MB" => "1"},
           max_artifact_bytes: 2 * 1024 * 1024
         )
 
@@ -143,7 +142,7 @@ defmodule TestFleet.Execution.Integration.ArtifactsTest do
   end
 
   test "a cancelled run keeps what it wrote", %{tmp_dir: tmp_dir} do
-    {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"}, artifact_path: tmp_dir)
+    {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"}, artifact_path: tmp_dir)
     await_output(request.run_id, &(&1.content == "tick 1"))
 
     :ok = Execution.cancel(request.run_id)

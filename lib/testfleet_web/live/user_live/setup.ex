@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.UserLive.Setup do
   @moduledoc """
-  First-run setup (Milestone 10, section 4): creates the first admin. Only with the
+  First-run setup: creates the first admin. Only with the
   one-time token from the log, and only while there is no user; otherwise the page
   does not exist.
   """

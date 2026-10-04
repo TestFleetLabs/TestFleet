@@ -1,7 +1,6 @@
 defmodule TestFleet.TestDefinitions.TestDefinition do
   @moduledoc """
-  The test suite of a project: which image to run, with which command and limits
-  (main spec section 6).
+  The test suite of a project: which image to run, with which command and limits.
 
   Durations and sizes are stored in seconds and bytes. The form works in minutes
   and MiB through virtual fields (`timeout_minutes`, `memory_limit_mib`,

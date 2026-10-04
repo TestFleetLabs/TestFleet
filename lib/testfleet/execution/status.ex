@@ -1,12 +1,12 @@
 defmodule TestFleet.Execution.Status do
   @moduledoc """
-  Decides the final status of a run (main spec section 24).
+  Decides the final status of a run.
 
   The first matching rule wins. `junit` is the summary of the run's JUnit files, or
-  `nil` without any (Milestone 6, section 5); `failed` counts failures and errors.
+  `nil` without any; `failed` counts failures and errors.
 
   `interrupted` means the process lost Docker while the suite ran and found the
-  container exited when Docker answered again (Milestone 7, section 7). It turns a
+  container exited when Docker answered again. It turns a
   non-zero exit code into an error; a suite that exited 0 passed all the same.
   """
 
@@ -43,7 +43,7 @@ defmodule TestFleet.Execution.Status do
       facts[:container_missing] ->
         {:error, "container disappeared"}
 
-      # 5a: Docker stopped the suite, not a test (Milestone 7, section 7)
+      # 5a: Docker stopped the suite, not a test
       facts[:interrupted] == true and is_integer(exit_code) and exit_code != 0 ->
         {:error, interrupted_message(exit_code)}
 

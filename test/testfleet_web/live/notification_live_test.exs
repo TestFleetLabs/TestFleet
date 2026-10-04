@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.NotificationLiveTest do
-  # Milestone 8, section 9: channels and "Send test". Webhook URLs are credentials:
+  # Channels and "Send test". Webhook URLs are credentials:
   # they must never reach the browser.
   use TestFleetWeb.ConnCase, async: true
 

@@ -1,7 +1,7 @@
 defmodule TestFleet.Repo.Migrations.CreateApiTokens do
   use Ecto.Migration
 
-  # API tokens (Milestone 11, section 3): only the SHA-256 of the token is stored.
+  # API tokens: only the SHA-256 of the token is stored.
   def change do
     create table(:api_tokens) do
       add :user_id, references(:users, on_delete: :delete_all), null: false

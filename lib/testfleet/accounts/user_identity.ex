@@ -1,6 +1,6 @@
 defmodule TestFleet.Accounts.UserIdentity do
   @moduledoc """
-  A user's account at the OIDC provider (Milestone 10, section 7), matched by the
+  A user's account at the OIDC provider, matched by the
   provider's `issuer` and `subject` (`sub`). The email is kept as last seen, for
   display only.
   """

@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.NotificationLive.Index do
   @moduledoc """
-  Notification channels (Milestone 8, section 9), with "Send test", and the recent
+  Notification channels, with "Send test", and the recent
   deliveries, live from the `notifications` topic.
 
   Webhook URLs and signing secrets never reach the browser: channels are redacted

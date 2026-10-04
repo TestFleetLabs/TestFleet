@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.RunLive.Show do
   @moduledoc """
-  The run page (main spec sections 23 and 42): status, timing, and what was
-  executed, updated live from `run:<id>`. Log output arrives with Milestone 4.
+  The run page: status, timing, what was executed, the log, results, and
+  artifacts, updated live from `run:<id>`.
   """
   use TestFleetWeb, :live_view
 
@@ -11,7 +11,7 @@ defmodule TestFleetWeb.RunLive.Show do
   alias TestFleet.Runs.Run
   alias TestFleet.Schedules.Timezones
 
-  # Lines loaded on mount, and the most kept in the page (Milestone 4, section 8).
+  # Lines loaded on mount, and the most kept in the page.
   @history_lines 1_000
   @max_lines 2_000
   # Images and videos previewed above the artifact list; all are in the list.
@@ -56,7 +56,7 @@ defmodule TestFleetWeb.RunLive.Show do
      |> stream(:test_others, [])
      |> stream(:media, [])
      |> stream(:artifact_rows, [])
-     # Notifications this run caused (Milestone 8, section 9)
+     # Notifications this run caused
      |> assign(:delivery_ids, MapSet.new(deliveries, & &1.id))
      |> assign(:delivery_count, length(deliveries))
      |> stream_configure(:run_deliveries, dom_id: &"run-delivery-#{&1.id}")

@@ -1,6 +1,6 @@
 defmodule TestFleet.Accounts.OIDC do
   @moduledoc """
-  OIDC login with one provider (Milestone 10, section 7), discovered from its
+  OIDC login with one provider, discovered from its
   issuer: Entra ID, AD FS, Keycloak, or any other OpenID provider.
 
   Configured under `config :testfleet, TestFleet.Accounts.OIDC` (from the `OIDC_*`

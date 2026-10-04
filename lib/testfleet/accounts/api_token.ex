@@ -1,6 +1,6 @@
 defmodule TestFleet.Accounts.APIToken do
   @moduledoc """
-  A user's API token (Milestone 11, section 3): `tf_` and 32 random bytes,
+  A user's API token: `tf_` and 32 random bytes,
   base64url. Only its SHA-256 is stored, with its last 4 characters as a hint; the
   token itself is shown once, when created.
 

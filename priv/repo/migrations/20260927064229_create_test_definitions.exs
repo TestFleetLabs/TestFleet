@@ -10,7 +10,7 @@ defmodule TestFleet.Repo.Migrations.CreateTestDefinitions do
 
       # Image references with a digest are longer than 255 characters at times
       add :image, :text, null: false
-      # argv array; empty means the image's own ENTRYPOINT/CMD (main spec section 6)
+      # argv array; empty means the image's own ENTRYPOINT/CMD
       add :command, {:array, :text}, null: false, default: []
 
       add :timeout_seconds, :integer, null: false, default: 1800

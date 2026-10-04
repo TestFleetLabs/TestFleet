@@ -1,7 +1,6 @@
 defmodule TestFleet.Execution.Collector do
   @moduledoc """
-  Copies `/TestFleet/artifacts` out of a stopped container and reads its JUnit files
-  (main spec sections 10 and 12, Milestone 6 sections 4 and 5).
+  Copies `/TestFleet/artifacts` out of a stopped container and reads its JUnit files.
 
     * **Size limit:** the archive is downloaded with a byte cap. Over the limit,
       only `junit.xml` and `junit/` are kept, with a warning.

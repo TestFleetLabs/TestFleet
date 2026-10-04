@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.ReconcilerTest do
-  # The rules of Milestone 7, section 4, without Docker or a database.
+  # The reconciler's rules, without Docker or a database.
   use ExUnit.Case, async: true
 
   alias TestFleet.Execution.Reconciler

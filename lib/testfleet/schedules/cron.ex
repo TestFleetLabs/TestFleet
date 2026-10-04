@@ -1,6 +1,6 @@
 defmodule TestFleet.Schedules.Cron do
   @moduledoc """
-  Next occurrences of a cron expression in a time zone (main spec section 28).
+  Next occurrences of a cron expression in a time zone.
 
   Occurrences are computed on local wall-clock time and converted to UTC:
 

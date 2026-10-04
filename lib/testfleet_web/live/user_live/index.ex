@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.UserLive.Index do
   @moduledoc """
-  The Users page (admin, Milestone 10, section 9): invitations, roles, and
+  The Users page (admin): invitations, roles, and
   deactivation. An invitation link is shown once, to copy; with SMTP it is also
   emailed.
   """

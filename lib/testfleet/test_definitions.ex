@@ -41,7 +41,7 @@ defmodule TestFleet.TestDefinitions do
   end
 
   @doc """
-  Updates only the image, from CI (Milestone 11, section 6): `{:image, reference}`
+  Updates only the image, from CI: `{:image, reference}`
   replaces the whole reference, `{:tag, tag}` only its tag. Validated like the form.
   Runs created from then on use the new image; queued and running runs keep theirs.
 

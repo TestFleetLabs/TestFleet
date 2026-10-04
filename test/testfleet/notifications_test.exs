@@ -1,5 +1,5 @@
 defmodule TestFleet.NotificationsTest do
-  # Milestone 8, sections 4 and 8: channels and deliveries.
+  # Channels and deliveries.
   use TestFleet.DataCase, async: true
 
   import TestFleet.NotificationsFixtures

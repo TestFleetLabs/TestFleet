@@ -1,6 +1,6 @@
 defmodule TestFleet.Results.JUnit do
   @moduledoc """
-  Parses JUnit XML into test cases (main spec section 10, Milestone 6 section 5).
+  Parses JUnit XML into test cases.
 
   A pure function without database or configuration, so `RunExecution` can call it
   where the files are extracted.

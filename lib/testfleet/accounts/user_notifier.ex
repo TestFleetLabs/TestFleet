@@ -1,7 +1,7 @@
 defmodule TestFleet.Accounts.UserNotifier do
   @moduledoc """
   Account emails: invitations, magic links, and email changes. Sent only when SMTP
-  is configured (Milestone 10, section 4), from the address notifications use.
+  is configured, from the address notifications use.
   """
   import Swoosh.Email
 

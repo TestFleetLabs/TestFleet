@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.ArtifactResponse do
   @moduledoc """
-  Sends one artifact's file, for the web UI (`TestFleetWeb.ArtifactController`,
-  Milestone 6, section 7) and the API (Milestone 11, section 6), so the two cannot
+  Sends one artifact's file, for the web UI (`TestFleetWeb.ArtifactController`)
+  and the API, so the two cannot
   drift apart.
 
   An artifact is someone else's file, so:

@@ -1,8 +1,8 @@
 defmodule TestFleetWeb.DashboardLive do
   @moduledoc """
-  The dashboard (main spec section 42): today's figures, recent and queued runs, and
+  The dashboard: today's figures, recent and queued runs, and
   upcoming schedules. Runs update live from the `runs` topic, Docker's reachability
-  from the `system` topic (Milestone 7, section 9).
+  from the `system` topic.
   """
   use TestFleetWeb, :live_view
 
@@ -35,7 +35,7 @@ defmodule TestFleetWeb.DashboardLive do
      |> assign_upcoming()}
   end
 
-  # A schedule this late means the tick is not running (Milestone 5, section 8).
+  # A schedule this late means the tick is not running.
   @overdue_after_seconds 120
 
   defp assign_upcoming(socket) do

@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.Integration.BrokenStreamTest do
-  # Milestone 7, section 7: a run whose connections to Docker broke is followed
+  # A run whose connections to Docker broke is followed
   # again. The run talks to Docker through a proxy the test cuts and restores, like
   # a restarted socket proxy; the test itself talks to Docker directly.
   #
@@ -56,7 +56,7 @@ defmodule TestFleet.Execution.Integration.BrokenStreamTest do
   end
 
   defp hanging_run!(context, opts \\ []) do
-    {request, pid} = start_run!(context, [environment: %{"SPIKE_MODE" => "hang"}], opts)
+    {request, pid} = start_run!(context, [environment: %{"FIXTURE_MODE" => "hang"}], opts)
     lines = await_output(request.run_id, &(&1.content == "tick 2"))
     {request, pid, lines}
   end

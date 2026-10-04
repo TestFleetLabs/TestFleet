@@ -1,6 +1,6 @@
 defmodule TestFleet.Artifacts do
   @moduledoc """
-  Files a suite leaves in `/TestFleet/artifacts` (main spec sections 11, 12, and 46).
+  Files a suite leaves in `/TestFleet/artifacts`.
 
   `RunExecution` collects them into `TestFleet.Artifacts.Storage`; `Runs.finish/2`
   stores their rows with the run's final status.
@@ -27,7 +27,7 @@ defmodule TestFleet.Artifacts do
 
   @doc """
   The artifact of a run with exactly this name, or `nil`. Downloads look names up
-  here and never build a file path from a request (Milestone 6, section 7).
+  here and never build a file path from a request.
   """
   def get_artifact(run_id, name) when is_binary(name) do
     with {run_id, ""} <- Integer.parse(to_string(run_id)) do

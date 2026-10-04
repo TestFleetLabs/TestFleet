@@ -1,6 +1,6 @@
 defmodule TestFleet.Execution.RunExecution do
   @moduledoc """
-  Owns one run, from image pull to container removal (main spec section 27).
+  Owns one run, from image pull to container removal.
 
   The process does not write to the database. It reports events to a
   `TestFleet.Execution.Handler` (`:handler`), called in this process, or sends them
@@ -18,7 +18,7 @@ defmodule TestFleet.Execution.RunExecution do
   comes first. All output is reported before `{:finished, result}`.
 
   `{:finished, result}` is reported before the container is removed, so the final
-  status is recorded even if TestFleet dies in between (Milestone 3, section 7). The
+  status is recorded even if TestFleet dies in between. The
   process exits once the container is removed.
 
   Modes:
@@ -34,13 +34,13 @@ defmodule TestFleet.Execution.RunExecution do
   Preparing (network, image pull, inspect) is bounded by the request's
   `pull_timeout_ms`, separately from the run's timeout; past it, the run ends
   `error`. Pulls go through `TestFleet.Execution.PullCoordinator`, so runs of the
-  same image share one pull (Milestone 7, section 6).
+  same image share one pull.
 
   The process does not remove its container when it crashes: a running suite that
-  outlives its process can still be reattached (main spec section 32).
+  outlives its process can still be reattached.
 
   A `logs` or `wait` stream that breaks, or a `logs` stream that ends while the
-  container still runs, does not end the run (Milestone 7, section 7). The process
+  container still runs, does not end the run. The process
   inspects the container every `:reconnect_interval` (5 s) and follows it again
   (`TestFleet.Execution.Reconnect`), resuming the logs after the last line it
   reported. If Docker does not answer within `:reconnect_window` (2 min), the process
@@ -72,11 +72,11 @@ defmodule TestFleet.Execution.RunExecution do
   @drain_timeout 5_000
   # Extra time after the stop grace period before sending SIGKILL ourselves.
   @kill_margin 5_000
-  # Output is reported in batches (main spec section 21, Milestone 4 section 5).
+  # Output is reported in batches.
   @batch_interval 100
   @batch_max_lines 500
   @batch_max_bytes 1_048_576
-  # Asking Docker again after a broken stream (Milestone 7, section 7)
+  # Asking Docker again after a broken stream
   @reconnect_window 120_000
   @reconnect_interval 5_000
 
@@ -136,7 +136,7 @@ defmodule TestFleet.Execution.RunExecution do
       reconnect_window: opts[:reconnect_window] || @reconnect_window,
       reconnect_interval: opts[:reconnect_interval] || @reconnect_interval,
       interrupted: false,
-      # A cancel that arrived while no process owned the run (Milestone 7, section 5)
+      # A cancel that arrived while no process owned the run
       cancel_on_attach: Keyword.get(opts, :cancel, false),
       stopping: false,
       cancelled: false,
@@ -337,9 +337,9 @@ defmodule TestFleet.Execution.RunExecution do
     end
   end
 
-  # One pull per reference and credentials; runs of the same image wait for it
-  # (Milestone 7, section 6). The credentials are part of the key, as a hash, so a
-  # pull with wrong credentials never answers one with the right ones.
+  # One pull per reference and credentials; runs of the same image wait for it.
+  # The credentials are part of the key, as a hash, so a pull with wrong
+  # credentials never answers one with the right ones.
   defp pull(request, ref) do
     key = {request.image, :erlang.phash2(request.registry_auth)}
     PullCoordinator.pull(key, fn -> Command.pull(ref, request.registry_auth) end)
@@ -602,7 +602,7 @@ defmodule TestFleet.Execution.RunExecution do
     lose_streams(state, true)
   end
 
-  ## Following again (Milestone 7, section 7)
+  ## Following again
 
   # Drops both streams and asks Docker what became of the container. A partial line
   # is reported as it is: the resumed stream starts after its timestamp.

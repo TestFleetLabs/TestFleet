@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.InvitationTest do
-  # Invitation links (Milestone 10, section 4).
+  # Invitation links.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest

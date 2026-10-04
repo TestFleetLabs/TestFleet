@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.OIDCController do
   @moduledoc """
-  The OIDC flow (Milestone 10, section 7): authorization code with PKCE. The
+  The OIDC flow: authorization code with PKCE. The
   request (`state`, `nonce`, PKCE verifier, and mode) waits in the session for the
   callback, which checks `state` before anything else.
 

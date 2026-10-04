@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.API.TestDefinitionControllerTest do
-  # Reading a test definition and updating its image (Milestone 11, section 6)
+  # Reading a test definition and updating its image
   use TestFleetWeb.ConnCase, async: true
 
   import TestFleet.AccountsFixtures

@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.RunJSON do
   @moduledoc """
-  A run as the API returns it (Milestone 11, section 6). `final` spares clients the
+  A run as the API returns it. `final` spares clients the
   list of final statuses; `tests` is null without a JUnit report.
   """
   use TestFleetWeb, :verified_routes

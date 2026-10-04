@@ -92,7 +92,7 @@ defmodule TestFleet.RegistriesTest do
                company.id
 
       assert Registries.get_registry_for_image(
-               "localhost:5055/spike-suite@sha256:" <> String.duplicate("a", 64)
+               "localhost:5055/fixture-suite@sha256:" <> String.duplicate("a", 64)
              ).id ==
                local.id
 

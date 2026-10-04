@@ -37,7 +37,7 @@ defmodule TestFleet.SchedulesTest do
     test "computes next_run_at in the schedule's time zone", %{project: project} = context do
       assert {:ok, schedule} = Schedules.create_schedule(project, attrs(context), now: @now)
 
-      # The example of main spec section 6
+      # The spec's example
       assert %Schedule{
                next_run_at: ~U[2026-09-27 04:00:00Z],
                overlap_policy: :skip,

@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.Error do
   @moduledoc """
-  Sends an API error (Milestone 11, section 5):
+  Sends an API error:
 
       {"error": {"code": "not_found", "message": "…", "details": {…}}}
 

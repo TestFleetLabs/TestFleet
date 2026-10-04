@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.UserLive.Login do
   @moduledoc """
-  The login page (Milestone 10, section 4): single sign-on when OIDC is configured,
+  The login page: single sign-on when OIDC is configured,
   email and password unless `AUTH_PASSWORD_LOGIN=false`, and a magic link when SMTP
   is configured too. Also used to re-authenticate for sudo mode.
   """

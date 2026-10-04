@@ -1,5 +1,5 @@
 defmodule TestFleet.Accounts.APITokenTest do
-  # API tokens (Milestone 11, section 3)
+  # API tokens
   use TestFleet.DataCase, async: true
 
   import TestFleet.AccountsFixtures

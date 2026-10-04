@@ -1,7 +1,7 @@
 defmodule TestFleet.Execution.Reconciler do
   @moduledoc """
   Compares runs in PostgreSQL with TestFleet's containers in Docker and repairs the
-  difference (main spec section 32, Milestone 7 section 4).
+  difference.
 
   A pass runs at startup (by the dispatcher, before its first dispatch) and every
   `:interval` milliseconds (this process, default 30 s). First matching rule wins;
@@ -19,8 +19,8 @@ defmodule TestFleet.Execution.Reconciler do
   | 8 | no run row               | –       | this instance | stop and remove (orphan)      |
   | 9 | no run row               | –       | other / none  | nothing                       |
 
-  Only containers of this instance (`TestFleet.instance`) and containers from before
-  Milestone 7 (no instance label) are matched to runs; the latter are never removed
+  Only containers of this instance (`TestFleet.instance`) and containers without an
+  instance label are matched to runs; the latter are never removed
   as orphans. Without an answer from Docker, nothing is changed.
 
   Options (default from `config :testfleet, #{inspect(__MODULE__)}`): `:interval`,

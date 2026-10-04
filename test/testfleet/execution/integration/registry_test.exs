@@ -1,6 +1,6 @@
 defmodule TestFleet.Execution.Integration.RegistryTest do
-  # Spike step 6: pull from a private registry with per-pull credentials.
-  # Needs: docker compose --profile spike up -d registry, and the fixture pushed to it.
+  # Pull from a private registry with per-pull credentials.
+  # Needs: docker compose --profile registry up -d registry, and the fixture pushed to it.
   use TestFleet.DockerCase, async: true
 
   alias TestFleet.Execution.Docker.ImageRef
@@ -13,7 +13,7 @@ defmodule TestFleet.Execution.Integration.RegistryTest do
         :ok
 
       {:error, error} ->
-        raise "registry fixture unavailable (see spike spec section 9): #{error.message}"
+        raise "registry fixture unavailable (see the Testing section of the spec): #{error.message}"
     end
   end
 
@@ -23,7 +23,7 @@ defmodule TestFleet.Execution.Integration.RegistryTest do
         image: registry_image(),
         registry_auth: registry_auth(),
         pull_policy: :auto,
-        environment: %{"SPIKE_MODE" => "pass"}
+        environment: %{"FIXTURE_MODE" => "pass"}
       )
 
     assert result.status == :passed
@@ -35,9 +35,9 @@ defmodule TestFleet.Execution.Integration.RegistryTest do
     {result, _} =
       run!(
         image: registry_image(),
-        registry_auth: %{username: "spike", password: "wrong"},
+        registry_auth: %{username: "fixture", password: "wrong"},
         pull_policy: :auto,
-        environment: %{"SPIKE_MODE" => "pass"}
+        environment: %{"FIXTURE_MODE" => "pass"}
       )
 
     assert result.status == :error
@@ -54,9 +54,9 @@ defmodule TestFleet.Execution.Integration.RegistryTest do
     {result, _} =
       run!(
         image: "#{ImageRef.name(ref)}@#{digest}",
-        registry_auth: %{username: "spike", password: "wrong"},
+        registry_auth: %{username: "fixture", password: "wrong"},
         pull_policy: :auto,
-        environment: %{"SPIKE_MODE" => "pass"}
+        environment: %{"FIXTURE_MODE" => "pass"}
       )
 
     assert result.status == :passed

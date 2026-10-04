@@ -1,7 +1,6 @@
 defmodule TestFleet.Notifications.Subscription do
   @moduledoc """
-  Which events of which projects and environments a channel receives (Milestone 8,
-  section 5).
+  Which events of which projects and environments a channel receives.
 
   Without a project, the subscription covers all projects; with a project, all its
   environments, or one of them. System events belong to no project, so only a

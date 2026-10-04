@@ -48,7 +48,7 @@ defmodule TestFleet.AccountsFixtures do
     user
   end
 
-  @doc "An API token of `user` (Milestone 11). Returns `{token, api_token}`."
+  @doc "An API token of `user`. Returns `{token, api_token}`."
   def api_token_fixture(user, attrs \\ %{}) do
     attrs = Enum.into(attrs, %{name: "CI #{System.unique_integer([:positive])}"})
     {:ok, {token, api_token}} = Accounts.create_api_token(Scope.for_user(user), attrs)

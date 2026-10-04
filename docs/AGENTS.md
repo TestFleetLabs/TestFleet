@@ -4,7 +4,7 @@ The landing page and user documentation: Astro with Starlight. See [README.md](R
 
 ## Content rules
 
-- **The application is the source of truth.** Behaviour, defaults, labels, and limits must match the code in `lib/` and `config/`, and the specs in `.specs/`. Check them before documenting; do not describe planned features as existing.
+- **The application is the source of truth.** Behaviour, defaults, labels, and limits must match the code in `lib/` and `config/`, and the spec in `.specs/`. Check them before documenting; do not describe planned features as existing.
 - Keep the spec's names: statuses, events, fields, environment variables (`TestFleet_RUN_ID`, not `TESTFLEET_RUN_ID`).
 - Write for people who use or operate TestFleet, not for its developers. Implementation details belong only in `internals/`.
 - Link between pages from the site root with a trailing slash: `/ci/api/`. Never hard-code `/TestFleet/`.

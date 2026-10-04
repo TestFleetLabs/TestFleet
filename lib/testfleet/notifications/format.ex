@@ -1,8 +1,7 @@
 defmodule TestFleet.Notifications.Format do
   @moduledoc """
-  Turns a `TestFleet.Notifications.Message` into what each kind of channel expects
-  (Milestone 8, section 8). Pure functions; `TestFleet.Notifications.Sender` sends
-  the result.
+  Turns a `TestFleet.Notifications.Message` into what each kind of channel
+  expects. Pure functions; `TestFleet.Notifications.Sender` sends the result.
   """
 
   alias TestFleet.Notifications.Message

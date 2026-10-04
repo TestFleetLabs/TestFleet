@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.TransitionsTest do
-  # Milestone 8, section 6: every row of the rules.
+  # Every row of the rules.
   use ExUnit.Case, async: true
 
   alias TestFleet.Notifications.Transitions

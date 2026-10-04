@@ -1,8 +1,8 @@
 defmodule TestFleet.Artifacts.Artifact do
   @moduledoc """
-  One file a run left in `/TestFleet/artifacts` (main spec section 11, Milestone 6
-  section 3). `name` is its path relative to that directory; `storage_key` is
-  resolved to a file by `TestFleet.Artifacts.Storage` only.
+  One file a run left in `/TestFleet/artifacts`. `name` is its path relative to
+  that directory; `storage_key` is resolved to a file by
+  `TestFleet.Artifacts.Storage` only.
 
   Written with the run's final status by `TestFleet.Runs.finish/2`, never changed.
   """

@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.TestDefinitionController do
   @moduledoc """
-  Reads a test definition and updates its image from CI (Milestone 11, section 6):
+  Reads a test definition and updates its image from CI:
   a pipeline that deploys version 1.4.2 of an application moves its E2E suite to
   the matching image. Only the image can be changed here; everything else stays in
   the web UI.

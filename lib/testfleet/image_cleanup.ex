@@ -1,7 +1,7 @@
 defmodule TestFleet.ImageCleanup do
   @moduledoc """
   Removes images TestFleet pulled and no longer needs, by digest, never with a
-  host-wide prune (main spec section 39, Milestone 7 section 8).
+  host-wide prune.
 
       config :testfleet, TestFleet.Execution,
         image_retention_days: 7   # IMAGE_RETENTION_DAYS

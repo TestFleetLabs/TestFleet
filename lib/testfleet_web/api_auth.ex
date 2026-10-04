@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.APIAuth do
   @moduledoc """
-  Authenticates API requests by their bearer token (Milestone 11, section 4), and
+  Authenticates API requests by their bearer token, and
   nothing else: no session, no cookies, so there is no cross-site request forgery
   to defend against, and a logged-in browser cannot call the API.
 

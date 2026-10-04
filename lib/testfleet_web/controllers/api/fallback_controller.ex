@@ -1,6 +1,6 @@
 defmodule TestFleetWeb.API.FallbackController do
   @moduledoc """
-  Turns the API controllers' errors into responses (Milestone 11, section 5).
+  Turns the API controllers' errors into responses.
   """
   use TestFleetWeb, :controller
 
@@ -11,7 +11,7 @@ defmodule TestFleetWeb.API.FallbackController do
 
   def call(conn, {:error, :not_found, message}), do: send_error(conn, 404, "not_found", message)
 
-  # Removed by retention (Milestone 6, section 8)
+  # Removed by retention
   def call(conn, {:error, :expired, message}), do: send_error(conn, 410, "expired", message)
 
   def call(conn, {:error, :test_definition_disabled}) do

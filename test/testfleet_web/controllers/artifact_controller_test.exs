@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.ArtifactControllerTest do
-  # Milestone 6 section 7: downloads, their headers, and range requests.
+  # Downloads, their headers, and range requests.
   use TestFleetWeb.ConnCase, async: true
 
   import TestFleet.RunsFixtures

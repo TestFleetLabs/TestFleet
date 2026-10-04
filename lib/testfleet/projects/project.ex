@@ -1,7 +1,7 @@
 defmodule TestFleet.Projects.Project do
   @moduledoc """
   One application under test. Groups its test definitions, environments, and
-  schedules (main spec section 2).
+  schedules.
   """
   use Ecto.Schema
   import Ecto.Changeset

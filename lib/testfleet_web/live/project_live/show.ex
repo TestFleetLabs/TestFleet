@@ -46,7 +46,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
     Ecto.NoResultsError -> socket
   end
 
-  # What the schedule tick last did (Milestone 5, section 8). The row itself links
+  # What the schedule tick last did. The row itself links
   # to the edit form, so the run is not a link here; it is in "Recent runs".
   attr :schedule, TestFleet.Schedules.Schedule, required: true
 

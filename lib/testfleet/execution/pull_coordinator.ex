@@ -1,7 +1,6 @@
 defmodule TestFleet.Execution.PullCoordinator do
   @moduledoc """
-  Runs at most one pull per image reference at a time (main spec section 39,
-  Milestone 7 section 6).
+  Runs at most one pull per image reference at a time.
 
   The first caller for a reference starts the pull; later callers for the same
   reference wait for it, and everyone gets the same result, including an error.

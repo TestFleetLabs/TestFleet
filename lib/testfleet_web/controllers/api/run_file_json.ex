@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.API.RunFileJSON do
-  @moduledoc "A run's artifacts as the API lists them (Milestone 11, section 6)."
+  @moduledoc "A run's artifacts as the API lists them."
   use TestFleetWeb, :verified_routes
 
   def artifacts(%{run: run, artifacts: artifacts}) do

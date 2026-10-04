@@ -1,5 +1,5 @@
 defmodule TestFleet.Accounts.AccessTest do
-  # Milestone 10: first-run setup, invitations, roles, and deactivation.
+  # First-run setup, invitations, roles, and deactivation.
   # Not async: one test turns email off in the application environment.
   use TestFleet.DataCase, async: false
 

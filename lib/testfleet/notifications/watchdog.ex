@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications.Watchdog do
   @moduledoc """
-  Reports TestFleet's own problems (Milestone 8, section 7). A GenServer, not an
+  Reports TestFleet's own problems. A GenServer, not an
   Oban job: it must notice when Oban's cron is stuck.
 
   Once per `:interval` (default 1 min) it checks:

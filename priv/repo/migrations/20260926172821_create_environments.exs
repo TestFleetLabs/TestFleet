@@ -17,7 +17,7 @@ defmodule TestFleet.Repo.Migrations.CreateEnvironments do
     create table(:environment_variables) do
       add :environment_id, references(:environments, on_delete: :delete_all), null: false
       add :key, :string, null: false
-      # Encrypted with TestFleet.Vault, secret or not (main spec section 6)
+      # Encrypted with TestFleet.Vault, secret or not
       add :value_encrypted, :binary, null: false
       add :secret, :boolean, null: false, default: false
 

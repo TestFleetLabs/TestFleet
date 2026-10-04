@@ -1,6 +1,6 @@
 defmodule TestFleet.Retention do
   @moduledoc """
-  Expires old artifacts and logs (main spec section 46, Milestone 6 section 8).
+  Expires old artifacts and logs.
   Runs and test results are kept.
 
       config :testfleet, TestFleet.Retention,

@@ -1,7 +1,6 @@
 defmodule TestFleet.Execution.Masker do
   @moduledoc """
-  Replaces secret values in log lines with `[MASKED]` (main spec section 21,
-  Milestone 4 section 4).
+  Replaces secret values in log lines with `[MASKED]`.
 
   A multi-line secret is masked line by line, since log lines never contain a
   newline. Parts shorter than 6 characters are skipped: they cannot be masked

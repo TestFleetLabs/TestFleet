@@ -1,9 +1,9 @@
 defmodule TestFleet.Runs do
   @moduledoc """
-  Runs: every execution of a test definition (main spec sections 7, 8, and 29).
+  Runs: every execution of a test definition.
 
   Manual, scheduled, and API runs are all created `queued` and differ only in
-  `trigger`. The dispatcher starts them (Milestone 3, section 5).
+  `trigger`. The dispatcher starts them.
 
   Every change is broadcast with the run's test definition, project, and
   environment preloaded, on `run:<id>` and on `runs`:
@@ -101,7 +101,7 @@ defmodule TestFleet.Runs do
     do: Repo.exists?(from r in Run, where: r.environment_id == ^id)
 
   @doc """
-  The dashboard figures (Milestone 3, section 10): `running` (`preparing` +
+  The dashboard figures: `running` (`preparing` +
   `running`), `queued`, and the runs that finished today as `passed`, `failed`, or
   `timeout`. "Today" is the calendar day of `now` in `timezone`.
   """
@@ -148,7 +148,7 @@ defmodule TestFleet.Runs do
   Creates a queued run for "Run now" or the API.
 
   Options: `:trigger` (`:manual`, the default, or `:api`), `:user` who started it,
-  and the `:api_token` it was started with (Milestone 11, section 6).
+  and the `:api_token` it was started with.
 
   The test definition is read again, so a definition disabled in the meantime is
   rejected.
@@ -188,7 +188,7 @@ defmodule TestFleet.Runs do
 
   @doc """
   Creates the queued run of a schedule's slot, unless the overlap policy or a
-  disabled test definition says to skip it (Milestone 5, sections 5 and 6):
+  disabled test definition says to skip it:
 
       {:ok, run} | {:ok, :exists} | {:skipped, :overlap | :test_definition_disabled}
 
@@ -273,7 +273,7 @@ defmodule TestFleet.Runs do
 
         if run.status in Run.active_statuses() do
           # Persisted first: if no process owns the run right now, the reconciler
-          # finishes the cancel (Milestone 7, section 5).
+          # finishes the cancel.
           if is_nil(run.cancel_requested_at) do
             transition(id, Run.active_statuses(), cancel_requested_at: DateTime.utc_now())
           end
@@ -287,7 +287,7 @@ defmodule TestFleet.Runs do
 
   @doc """
   Finalizes an active run as `cancelled` without an execution result: its cancel
-  was requested and it has no container (Milestone 7, reconciler rule 4).
+  was requested and it has no container (the reconciler's rule 4).
   """
   def mark_cancelled(run_id) do
     transition(run_id, Run.active_statuses(),
@@ -376,7 +376,7 @@ defmodule TestFleet.Runs do
   def mark_preparing(%Run{id: id}), do: transition(id, [:queued], status: :preparing)
 
   @doc """
-  Builds the execution request (Milestone 3, section 6). It holds decrypted
+  Builds the execution request. It holds decrypted
   variables and registry credentials; `Request` keeps them out of `inspect`.
   """
   def build_request(%Run{} = run) do
@@ -425,9 +425,9 @@ defmodule TestFleet.Runs do
 
   @doc """
   Records the final status of a run from the execution result, with its test
-  counts, warnings, artifacts, and test results, in one transaction (Milestone 6,
-  section 6). A run is never visible as finished without its results; a repeated
-  finish changes and inserts nothing.
+  counts, warnings, artifacts, and test results, in one transaction. A run is
+  never visible as finished without its results; a repeated finish changes and
+  inserts nothing.
   """
   def finish(run_id, %Result{} = result) do
     changes =
@@ -469,7 +469,7 @@ defmodule TestFleet.Runs do
 
   @doc """
   Stores a batch of (already masked) output lines and broadcasts it as
-  `{:run_output, lines}` on `run:<id>` (Milestone 4, section 6).
+  `{:run_output, lines}` on `run:<id>`.
 
   Lines are stored up to the log limit (`:max_log_bytes`, default from
   `config :testfleet, TestFleet.Runs`). The first line that does not fit sets
@@ -504,7 +504,7 @@ defmodule TestFleet.Runs do
 
         last_sequence = List.last(lines).sequence
         # The newest, not the last line's: stdout and stderr lines interleave, and a
-        # reattach skips every line not newer than this (Milestone 4, section 7).
+        # reattach skips every line not newer than this.
         newest_timestamp =
           lines |> Enum.map(& &1.timestamp) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
 
@@ -566,8 +566,7 @@ defmodule TestFleet.Runs do
   Reduces over a run's stored log in order, in chunks of up to 1,000 lines, without
   loading it into memory: `fun.(lines, acc)` returns the new acc.
 
-  Options: only the lines `after:` a sequence number, and `through:` one
-  (Milestone 11, section 6).
+  Options: only the lines `after:` a sequence number, and `through:` one.
   """
   def reduce_log(%Run{id: id}, acc, fun, opts \\ []) do
     query = from l in LogLine, where: l.run_id == ^id, order_by: l.sequence
@@ -609,8 +608,8 @@ defmodule TestFleet.Runs do
   end
 
   @doc """
-  Pins or unpins a run. A pinned run is exempt from retention (Milestone 6,
-  section 8); unpinning an old run lets the next cleanup expire it.
+  Pins or unpins a run. A pinned run is exempt from retention; unpinning an old
+  run lets the next cleanup expire it.
   """
   def set_pinned(%Run{id: id}, pinned) when is_boolean(pinned) do
     {1, _} =
@@ -657,7 +656,7 @@ defmodule TestFleet.Runs do
   end
 
   # Every status change goes through here. A run that becomes final gets its
-  # notification evaluation in the same transaction (Milestone 8, section 6), so a
+  # notification evaluation in the same transaction, so a
   # final run is always evaluated, even if TestFleet stops right after the commit.
   # Callers run it inside a transaction.
   defp update_status(id, from, changes) do

@@ -33,7 +33,7 @@ defmodule TestFleet.Schedules.CronTest do
 
   describe "next_run/3" do
     test "computes in local time and returns UTC" do
-      # The example of main spec section 6: 06:00 Vienna on a summer day is 04:00 UTC.
+      # The spec's example: 06:00 Vienna on a summer day is 04:00 UTC.
       assert {:ok, ~U[2026-09-27 04:00:00Z]} =
                next("0 6 * * *", @vienna, ~U[2026-09-26 12:00:00Z])
 

@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.SystemMessageTest do
-  # Milestone 8, section 8: what system events say.
+  # What system events say.
   use TestFleet.DataCase, async: true
 
   import TestFleet.NotificationsFixtures

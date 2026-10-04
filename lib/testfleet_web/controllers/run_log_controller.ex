@@ -1,9 +1,9 @@
 defmodule TestFleetWeb.RunLogController do
   @moduledoc """
-  Downloads a run's stored log as plain text (Milestone 4, section 8), streamed
+  Downloads a run's stored log as plain text, streamed
   from PostgreSQL in chunks. The lines are stored masked.
 
-  `send_log/3` is shared with the API (Milestone 11, section 6).
+  `send_log/3` is shared with the API.
   """
   use TestFleetWeb, :controller
 

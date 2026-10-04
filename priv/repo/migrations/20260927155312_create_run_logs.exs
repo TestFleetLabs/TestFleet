@@ -2,7 +2,7 @@ defmodule TestFleet.Repo.Migrations.CreateRunLogs do
   use Ecto.Migration
 
   def change do
-    # One row per line (main spec section 9, Milestone 4 section 3). No timestamps:
+    # One row per line. No timestamps:
     # rows are never updated, and `timestamp` is Docker's own time of the line.
     create table(:run_logs) do
       add :run_id, references(:runs, on_delete: :delete_all), null: false

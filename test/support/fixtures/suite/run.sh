@@ -1,5 +1,5 @@
 #!/bin/sh
-# Behaves according to SPIKE_MODE; see .specs/execution-spike-spec.md, section 9.
+# Behaves according to FIXTURE_MODE; the modes are listed in the spec's "Testing" section.
 set -u
 
 artifacts="${TestFleet_ARTIFACTS_DIR:-/TestFleet/artifacts}"
@@ -24,7 +24,7 @@ tick_forever() {
   done
 }
 
-case "${SPIKE_MODE:-pass}" in
+case "${FIXTURE_MODE:-pass}" in
   pass)
     echo "starting suite"
     echo "a warning" >&2
@@ -76,11 +76,11 @@ case "${SPIKE_MODE:-pass}" in
     exit 0
     ;;
   secret)
-    # Suites echo configuration; TestFleet must mask it (Milestone 4, section 9).
-    echo "token=${SPIKE_SECRET} in the middle"
-    echo "${SPIKE_SECRET}"
-    echo "twice: ${SPIKE_SECRET} ${SPIKE_SECRET}" >&2
-    echo "not secret: ${SPIKE_PLAIN:-}"
+    # Suites echo configuration; TestFleet must mask it.
+    echo "token=${FIXTURE_SECRET} in the middle"
+    echo "${FIXTURE_SECRET}"
+    echo "twice: ${FIXTURE_SECRET} ${FIXTURE_SECRET}" >&2
+    echo "not secret: ${FIXTURE_PLAIN:-}"
     exit 0
     ;;
   junit_pass)
@@ -115,7 +115,7 @@ case "${SPIKE_MODE:-pass}" in
   big_artifacts)
     mkdir -p "$artifacts"
     junit "$artifacts/junit.xml" '<testcase classname="Big" name="records a video"/>'
-    head -c "$((${SPIKE_ARTIFACT_MB:-5} * 1024 * 1024))" /dev/zero > "$artifacts/video.webm"
+    head -c "$((${FIXTURE_ARTIFACT_MB:-5} * 1024 * 1024))" /dev/zero > "$artifacts/video.webm"
     exit 0
     ;;
   unsafe_artifacts)
@@ -125,8 +125,8 @@ case "${SPIKE_MODE:-pass}" in
     exit 0
     ;;
   report)
-    # A failing suite with a real screenshot and an HTML report, for the Milestone 6
-    # walkthrough. The report's script shows whether it runs sandboxed.
+    # A failing suite with a real screenshot and an HTML report, for trying the
+    # artifacts panel by hand. The report's script shows whether it runs sandboxed.
     mkdir -p "$artifacts/screenshots" "$artifacts/report"
     junit "$artifacts/junit.xml" '<testcase classname="Checkout" name="shows the cart" time="1.2"/><testcase classname="Checkout" name="pays by card" time="3.4"><failure message="expected the receipt, saw an error page">at pay (checkout.spec.ts:42)
 at runTest (runner.js:7)</failure></testcase>'
@@ -155,9 +155,9 @@ HTML
     exit 1
     ;;
   tick)
-    # Ticks for SPIKE_TICKS seconds, then passes.
+    # Ticks for FIXTURE_TICKS seconds, then passes.
     i=0
-    while [ "$i" -lt "${SPIKE_TICKS:-5}" ]; do
+    while [ "$i" -lt "${FIXTURE_TICKS:-5}" ]; do
       i=$((i + 1))
       echo "tick $i"
       sleep 1
@@ -165,7 +165,7 @@ HTML
     exit 0
     ;;
   *)
-    echo "unknown SPIKE_MODE ${SPIKE_MODE}" >&2
+    echo "unknown FIXTURE_MODE ${FIXTURE_MODE}" >&2
     exit 2
     ;;
 esac

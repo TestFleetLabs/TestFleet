@@ -19,7 +19,7 @@ defmodule TestFleet.Release do
   end
 
   @doc """
-  Restores access for a lost admin account (Milestone 10, section 8): makes `email`
+  Restores access for a lost admin account: makes `email`
   an active admin, creating the user if needed, and prints a link that sets a new
   password. Runs in the running application:
 

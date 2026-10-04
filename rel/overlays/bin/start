@@ -1,5 +1,5 @@
 #!/bin/sh
-# The image's command (Milestone 9, section 4): migrate, then run the server.
+# The image's command: migrate, then run the server.
 set -eu
 
 cd -P -- "$(dirname -- "$0")"

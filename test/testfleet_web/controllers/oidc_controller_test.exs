@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.OIDCControllerTest do
-  # The OIDC flow against a stubbed provider (Milestone 10, section 7).
+  # The OIDC flow against a stubbed provider.
   use TestFleetWeb.ConnCase, async: true
 
   import TestFleet.AccountsFixtures

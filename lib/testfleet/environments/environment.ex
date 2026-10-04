@@ -1,10 +1,10 @@
 defmodule TestFleet.Environments.Environment do
   @moduledoc """
   A target system of a project, such as production or staging, with the variables
-  a suite needs to reach it (main spec section 6).
+  a suite needs to reach it.
 
   `max_concurrent_runs` limits how many runs may execute against this environment
-  at the same time (main spec section 34).
+  at the same time.
   """
   use Ecto.Schema
   import Ecto.Changeset

@@ -1,7 +1,7 @@
 defmodule TestFleet.Schedules do
   @moduledoc """
-  Schedules: when a test definition runs against an environment (main spec
-  section 28). `tick/1` creates the runs of due schedules (Milestone 5).
+  Schedules: when a test definition runs against an environment.
+  `tick/1` creates the runs of due schedules.
   """
 
   import Ecto.Query, warn: false
@@ -48,7 +48,7 @@ defmodule TestFleet.Schedules do
   @doc """
   Enabled schedules of enabled test definitions whose `next_run_at` is before
   `cutoff`, oldest first, preloaded like `list_upcoming/1`. While the tick works,
-  none is ever more than a minute late (Milestone 8, section 7).
+  none is ever more than a minute late.
   """
   def list_overdue(%DateTime{} = cutoff) do
     Repo.all(
@@ -118,7 +118,7 @@ defmodule TestFleet.Schedules do
 
   def preview(_expression, _timezone, _count, _now), do: []
 
-  ## The schedule tick (Milestone 5, section 4)
+  ## The schedule tick
 
   @doc """
   Creates the runs of all due schedules and moves each to its next occurrence

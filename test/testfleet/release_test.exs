@@ -1,5 +1,5 @@
 defmodule TestFleet.ReleaseTest do
-  # The release command for a lost admin account (Milestone 10, section 8).
+  # The release command for a lost admin account.
   use TestFleet.DataCase, async: true
 
   import ExUnit.CaptureIO

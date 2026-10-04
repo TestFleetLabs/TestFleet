@@ -2,8 +2,8 @@ defmodule TestFleet.DockerCase do
   @moduledoc """
   Integration tests against the real Docker Engine, through the socket proxy.
 
-  Needs `docker compose --profile spike up -d` and the fixture images, see
-  .specs/execution-spike-spec.md, section 9. Tagged `:docker` and excluded by default:
+  Needs `docker compose --profile registry up -d` and the fixture images, see the
+  "Testing" section of the spec. Tagged `:docker` and excluded by default:
 
       mix test --only docker
   """
@@ -14,9 +14,9 @@ defmodule TestFleet.DockerCase do
   alias TestFleet.Execution.{Request, RunExecution}
   alias TestFleet.Execution.Docker.Command
 
-  @fixture_image "testfleet/spike-suite:dev"
-  @registry_image "localhost:5055/spike-suite:dev"
-  @registry_auth %{username: "spike", password: "spike-password"}
+  @fixture_image "testfleet/fixture-suite:dev"
+  @registry_image "localhost:5055/fixture-suite:dev"
+  @registry_auth %{username: "fixture", password: "fixture-password"}
 
   using do
     quote do
@@ -49,7 +49,7 @@ defmodule TestFleet.DockerCase do
         :ok
 
       {:error, _} ->
-        raise "fixture image missing, run: docker build -t #{@fixture_image} test/support/fixtures/spike_suite"
+        raise "fixture image missing, run: docker build -t #{@fixture_image} test/support/fixtures/suite"
     end
 
     :ok

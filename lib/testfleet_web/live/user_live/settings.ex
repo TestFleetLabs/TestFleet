@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.UserLive.Settings do
   @moduledoc """
-  The user's own settings (Milestone 10, section 9): the linked single sign-on
-  account, API tokens (Milestone 11, section 8), the password (unless
+  The user's own settings: the linked single sign-on
+  account, API tokens, the password (unless
   `AUTH_PASSWORD_LOGIN=false`), and the email address when SMTP is configured (a
   change is confirmed by email). Requires sudo mode: a login within the last 10
   minutes.

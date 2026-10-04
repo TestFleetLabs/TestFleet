@@ -17,14 +17,14 @@ TestFleet is a self-hosted Phoenix application that schedules, executes, and mon
 
 ## Architecture rules to keep in mind
 
-- **Contexts:** `TestFleet.Projects`, `Environments`, `TestDefinitions`, `Schedules`, `Runs`, `Results`, `Artifacts`, `Execution`, `Notifications`, `Accounts`. Keep `TestFleet.Execution` isolated from the UI and from test configuration.
+- **Contexts:** `TestFleet.Projects`, `Environments`, `TestDefinitions`, `Registries`, `Schedules`, `Runs`, `Results`, `Artifacts`, `Execution`, `Notifications`, `Accounts`. Keep `TestFleet.Execution` isolated from the UI and from test configuration.
 - **Execution is not an Oban job.** Oban creates runs (schedule tick) and does fire-and-forget work (cleanup, notifications). `Execution.Dispatcher` admits queued runs under the global and per-environment limits; one `RunExecution` process (`restart: :temporary`) per run owns the container lifecycle.
 - **One pipeline.** Manual, scheduled, and API runs all create a `queued` run and go through the dispatcher. They differ only in `runs.trigger`.
 - **Docker Engine HTTP API, not the CLI.** All Docker calls go through `TestFleet.Execution.Docker.Command`. Registry auth is per pull via `X-Registry-Auth`; never `docker login`. Containers use `Tty: false`, no `AutoRemove`, the deterministic name `TestFleet-run-<id>`, `TestFleet=*` labels, the `TestFleet-runs` network, `no-new-privileges`, and all capabilities dropped.
-- **PostgreSQL is the source of truth; PubSub is only transport.** Logs are masked, batched (100 ms or 500 lines), persisted, then broadcast on `run:<id>`.
+- **PostgreSQL is the source of truth; PubSub is only transport.** Logs are masked, batched (100 ms, 500 lines, or 1 MiB), persisted, then broadcast on `run:<id>`.
 - **Recovery is the reconciler's job.** `try/after` cleanup is best effort. Deadlines derive from the persisted `started_at`, never from a fresh timer.
-- **Final status** follows the decision table in spec section 24. Keep `failed` (tests failed) distinct from `error` (infrastructure failed).
-- **Secrets:** environment variable values and registry passwords are encrypted at rest, never returned to the browser, and masked in logs. The `TestFleet_` env var prefix is reserved.
+- **Final status** follows the decision table in spec section 23 (`Execution.Status`). Keep `failed` (tests failed) distinct from `error` (infrastructure failed).
+- **Secrets:** environment variable values, registry passwords, and notification URLs and signing secrets are encrypted at rest, never returned to the browser, and masked in logs. The `TestFleet_` env var prefix is reserved.
 - **No automatic retries** of runs (`max_attempts: 1` for Oban workers that create runs).
 
 <!-- phoenix-gen-auth-start -->
@@ -40,8 +40,8 @@ TestFleet is a self-hosted Phoenix application that schedules, executes, and mon
   - A plug `redirect_if_user_is_authenticated` that redirects to a default path in case the user is authenticated - useful for a registration page that should only be shown to unauthenticated users
 - **Always let the user know in which router scopes, `live_session`, and pipeline you are placing the route, AND SAY WHY**
 - `phx.gen.auth` assigns the `current_scope` assign - it **does not assign a `current_user` assign**
-- TestFleet's contexts take a scope only for data that belongs to a user: so far, API tokens (`Accounts.list_api_tokens/1` and friends, Milestone 11). Everything else is shared; roles are enforced at the edge with `TestFleet.Accounts.Scope.admin?/1` and the `:require_admin` `live_session` (Milestone 10, section 5).
-- The API (`/api/v1`, Milestone 11) authenticates with a bearer token through `TestFleetWeb.APIAuth` in the `:api` pipeline, never with the session. It assigns `current_scope` and `api_token`. New API routes go into the existing `scope "/api/v1"`; the access test checks that every one of them requires a token.
+- TestFleet's contexts take a scope only for data that belongs to a user: so far, API tokens (`Accounts.list_api_tokens/1` and friends). Everything else is shared; roles are enforced at the edge with `TestFleet.Accounts.Scope.admin?/1` and the `:require_admin` `live_session` (spec section 35).
+- The API (`/api/v1`, spec section 38) authenticates with a bearer token through `TestFleetWeb.APIAuth` in the `:api` and `:api_files` pipelines, never with the session. It assigns `current_scope` and `api_token`. New API routes go into the existing `scope "/api/v1"` blocks (`:api_files` for responses that are not JSON); the access test checks that every one of them requires a token.
 - To derive/access `current_user` in templates, **always use the `@current_scope.user`**, never use **`@current_user`** in templates or LiveViews
 - **Never** duplicate `live_session` names. A `live_session :current_user` can only be defined __once__ in the router, so all routes for the `live_session :current_user`  must be grouped in a single block
 - Anytime you hit `current_scope` errors or the logged in session isn't displaying the right content, **always double check the router and ensure you are using the correct plug and `live_session` as described below**

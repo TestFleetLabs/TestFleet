@@ -1,6 +1,6 @@
 defmodule TestFleet.OIDCStub do
   @moduledoc """
-  A stubbed OIDC provider (Milestone 10, section 13). The authorization URL carries
+  A stubbed OIDC provider. The authorization URL carries
   the request's `state` and `nonce`; the "authorization code" is the ID token's
   claims, encoded with `code/1`, so each test decides what the provider returns.
 

@@ -34,7 +34,7 @@ defmodule TestFleet.Application do
     # Reports Docker and scheduling problems; outside Oban, so a stuck cron shows.
     watchdog = [TestFleet.Notifications.Watchdog]
 
-    # Logs the first-run setup link while there is no user (Milestone 10, section 4)
+    # Logs the first-run setup link while there is no user
     setup_notice =
       if Application.get_env(:testfleet, TestFleetWeb.SetupNotice)[:enabled] == false,
         do: [],

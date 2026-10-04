@@ -1,10 +1,10 @@
 defmodule TestFleet.Environments.Variable do
   @moduledoc """
-  An environment variable passed to the test container (main spec sections 6 and 12).
+  An environment variable passed to the test container.
 
   Every value is encrypted at rest. Secret values are never sent back to the
   browser and are masked in logs; they must therefore be long enough to mask
-  reliably (main spec section 21).
+  reliably.
 
   When editing a secret, an empty value means "keep the current one".
   """

@@ -339,7 +339,7 @@ defmodule TestFleetWeb.AppComponents do
   end
 
   @doc """
-  Renders the single sign-on button (Milestone 10, section 7): a plain link, since
+  Renders the single sign-on button: a plain link, since
   the provider is on another site. Primary when it is the only way in.
   """
   attr :id, :string, required: true

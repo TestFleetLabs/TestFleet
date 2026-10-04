@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.FormatTest do
-  # Milestone 8, section 8: what each kind of channel receives.
+  # What each kind of channel receives.
   use ExUnit.Case, async: true
 
   alias TestFleet.Notifications.{Format, Message}

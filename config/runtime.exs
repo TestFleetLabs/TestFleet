@@ -27,7 +27,7 @@ config :testfleet, TestFleetWeb.Endpoint,
 config :testfleet, TestFleet.Execution.Docker,
   host: System.get_env("DOCKER_HOST", "tcp://localhost:2375")
 
-# The global limit of concurrently executing runs (main spec section 34)
+# The global limit of concurrently executing runs
 if max_concurrent_runs = System.get_env("MAX_CONCURRENT_RUNS") do
   config :testfleet, TestFleet.Execution.Dispatcher,
     max_concurrent_runs: String.to_integer(max_concurrent_runs)
@@ -38,7 +38,7 @@ if run_log_limit_mb = System.get_env("RUN_LOG_LIMIT_MB") do
     max_log_bytes: String.to_integer(run_log_limit_mb) * 1024 * 1024
 end
 
-# Where artifacts are stored, and how much one run may keep (Milestone 6, section 4)
+# Where artifacts are stored, and how much one run may keep
 if artifacts_dir = System.get_env("ARTIFACTS_DIR") do
   config :testfleet, TestFleet.Artifacts, root: artifacts_dir
 end
@@ -56,7 +56,7 @@ if days = System.get_env("IMAGE_RETENTION_DAYS") do
   config :testfleet, TestFleet.Execution, image_retention_days: String.to_integer(days)
 end
 
-# An external dead man's switch, pinged after each schedule tick (Milestone 8)
+# An external dead man's switch, pinged after each schedule tick
 if heartbeat_url = System.get_env("HEARTBEAT_URL") do
   config :testfleet, TestFleet.Notifications.Heartbeat, url: heartbeat_url
 end
@@ -69,7 +69,7 @@ if days = System.get_env("LOG_RETENTION_DAYS") do
   config :testfleet, TestFleet.Retention, logs_days: String.to_integer(days)
 end
 
-# OIDC login with one provider (Milestone 10, section 7): Entra ID, AD FS, Keycloak,
+# OIDC login with one provider: Entra ID, AD FS, Keycloak,
 # or any other OpenID provider. Tests configure a stub in config/test.exs.
 if config_env() != :test and System.get_env("OIDC_ISSUER") not in [nil, ""] do
   issuer = System.fetch_env!("OIDC_ISSUER")
@@ -94,7 +94,7 @@ if config_env() != :test and System.get_env("OIDC_ISSUER") not in [nil, ""] do
     allow_unsafe_http: config_env() == :dev and String.starts_with?(issuer, "http://")
 end
 
-# "SSO button only" (Milestone 10, section 4): refused without OIDC, so TestFleet
+# "SSO button only": refused without OIDC, so TestFleet
 # cannot be configured without a way in.
 if System.get_env("AUTH_PASSWORD_LOGIN") == "false" do
   if System.get_env("OIDC_ISSUER") in [nil, ""] do
@@ -122,7 +122,7 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
-  # The mounted volume of the containerized deployment (Milestone 9, section 7)
+  # The mounted volume of the containerized deployment
   config :testfleet, TestFleet.Artifacts, root: System.get_env("ARTIFACTS_DIR", "/app/artifacts")
 
   database_url =
@@ -216,7 +216,7 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # Email notifications over SMTP (Milestone 8, section 8). Without SMTP_HOST, email
+  # Email notifications over SMTP. Without SMTP_HOST, email
   # channels can be saved, but nothing is sent.
   if smtp_host = System.get_env("SMTP_HOST") do
     smtp_tls =

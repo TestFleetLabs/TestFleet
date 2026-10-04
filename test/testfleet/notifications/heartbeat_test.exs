@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.HeartbeatTest do
-  # Milestone 8, section 7: the dead man's switch ping.
+  # The dead man's switch ping.
   #
   # Not async: it sets the heartbeat URL for the whole application.
   use TestFleet.DataCase, async: false

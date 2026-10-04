@@ -1,5 +1,5 @@
 defmodule TestFleet.Runs.FinishTest do
-  # Milestone 6 section 6: the final status, counts, artifacts, and test results in
+  # The final status, counts, artifacts, and test results in
   # one transaction.
   use TestFleet.DataCase, async: true
 

@@ -1,6 +1,4 @@
 defmodule TestFleet.RetentionTest do
-  # Milestone 6 section 8.
-  #
   # Not async: the batch test finishes 101 runs, and each is broadcast on the global
   # `runs` topic. Concurrent LiveView tests with capped run lists (the dashboard)
   # would see them push their own runs out.

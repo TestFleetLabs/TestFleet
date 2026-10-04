@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.EvaluationTest do
-  # Milestone 8, section 6: evaluating final runs, and who gets the delivery.
+  # Evaluating final runs, and who gets the delivery.
   use TestFleet.DataCase, async: true
 
   import TestFleet.EnvironmentsFixtures

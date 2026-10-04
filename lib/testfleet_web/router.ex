@@ -14,7 +14,7 @@ defmodule TestFleetWeb.Router do
   end
 
   # Artifacts are requested by <img>, <video>, and new tabs, which do not all accept
-  # HTML. They need a session like every page (Milestone 10, section 6).
+  # HTML. They need a session like every page.
   pipeline :artifacts do
     plug :fetch_session
     plug :fetch_flash
@@ -23,7 +23,7 @@ defmodule TestFleetWeb.Router do
     plug :require_authenticated_user
   end
 
-  # The bearer token only, never the session (Milestone 11, section 4).
+  # The bearer token only, never the session.
   pipeline :api do
     plug :accepts, ["json"]
     plug TestFleetWeb.APIAuth
@@ -34,7 +34,7 @@ defmodule TestFleetWeb.Router do
     plug TestFleetWeb.APIAuth
   end
 
-  # Everything behind a login (Milestone 10, section 6). /health is answered in the
+  # Everything behind a login. /health is answered in the
   # endpoint, before the router.
   scope "/", TestFleetWeb do
     pipe_through [:browser, :require_authenticated_user]
@@ -61,7 +61,7 @@ defmodule TestFleetWeb.Router do
     end
 
     # Registries and notification channels hold credentials and send requests to
-    # arbitrary URLs; users manage access (Milestone 10, section 5).
+    # arbitrary URLs; users manage access.
     live_session :require_admin,
       on_mount: [
         {TestFleetWeb.UserAuth, :require_authenticated},
@@ -87,8 +87,7 @@ defmodule TestFleetWeb.Router do
     get "/runs/:id/artifacts/*name", ArtifactController, :show
   end
 
-  # Open: logging in, the first-run setup (with its token), and invitation links
-  # (Milestone 10, section 4).
+  # Open: logging in, the first-run setup (with its token), and invitation links.
   scope "/", TestFleetWeb do
     pipe_through [:browser]
 
@@ -103,13 +102,13 @@ defmodule TestFleetWeb.Router do
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
 
-    # OIDC (Milestone 10, section 7): login, setup, and invitations start here; the
+    # OIDC: login, setup, and invitations start here; the
     # provider redirects back to the callback.
     get "/auth/oidc", OIDCController, :start
     get "/auth/oidc/callback", OIDCController, :callback
   end
 
-  # The API for CI (Milestone 11): every route needs an API token.
+  # The API for CI: every route needs an API token.
   scope "/api/v1", TestFleetWeb.API do
     pipe_through :api
 

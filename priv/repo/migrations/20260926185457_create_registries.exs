@@ -4,7 +4,7 @@ defmodule TestFleet.Repo.Migrations.CreateRegistries do
   def change do
     create table(:registries) do
       add :name, :string, null: false
-      # Matched against the host of image references (main spec section 38)
+      # Matched against the host of image references
       add :host, :string, null: false
       add :username, :string, null: false
       # Encrypted with TestFleet.Vault

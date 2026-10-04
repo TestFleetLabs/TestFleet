@@ -58,7 +58,8 @@ jobs:
       - run: mix format --check-formatted
       - run: mix test
 
-  # Integration tests against the real Docker Engine (.specs/execution-spike-spec.md).
+  # Integration tests against the real Docker Engine, with the fixture suite and
+  # registry (the spec's "Testing" section).
   docker:
     name: Docker integration tests
     runs-on: ubuntu-latest
@@ -94,18 +95,18 @@ jobs:
           restore-keys: mix-${{ runner.os }}-
 
       - name: Build the fixture suite image
-        run: docker build -t testfleet/spike-suite:dev test/support/fixtures/spike_suite
+        run: docker build -t testfleet/fixture-suite:dev test/support/fixtures/suite
 
-      - name: Start the spike registry and push the fixture
+      - name: Start the fixture registry and push the fixture
         run: |
-          docker compose --profile spike up -d registry
+          docker compose --profile registry up -d registry
           for i in $(seq 1 30); do
             curl -s -o /dev/null http://localhost:5055/v2/ && break
             sleep 1
           done
-          echo spike-password | docker login localhost:5055 -u spike --password-stdin
-          docker tag testfleet/spike-suite:dev localhost:5055/spike-suite:dev
-          docker push localhost:5055/spike-suite:dev
+          echo fixture-password | docker login localhost:5055 -u fixture --password-stdin
+          docker tag testfleet/fixture-suite:dev localhost:5055/fixture-suite:dev
+          docker push localhost:5055/fixture-suite:dev
           docker logout localhost:5055
 
       # Through the socket proxy, as in production: the tests then also catch calls
@@ -126,7 +127,7 @@ jobs:
           DOCKER_HOST: tcp://localhost:2375
 
   # The production image, booted with the production Compose file on an empty
-  # database (.specs/milestone-9-deployment.md, section 9). A smoke test: it builds,
+  # database. A smoke test: it builds,
   # starts, migrates, and answers /health. Its layers are cached for `publish`.
   # Each platform builds on a native runner: compiling under emulation is slow.
   image:
@@ -183,8 +184,8 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  # Publishes the image to GHCR once everything above is green (Milestone 9,
-  # section 11): main and sha-<short> for every push to main; 1.2.3, 1.2, and latest
+  # Publishes the image to GHCR once everything above is green: main and
+  # sha-<short> for every push to main; 1.2.3, 1.2, and latest
   # for a v1.2.3 tag. Pull requests never publish.
   #
   # One image for linux/amd64 and linux/arm64 (a Raspberry Pi, for example): each

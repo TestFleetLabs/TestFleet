@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.Integration.PullTest do
-  # Milestone 7 section 6: the pull timeout, and runs of one image sharing a pull.
+  # The pull timeout, and runs of one image sharing a pull.
   use TestFleet.DockerCase, async: true
 
   # A non-routable address: connecting to it hangs until Docker's own timeout.
@@ -29,7 +29,7 @@ defmodule TestFleet.Execution.Integration.PullTest do
         registry_auth: registry_auth(),
         pull_policy: :always,
         pull_timeout_ms: 60_000,
-        environment: %{"SPIKE_MODE" => "pass"}
+        environment: %{"FIXTURE_MODE" => "pass"}
       )
 
     assert result.status == :passed
@@ -42,7 +42,7 @@ defmodule TestFleet.Execution.Integration.PullTest do
           image: registry_image(),
           registry_auth: registry_auth(),
           pull_policy: :always,
-          environment: %{"SPIKE_MODE" => "pass"}
+          environment: %{"FIXTURE_MODE" => "pass"}
         )
       end
 

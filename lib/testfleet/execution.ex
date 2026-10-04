@@ -1,6 +1,6 @@
 defmodule TestFleet.Execution do
   @moduledoc """
-  Runs test suite containers (main spec sections 13–27).
+  Runs test suite containers.
 
   Each run is owned by one `TestFleet.Execution.RunExecution` process, registered by
   run id. Its events go to a `TestFleet.Execution.Handler` (`:handler`), or as
@@ -38,7 +38,7 @@ defmodule TestFleet.Execution do
 
   @doc """
   Whether the dispatcher can reach Docker: `%{reachable: boolean, since: DateTime,
-  message: String.t() | nil}` (Milestone 7, section 7). Changes are broadcast on the
+  message: String.t() | nil}`. Changes are broadcast on the
   `system` topic, see `subscribe_system/0`.
   """
   def docker_status, do: Dispatcher.docker_status()
@@ -51,12 +51,12 @@ defmodule TestFleet.Execution do
     do: Phoenix.PubSub.broadcast(TestFleet.PubSub, @system_topic, {:docker_status, status})
 
   @doc """
-  Takes over the container of a run whose process is gone (main spec section 32).
+  Takes over the container of a run whose process is gone.
 
   Options: `:handler`, `:subscriber`, `:artifact_path`, `:max_artifact_bytes`,
   `:last_log_timestamp` (nanoseconds of the last line already received),
   `:next_sequence`, and `cancel: true` to stop a running container right away, for a
-  cancel that arrived while no process owned the run (Milestone 7, section 5).
+  cancel that arrived while no process owned the run.
   """
   def attach(run_id, opts \\ []) do
     start_child(
@@ -100,8 +100,8 @@ defmodule TestFleet.Execution do
 
   @doc """
   TestFleet's containers, running or not. Each has `run_id`, `container_id`,
-  `instance` (the `TestFleet.instance` label, `nil` on containers from before
-  Milestone 7), `state` (Docker's, e.g. `"running"`), and `stop_grace_seconds`.
+  `instance` (the `TestFleet.instance` label, `nil` on containers started without
+  an instance), `state` (Docker's, e.g. `"running"`), and `stop_grace_seconds`.
   Containers without a valid `TestFleet.run_id` label are left out.
   """
   def list_containers do

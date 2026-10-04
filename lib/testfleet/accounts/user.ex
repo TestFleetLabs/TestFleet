@@ -1,6 +1,6 @@
 defmodule TestFleet.Accounts.User do
   @moduledoc """
-  A user (Milestone 10, section 3).
+  A user.
 
   Invited users have no password and no `confirmed_at` until they accept their
   invitation. Users are never deleted, because runs refer to them; they are
@@ -20,7 +20,7 @@ defmodule TestFleet.Accounts.User do
     field :deactivated_at, :utc_datetime
     field :last_login_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
-    # Set for the Users page (Milestone 11, section 8)
+    # Set for the Users page
     field :api_token_count, :integer, virtual: true, default: 0
 
     has_many :identities, TestFleet.Accounts.UserIdentity

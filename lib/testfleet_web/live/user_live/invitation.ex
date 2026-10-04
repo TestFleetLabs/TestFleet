@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.UserLive.Invitation do
   @moduledoc """
-  An invitation link (Milestone 10, section 4): the invited user chooses a password,
-  or continues with single sign-on (section 7), and is logged in. The release
+  An invitation link: the invited user chooses a password,
+  or continues with single sign-on, and is logged in. The release
   command's links for a lost admin account open here too, for an existing user.
   """
   use TestFleetWeb, :live_view

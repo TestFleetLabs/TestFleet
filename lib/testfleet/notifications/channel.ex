@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications.Channel do
   @moduledoc """
-  One destination for notifications (Milestone 8, section 4): email addresses, a
+  One destination for notifications: email addresses, a
   Slack or Teams webhook, or a generic webhook.
 
   A webhook URL is a credential (Slack's and Teams' carry their token in the path),

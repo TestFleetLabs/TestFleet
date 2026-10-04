@@ -1,11 +1,11 @@
-defmodule Mix.Tasks.Testfleet.Spike do
+defmodule Mix.Tasks.Testfleet.Try do
   @shortdoc "Runs one container through the execution engine and prints its events"
 
   @moduledoc """
   Runs one container against the real Docker Engine and prints events as they arrive.
   For looking at behaviour by hand; the `:docker` integration tests are the proof.
 
-      mix testfleet.spike --image testfleet/spike-suite:dev --env SPIKE_MODE=chatty --timeout 60
+      mix testfleet.try --image testfleet/fixture-suite:dev --env FIXTURE_MODE=chatty --timeout 60
 
   Options:
 

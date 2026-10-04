@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.API.RunControllerTest do
-  # Runs over the API (Milestone 11, sections 4 to 6)
+  # Runs over the API
   use TestFleetWeb.ConnCase, async: true
 
   import TestFleet.AccountsFixtures

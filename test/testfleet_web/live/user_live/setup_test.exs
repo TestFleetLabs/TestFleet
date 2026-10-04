@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.SetupTest do
-  # First-run setup (Milestone 10, section 4).
+  # First-run setup.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest

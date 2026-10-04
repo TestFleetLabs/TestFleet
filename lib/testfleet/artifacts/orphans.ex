@@ -1,7 +1,6 @@
 defmodule TestFleet.Artifacts.Orphans do
   @moduledoc """
-  Deletes files under the artifacts root that no run accounts for (Milestone 7,
-  section 8):
+  Deletes files under the artifacts root that no run accounts for:
 
     * `<run_id>/` directories of runs that are not in this database
     * `<run_id>.tar` and `<run_id>.extract` leftovers of an interrupted collection,

@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.API.RunFileControllerTest do
-  # A run's log and artifacts over the API (Milestone 11, section 6)
+  # A run's log and artifacts over the API
   use TestFleetWeb.ConnCase, async: true
 
   import TestFleet.AccountsFixtures

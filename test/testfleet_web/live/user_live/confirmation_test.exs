@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.UserLive.ConfirmationTest do
-  # The page a magic link opens (Milestone 10, section 4).
+  # The page a magic link opens.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest

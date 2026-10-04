@@ -1,5 +1,5 @@
 defmodule TestFleet.Notifications.WatchdogTest do
-  # Milestone 8, section 7: alerts about Docker and scheduling, once per episode.
+  # Alerts about Docker and scheduling, once per episode.
   #
   # Not async: the watchdog is its own process and reads the database through the
   # shared sandbox.

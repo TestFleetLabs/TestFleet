@@ -1,7 +1,6 @@
 defmodule TestFleet.Artifacts.CleanupWorker do
   @moduledoc """
-  Cleans up once per hour (`Oban.Plugins.Cron`, Milestone 6 section 8, Milestone 7
-  section 8, Milestone 8 section 8), in four independent steps:
+  Cleans up once per hour (`Oban.Plugins.Cron`), in four independent steps:
 
     1. `TestFleet.Retention`: expires old artifacts and logs
     2. `TestFleet.ImageCleanup`: removes images no run needs any more

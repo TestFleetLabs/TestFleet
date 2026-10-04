@@ -1,6 +1,6 @@
 defmodule TestFleet.Runs.Run do
   @moduledoc """
-  One execution of a test definition against an environment (main spec section 7).
+  One execution of a test definition against an environment.
 
   `image` and `command` are copied from the test definition when the run is
   created; everything else is read when the run starts. Status changes go through
@@ -35,11 +35,10 @@ defmodule TestFleet.Runs.Run do
     field :exit_code, :integer
     field :oom_killed, :boolean, default: false
     field :error_message, :string
-    # Set by a cancel of an active run; the reconciler finishes it if no process can
-    # (Milestone 7, section 5).
+    # Set by a cancel of an active run; the reconciler finishes it if no process can.
     field :cancel_requested_at, :utc_datetime_usec
 
-    # From JUnit, nil without it; tests_failed includes errors (Milestone 6 section 3)
+    # From JUnit, nil without it; tests_failed includes errors
     field :tests_passed, :integer
     field :tests_failed, :integer
     field :tests_skipped, :integer
@@ -52,9 +51,9 @@ defmodule TestFleet.Runs.Run do
     belongs_to :test_definition, TestFleet.TestDefinitions.TestDefinition
     belongs_to :environment, TestFleet.Environments.Environment
     belongs_to :schedule, TestFleet.Schedules.Schedule
-    # Who started a manual run (Milestone 10, section 6)
+    # Who started a manual run
     belongs_to :triggered_by_user, TestFleet.Accounts.User
-    # Which token started an API run; nil once revoked (Milestone 11, section 6)
+    # Which token started an API run; nil once revoked
     belongs_to :api_token, TestFleet.Accounts.APIToken
 
     has_many :artifacts, TestFleet.Artifacts.Artifact

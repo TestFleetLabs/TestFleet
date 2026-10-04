@@ -43,9 +43,8 @@ defmodule TestFleet.Execution.Docker.ImageRef do
   end
 
   @doc """
-  Replaces the tag of `reference` and drops its digest, keeping the name as written
-  (Milestone 11, section 6): `ghcr.io/acme/e2e:1.4@sha256:…` with `1.5` is
-  `ghcr.io/acme/e2e:1.5`. The tag must be a valid Docker tag.
+  Replaces the tag of `reference` and drops its digest, keeping the name as written:
+  `ghcr.io/acme/e2e:1.4@sha256:…` with `1.5` is `ghcr.io/acme/e2e:1.5`. The tag must be a valid Docker tag.
   """
   @spec put_tag(String.t(), String.t()) :: {:ok, String.t()} | {:error, :invalid_tag}
   def put_tag(reference, tag) when is_binary(reference) and is_binary(tag) do

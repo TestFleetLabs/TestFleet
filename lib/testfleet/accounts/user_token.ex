@@ -11,7 +11,7 @@ defmodule TestFleet.Accounts.UserToken do
   @magic_link_validity_in_minutes 15
   @change_email_validity_in_days 7
   @session_validity_in_days 14
-  # Invitations (Milestone 10, section 4)
+  # Invitations
   @invite_validity_in_days 7
 
   schema "users_tokens" do
@@ -133,7 +133,7 @@ defmodule TestFleet.Accounts.UserToken do
   The query returns the invited user: one that is not deactivated and still has the
   email the invitation was sent to, within #{@invite_validity_in_days} days. Usually
   the user has not accepted yet; the release command also invites existing users,
-  to set a new password (Milestone 10, section 8).
+  to set a new password.
   """
   def verify_invite_token_query(token) do
     case Base.url_decode64(token, padding: false) do

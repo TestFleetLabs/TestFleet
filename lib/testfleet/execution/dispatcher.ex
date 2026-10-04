@@ -1,7 +1,6 @@
 defmodule TestFleet.Execution.Dispatcher do
   @moduledoc """
-  Admits queued runs under the global and per-environment limits (main spec
-  section 34, Milestone 3 section 5).
+  Admits queued runs under the global and per-environment limits.
 
   A dispatch pass runs when a run is created or finished (PubSub on `runs`), and
   every `poll_interval` as a safety net. Active runs are counted in PostgreSQL, so
@@ -11,9 +10,9 @@ defmodule TestFleet.Execution.Dispatcher do
   The dispatcher is the bridge between runs and execution: it reads runs through
   `TestFleet.Runs`, and `RunExecution` never touches the database itself.
 
-  While Docker is unreachable, nothing is admitted and runs stay `queued`
-  (Milestone 7, section 7). Docker is pinged before a pass that has queued runs, and
-  on every pass while it is unreachable, at most once per `:docker_check_interval`.
+  While Docker is unreachable, nothing is admitted and runs stay `queued`.
+  Docker is pinged before a pass that has queued runs, and on every pass while
+  it is unreachable, at most once per `:docker_check_interval`.
   Changes are logged once and broadcast on the `system` topic as
   `{:docker_status, status}`; `docker_status/1` returns the current one.
 
@@ -210,7 +209,7 @@ defmodule TestFleet.Execution.Dispatcher do
   end
 
   # Under `queue`, a schedule's run starts only after its previous run finished,
-  # even if the environment would allow both (Milestone 5, section 5).
+  # even if the environment would allow both.
   defp waits_for_previous_run?(%{schedule: %{overlap_policy: :queue, id: id}}, schedules),
     do: MapSet.member?(schedules, id)
 

@@ -1,6 +1,6 @@
 defmodule TestFleet.Notifications.Sender do
   @moduledoc """
-  Sends a message to a channel (Milestone 8, section 8).
+  Sends a message to a channel.
 
   Returns `:ok`, or `{:error, :retry | :permanent, reason}`:
 

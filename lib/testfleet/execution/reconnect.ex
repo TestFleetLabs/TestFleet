@@ -1,7 +1,7 @@
 defmodule TestFleet.Execution.Reconnect do
   @moduledoc """
-  What `RunExecution` does after it lost its streams to a container (Milestone 7,
-  section 7), given Docker's answer to `inspect`:
+  What `RunExecution` does after it lost its streams to a container, given
+  Docker's answer to `inspect`:
 
     * `:follow` - the container runs: follow it again
     * `:exited` - it exited meanwhile: read the rest of its output and finalize

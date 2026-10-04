@@ -1,5 +1,5 @@
 defmodule TestFleetWeb.NotificationEmailUnconfiguredTest do
-  # Milestone 8, section 8: without SMTP, email channels can be saved, but say so,
+  # Without SMTP, email channels can be saved, but say so,
   # and send nothing.
   #
   # Not async: it switches email off for the whole application.

@@ -1,6 +1,6 @@
 defmodule TestFleet.Execution.Integration.DispatchTest do
-  # Milestone 3 end to end: Run now → dispatcher → RunExecution → Docker → recorded
-  # status. Needs the spike registry with the fixture pushed (spike spec section 9).
+  # End to end: Run now → dispatcher → RunExecution → Docker → recorded status.
+  # Needs the fixture registry with the fixture pushed.
   use TestFleet.DataCase, async: false
 
   import TestFleet.DockerCase,
@@ -45,7 +45,7 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
 
   defp run_now(context, mode, image \\ nil, variables \\ []) do
     environment = environment_fixture(project: context.project, max_concurrent_runs: 1)
-    variable_fixture(environment, %{key: "SPIKE_MODE", value: mode})
+    variable_fixture(environment, %{key: "FIXTURE_MODE", value: mode})
     for variable <- variables, do: variable_fixture(environment, variable)
 
     test_definition =
@@ -162,7 +162,7 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
 
   test "a due schedule runs through the same pipeline", context do
     environment = environment_fixture(project: context.project, max_concurrent_runs: 1)
-    variable_fixture(environment, %{key: "SPIKE_MODE", value: "pass"})
+    variable_fixture(environment, %{key: "FIXTURE_MODE", value: "pass"})
 
     schedule =
       TestFleet.SchedulesFixtures.schedule_fixture(
@@ -189,8 +189,8 @@ defmodule TestFleet.Execution.Integration.DispatchTest do
 
     run =
       run_now(context, "secret", nil, [
-        %{key: "SPIKE_SECRET", value: secret, secret: true},
-        %{key: "SPIKE_PLAIN", value: "plain-value"}
+        %{key: "FIXTURE_SECRET", value: secret, secret: true},
+        %{key: "FIXTURE_PLAIN", value: "plain-value"}
       ])
 
     Runs.subscribe(run.id)

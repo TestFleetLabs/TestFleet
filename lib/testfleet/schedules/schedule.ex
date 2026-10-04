@@ -1,7 +1,7 @@
 defmodule TestFleet.Schedules.Schedule do
   @moduledoc """
   Runs a test definition against an environment of the same project at the times of
-  a cron expression, in a time zone (main spec sections 6 and 28).
+  a cron expression, in a time zone.
 
   `next_run_at` (UTC) is computed on create, when the cron expression or time zone
   changes, and when the schedule is re-enabled. A disabled schedule keeps it; the

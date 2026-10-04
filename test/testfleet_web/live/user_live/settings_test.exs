@@ -190,7 +190,6 @@ defmodule TestFleetWeb.UserLive.SettingsTest do
     end
   end
 
-  # Milestone 11, section 8
   describe "API tokens" do
     setup %{conn: conn} do
       user = user_fixture()

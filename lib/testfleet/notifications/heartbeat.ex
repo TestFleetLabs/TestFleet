@@ -1,7 +1,7 @@
 defmodule TestFleet.Notifications.Heartbeat do
   @moduledoc """
   Pings an external dead man's switch, such as Healthchecks.io, after each
-  completed schedule tick (Milestone 8, section 7). The external system alerts when
+  completed schedule tick. The external system alerts when
   the pings stop: the one failure TestFleet cannot report itself is being down.
 
       config :testfleet, TestFleet.Notifications.Heartbeat,

@@ -31,7 +31,7 @@ config :testfleet, TestFleetWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   # JSON first: errors before the router (a malformed body) reach API clients like
-  # curl, which accept */*, in the API's format (Milestone 11, section 5). Browsers
+  # curl, which accept */*, in the API's format. Browsers
   # ask for text/html and get HTML.
   render_errors: [
     formats: [json: TestFleetWeb.ErrorJSON, html: TestFleetWeb.ErrorHTML],
@@ -40,13 +40,13 @@ config :testfleet, TestFleetWeb.Endpoint,
   pubsub_server: TestFleet.PubSub,
   live_view: [signing_salt: "Uc+rJzLb"]
 
-# Background jobs (main spec section 28). Oban creates runs and does fire-and-forget
+# Background jobs. Oban creates runs and does fire-and-forget
 # work; it never starts or owns a running container.
 config :testfleet, Oban,
   engine: Oban.Engines.Basic,
   repo: TestFleet.Repo,
   queues: [default: 10, schedules: 1, notifications: 5, cleanup: 1],
-  # One static entry drives all user-defined schedules (Milestone 5, section 4).
+  # One static entry drives all user-defined schedules.
   cron: [
     crontab: [
       {"* * * * *", TestFleet.Schedules.TickWorker},
@@ -58,7 +58,7 @@ config :testfleet, Oban,
   lifeline: [rescue_after: :timer.minutes(30)]
 
 # Password (and magic-link) login; AUTH_PASSWORD_LOGIN=false makes TestFleet "SSO
-# button only" (Milestone 10, section 4)
+# button only"
 config :testfleet, TestFleet.Accounts, password_login: true
 
 # Time zones for schedules (IANA database, bundled with the tz package)
@@ -67,7 +67,7 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 # Preselected in new schedules
 config :testfleet, :default_timezone, "Europe/Vienna"
 
-# Admission control (main spec section 34). The global limit can be set at runtime
+# Admission control. The global limit can be set at runtime
 # with MAX_CONCURRENT_RUNS; each environment has its own limit on top.
 config :testfleet, TestFleet.Execution.Dispatcher,
   max_concurrent_runs: 10,
@@ -81,14 +81,14 @@ config :testfleet, TestFleet.Artifacts,
   root: "tmp/artifacts",
   max_bytes: 500 * 1024 * 1024
 
-# Image pulls have their own timeout, separate from the run's (Milestone 7 section 6;
-# PULL_TIMEOUT_SECONDS at runtime). Digests no run used for image_retention_days are
-# removed (section 8; IMAGE_RETENTION_DAYS).
+# Image pulls have their own timeout, separate from the run's
+# (PULL_TIMEOUT_SECONDS at runtime). Digests no run used for image_retention_days are
+# removed (IMAGE_RETENTION_DAYS).
 config :testfleet, TestFleet.Execution,
   pull_timeout: :timer.minutes(10),
   image_retention_days: 7
 
-# Notifications (Milestone 8). Email needs a mailer: the local one in dev, SMTP in
+# Notifications. Email needs a mailer: the local one in dev, SMTP in
 # production (SMTP_HOST and friends in config/runtime.exs).
 config :testfleet, TestFleet.Notifications,
   email_enabled: true,
@@ -97,7 +97,7 @@ config :testfleet, TestFleet.Notifications,
   req_options: []
 
 # TestFleet's own problems: Docker unreachable for 5 minutes, schedules more than 10
-# minutes overdue (Milestone 8, section 7). HEARTBEAT_URL pings an external dead
+# minutes overdue. HEARTBEAT_URL pings an external dead
 # man's switch after each schedule tick.
 config :testfleet, TestFleet.Notifications.Watchdog,
   interval: :timer.minutes(1),
@@ -106,7 +106,7 @@ config :testfleet, TestFleet.Notifications.Watchdog,
 
 config :testfleet, TestFleet.Notifications.Heartbeat, url: nil, req_options: []
 
-# Retention (Milestone 6 section 8; ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
+# Retention (ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
 config :testfleet, TestFleet.Retention,
   artifacts_days: 30,
   logs_days: 90

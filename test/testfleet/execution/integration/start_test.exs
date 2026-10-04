@@ -1,5 +1,5 @@
 defmodule TestFleet.Execution.Integration.StartTest do
-  # Spike step 1: start a container and decide its final status.
+  # Start a container and decide its final status.
   use TestFleet.DockerCase, async: true
 
   test "the Docker Engine is reachable through the proxy" do
@@ -14,17 +14,17 @@ defmodule TestFleet.Execution.Integration.StartTest do
 
   test "exit code 0 passes and exit code 1 fails" do
     assert {%Result{status: :passed, exit_code: 0}, _} =
-             run!(environment: %{"SPIKE_MODE" => "pass"})
+             run!(environment: %{"FIXTURE_MODE" => "pass"})
 
     assert {%Result{status: :failed, exit_code: 1}, _} =
-             run!(environment: %{"SPIKE_MODE" => "fail"})
+             run!(environment: %{"FIXTURE_MODE" => "fail"})
   end
 
   test "the suite receives the reserved variables, which users cannot override" do
     {request, _pid} =
       start_run!(
         environment_name: "production",
-        environment: %{"SPIKE_MODE" => "env", "TestFleet_RUN_ID" => "spoofed"}
+        environment: %{"FIXTURE_MODE" => "env", "TestFleet_RUN_ID" => "spoofed"}
       )
 
     {%Result{status: :passed}, lines} = await_finished(request.run_id)
@@ -39,7 +39,7 @@ defmodule TestFleet.Execution.Integration.StartTest do
   test "the container is hardened, limited, and isolated" do
     {request, _pid} =
       start_run!(
-        environment: %{"SPIKE_MODE" => "hang"},
+        environment: %{"FIXTURE_MODE" => "hang"},
         memory_limit: 256 * 1024 * 1024,
         cpu_limit: 0.5,
         project_id: 12
@@ -71,13 +71,13 @@ defmodule TestFleet.Execution.Integration.StartTest do
   end
 
   test "no container is left after a run" do
-    {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "pass"})
+    {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "pass"})
     assert {%Result{status: :passed}, _} = await_finished(request.run_id)
     assert containers(request.run_id) == []
   end
 
   test "a run id cannot be started twice while it runs" do
-    {request, _pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+    {request, _pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
     assert {:error, :already_running} = Execution.start(request)
 
     :ok = Execution.cancel(request.run_id)
@@ -85,7 +85,7 @@ defmodule TestFleet.Execution.Integration.StartTest do
   end
 
   test "an existing container is never started twice or removed by another execution" do
-    {request, pid} = start_run!(environment: %{"SPIKE_MODE" => "hang"})
+    {request, pid} = start_run!(environment: %{"FIXTURE_MODE" => "hang"})
     await_output(request.run_id, &(&1.content == "tick 1"))
     kill_process(pid)
 
@@ -111,7 +111,7 @@ defmodule TestFleet.Execution.Integration.StartTest do
   end
 
   test "a suite over its memory limit is an error" do
-    {result, _} = run!(environment: %{"SPIKE_MODE" => "oom"}, memory_limit: 64 * 1024 * 1024)
+    {result, _} = run!(environment: %{"FIXTURE_MODE" => "oom"}, memory_limit: 64 * 1024 * 1024)
 
     assert result.status == :error
     assert result.error_message == "memory limit exceeded"

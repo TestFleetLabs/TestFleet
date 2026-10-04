@@ -1,6 +1,5 @@
 defmodule TestFleetWeb.AccessTest do
-  # Every page behind a login, admin pages behind the admin role (Milestone 10,
-  # sections 5 and 6).
+  # Every page behind a login, admin pages behind the admin role.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
@@ -37,7 +36,7 @@ defmodule TestFleetWeb.AccessTest do
     end
   end
 
-  # Milestone 11, section 4: the token, and only the token.
+  # The token, and only the token.
   test "every API route requires an API token, even with a session", %{conn: conn} do
     routes =
       TestFleetWeb.Router

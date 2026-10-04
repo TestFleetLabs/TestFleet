@@ -1,7 +1,7 @@
 defmodule TestFleetWeb.SetupNotice do
   @moduledoc """
-  Logs the first-run setup link on start while there is no user (Milestone 10,
-  section 4). Only someone who can read the log can set up an empty installation.
+  Logs the first-run setup link on start while there is no user. Only someone
+  who can read the log can set up an empty installation.
 
   Runs once after the endpoint started; a failure (the database is down) is logged
   and does not affect the application. Disabled in tests.
