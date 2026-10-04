@@ -7,7 +7,6 @@ defmodule TestFleetWeb.UserLive.IndexTest do
   import TestFleet.AccountsFixtures
 
   alias TestFleet.Accounts
-  alias TestFleet.Accounts.User
 
   setup :register_and_log_in_admin
 
@@ -64,7 +63,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     |> render_submit()
 
     user = Accounts.get_user_by_email("new@example.com")
-    assert %User{role: :admin} = user
+    assert role(user) == :admin
     assert has_element?(lv, "#users-#{user.id}")
     assert has_element?(lv, "#invite-link")
 
@@ -109,10 +108,10 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     {:ok, lv, _html} = live(conn, ~p"/users")
 
     lv |> element("#role-#{member.id}") |> render_click()
-    assert Accounts.get_user!(member.id).role == :admin
+    assert role(member) == :admin
 
     lv |> element("#role-#{member.id}") |> render_click()
-    assert Accounts.get_user!(member.id).role == :member
+    assert role(member) == :member
   end
 
   test "deactivating disconnects the user's pages; reactivating lets them back", %{conn: conn} do

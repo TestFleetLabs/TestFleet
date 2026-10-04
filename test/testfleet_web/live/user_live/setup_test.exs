@@ -6,7 +6,6 @@ defmodule TestFleetWeb.UserLive.SetupTest do
   import TestFleet.AccountsFixtures
 
   alias TestFleet.Accounts
-  alias TestFleet.Accounts.User
 
   @password "a valid password"
 
@@ -41,7 +40,7 @@ defmodule TestFleetWeb.UserLive.SetupTest do
     assert redirected_to(conn) == ~p"/"
     assert get_session(conn, :user_token)
     assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome to TestFleet!"
-    assert %User{role: :admin} = Accounts.get_user_by_email("first@example.com")
+    assert "first@example.com" |> Accounts.get_user_by_email() |> role() == :admin
   end
 
   test "shows validation errors", %{conn: conn} do

@@ -193,6 +193,7 @@ PubSub is the realtime transport layer.
 # 5. Domain Contexts
 
 ```text
+TestFleet.Organizations      organizations and memberships
 TestFleet.Projects
 TestFleet.Environments
 TestFleet.TestDefinitions
@@ -208,7 +209,7 @@ TestFleet.Accounts
 
 **Execution stays isolated.** `TestFleet.Execution` (`RunExecution`, `Execution.Docker.*`, `Status`, `Masker`, `PullCoordinator`) never touches the `Repo` or the configuration contexts. Everything a run needs arrives in its `Request` (section 14), and everything it produces leaves as events to a handler. The dispatcher and the reconciler are the bridges: they read runs through `TestFleet.Runs`, and `Runs.build_request/1` builds the request. `TestFleet.Results.JUnit` is pure (no database, no configuration), so `RunExecution` can call it.
 
-**Scopes.** Contexts take a `TestFleet.Accounts.Scope` only for data that belongs to a user: so far, API tokens (`Accounts.list_api_tokens/1` and friends). Everything else is shared; roles are enforced at the edge (section 35).
+**Organizations and scopes.** Everything users configure and run belongs to an organization, the tenant (section 35). Every context function the web layer or the API calls for organization-owned data takes a `TestFleet.Accounts.Scope` as its first argument and only sees that organization's data; a record of another organization is "not found". Background processes (the dispatcher, the reconciler, the schedule tick, retention, cleanup, notification workers) work across organizations through internal functions, which say so in their docs and are never called from the web layer. Roles are enforced with the scope (`Scope.admin?/1`) at the edge.
 
 ---
 
@@ -218,6 +219,7 @@ TestFleet.Accounts
 
 ```text
 id
+organization_id
 name
 slug
 description
@@ -225,7 +227,7 @@ inserted_at
 updated_at
 ```
 
-`slug` is unique, used in URLs and in the API.
+`slug` is unique per organization, used in URLs and in the API. Everything below a project (environments, variables, test definitions, schedules, runs) belongs to the project's organization.
 
 Deleting a project deletes its test definitions, environments, variables, and schedules (`on_delete: :delete_all`), but a project with runs cannot be deleted (section 7).
 
@@ -282,6 +284,7 @@ shm_size_bytes = 2147483648
 
 ```text
 id
+organization_id
 name
 host
 username
@@ -298,9 +301,9 @@ host = registry.company.com
 username = TestFleet-deploy-token
 ```
 
-Registry credentials are resolved by matching the image host against `registries.host` (`Registries.get_registry_for_image/1`). Credentials are therefore configured once per registry, not per test definition. Images whose host has no matching registry are pulled anonymously.
+Registry credentials are resolved by matching the image host against the `registries.host` of the run's organization (`Registries.get_registry_for_image/2`). Credentials are therefore configured once per registry, not per test definition. Images whose host has no matching registry are pulled anonymously.
 
-- `host` is unique, with no scheme or path, and stored the way `ImageRef` reports hosts: trimmed, lowercase, `index.docker.io` as `docker.io`. Otherwise a registry could never match.
+- `host` is unique per organization, with no scheme or path, and stored the way `ImageRef` reports hosts: trimmed, lowercase, `index.docker.io` as `docker.io`. Otherwise a registry could never match.
 - `name`, `username`, and `password` are required. The password is never sent back to the browser: on the edit form, an empty password means "keep the current one".
 - **Test connection** calls the Docker Engine's `POST /auth` with the form's values (an empty password on the edit form uses the stored one). This authenticates without pulling. It runs asynchronously and shows Docker's message as-is.
 
@@ -428,6 +431,7 @@ runs
 
 id
 
+organization_id
 test_definition_id
 environment_id
 
@@ -479,7 +483,9 @@ schedule  → created by the schedule tick (schedule_id and scheduled_for are se
 api       → created through the API (triggered_by_user_id is the token's user, api_token_id the token)
 ```
 
-Runs are shown as `#<id>`.
+Runs are shown as `#<id>`. Run ids are global, not per organization.
+
+`organization_id` is copied from the project when the run is created. Runs are listed, broadcast, and opened by id without going through their project, so they carry their organization themselves; a run of another organization is "not found".
 
 **Foreign keys.** `test_definition_id` and `environment_id` are `on_delete: :restrict`: run history must not disappear with its configuration. A project, test definition, or environment with runs cannot be deleted; the context returns `{:error, :has_runs}`, and the UI suggests disabling the test definition instead. `schedule_id`, `triggered_by_user_id`, and `api_token_id` are nullable and `on_delete: :nilify_all`.
 
@@ -946,6 +952,7 @@ and labels:
 TestFleet=true
 TestFleet.run_id=1842
 TestFleet.project_id=12
+TestFleet.organization_id=3
 TestFleet.instance=<uuid>                  section 30
 TestFleet.timeout_seconds=1800             section 24
 TestFleet.stop_grace_seconds=30
@@ -1175,10 +1182,13 @@ Very large logs could move to object storage later, with metadata kept in Postgr
 
 | Topic | Events | Subscribers |
 |-------|--------|-------------|
-| `run:<id>` | `{:run_created, run}`, `{:run_updated, run}`, `{:run_finished, run}`, `{:run_output, lines}` | the run page |
-| `runs` | the same, **without** `{:run_output, _}` | runs list, dashboard, project and test definition pages, the dispatcher |
+| `run:<id>` | `{:run_created, run}`, `{:run_updated, run}`, `{:run_finished, run}`, `{:run_output, lines}` | the run page, after a scoped lookup of the run |
+| `runs:<organization_id>` | the same, **without** `{:run_output, _}` | runs list, dashboard, project and test definition pages |
+| `runs` | the same, for all organizations | the dispatcher only; never a LiveView |
 | `system` | `{:docker_status, %{reachable, since, message}}` | dashboard |
-| `notifications` | deliveries, with their channel redacted | delivery log, run page |
+| `notifications:<organization_id>` | deliveries, with their channel redacted | delivery log, run page |
+
+A page subscribes only to its organization's topics, so one organization's runs and deliveries never reach another's browser.
 
 ```elixir
 {:run_updated, run}      # status or recorded facts changed: running, image digest, cancel requested, expired
@@ -1566,6 +1576,8 @@ A run blocked by its environment does not block runs of other environments (no h
 
 Oban queue limits cannot provide this (section 13), and per-key limits are an Oban Pro feature.
 
+The limits do not know organizations: in `:multi` mode, one organization can fill the global limit. Per-organization limits and fair admission across organizations come with the hosted edition (section 45).
+
 In a multi-node setup, the dispatcher would run once per cluster (a globally registered process, or a PostgreSQL advisory lock). TestFleet runs as one node today.
 
 In tests, the dispatcher is not started with the application; tests start it with `start_supervised!/1` and a fake engine.
@@ -1623,7 +1635,54 @@ TestFleet therefore implements:
 
 ---
 
-# 35. Authentication and Roles
+# 35. Organizations, Authentication, and Roles
+
+## Organizations
+
+An organization is a tenant. Everything users configure and run belongs to exactly one organization; users and their logins do not.
+
+```text
+organizations
+
+id
+name
+slug            unique; lowercase a-z0-9-; not a reserved path segment
+inserted_at
+updated_at
+
+memberships
+
+id
+user_id
+organization_id
+role            admin | member
+inserted_at
+updated_at      unique (user_id, organization_id)
+```
+
+| Belongs to an organization | Global |
+|----------------------------|--------|
+| projects, and through them environments, variables, test definitions, schedules, runs, logs, test results, artifacts | users, sessions and other user tokens, OIDC identities |
+| registries | the instance id, Docker status |
+| notification channels, and through them subscriptions and deliveries | retention, image cleanup, orphan cleanup |
+| API tokens | the global concurrency limit |
+
+`organization_id` is stored on the roots (`projects`, `registries`, `notification_channels`, `api_tokens`) and copied onto `runs` (section 7); the other tables reach their organization through their parent. Unique names are unique per organization: project slugs, registry hosts, channel names.
+
+**Modes.** `config :testfleet, :organizations` is `:single` (the default) or `:multi`:
+
+- **`:single`, self-hosted.** There is exactly one organization. The first-run setup creates it together with the first admin (it asks for the organization's name); an installation from before organizations gets one from a migration, named "Default" with the slug `default`, holding all existing data, with every user as a member in the role they had. Organizations cannot be created or deleted, and the UI has no organization switcher. Admins can rename the organization and change its slug.
+- **`:multi`, the hosted edition.** A user can belong to several organizations, and the UI lets them switch. Signup, creating and deleting organizations, plans, and billing are part of the hosted edition (section 45), not of the core. In this mode, images are always pulled (section 37), and system notifications are not delivered to organizations (section 39).
+
+**Reserved slugs** are the top-level path segments TestFleet uses or may use: `api`, `assets`, `auth`, `dev`, `fonts`, `health`, `images`, `live`, `organizations`, `phoenix`, `runs`, `setup`, `settings`, `users`, and the like (`TestFleet.Organizations.reserved_slugs/0`).
+
+**The scope.** `TestFleet.Accounts.Scope` holds the user, and on organization pages the organization and the user's membership:
+
+```elixir
+%Scope{user: user, organization: organization, membership: membership}
+```
+
+`Scope.for_user/1` builds it at login; the `:org` route parameter adds the organization when the user is a member (`Scope.put_organization/3`). Not being a member of the organization in the URL is "not found", not "forbidden", so organization slugs cannot be probed. `Scope.admin?/1` reads the membership's role.
 
 Every page is behind a login. Internal users log in with the company identity provider through OIDC where one is configured; TestFleet also has its own password login with invitations, so an installation without an identity provider stays usable. There is no open registration.
 
@@ -1644,7 +1703,6 @@ id
 email               citext, unique
 hashed_password     nullable: invited and OIDC-only users have none
 confirmed_at
-role                admin | member (default member)
 deactivated_at
 last_login_at
 inserted_at
@@ -1653,7 +1711,7 @@ updated_at
 
 `users_tokens` holds sessions, magic links, email changes, and invitations (as generated, hashed). Passwords are hashed with `pbkdf2_elixir`: it needs no C compiler, so development on Windows and the Linux image use the same library.
 
-Users are never deleted, because runs refer to them. An admin **deactivates** a user instead: login is refused, their sessions and API tokens are deleted, and their open LiveViews are disconnected (`UserAuth.disconnect_sessions/1`). A deactivated user can be reactivated. The last active admin can neither be demoted nor deactivated (checked under a PostgreSQL advisory lock).
+Users are never deleted, because runs refer to them. An admin **deactivates** a user instead: login is refused, their sessions and API tokens are deleted, and their open LiveViews are disconnected (`UserAuth.disconnect_sessions/1`). A deactivated user can be reactivated. Deactivation is account-wide; in `:single` mode it is what an admin does on the Members page. Removing a member from one organization (`:multi`) deletes the membership and the user's API tokens of that organization, and disconnects their open pages. An organization's last active admin can neither be demoted, removed, nor deactivated (checked under a PostgreSQL advisory lock).
 
 ## Getting in
 
@@ -1663,9 +1721,9 @@ Users are never deleted, because runs refer to them. An admin **deactivates** a 
 No users yet. Create the first admin at https://<PHX_HOST>/setup?token=<token>
 ```
 
-The token is random, generated when the application starts, kept in memory, and new on every start. `/setup` without it, with a wrong one, or once a user exists answers 404. Because only someone who can read the container log can set up TestFleet, an empty installation cannot be taken over by the first visitor. The setup runs under an advisory lock, so two submissions create one admin.
+The token is random, generated when the application starts, kept in memory, and new on every start. `/setup` without it, with a wrong one, or once a user exists answers 404. Because only someone who can read the container log can set up TestFleet, an empty installation cannot be taken over by the first visitor. The setup asks for the organization's name, the admin's email, and a password, and creates the organization, the user, and the admin membership in one transaction under an advisory lock, so two submissions create one of each. In `:single` mode, a database that already has the organization (migrated) but no user only creates the user and the membership.
 
-**Invitations.** An admin invites someone by email and role on the Users page. That creates the user without a password and an invitation token (valid 7 days). The admin sees the link once, to copy; with SMTP it is also emailed. Opening the link asks for a password (or offers the provider); saving confirms the user and logs them in. An admin can replace a pending invitation's link or revoke it (which deletes the invited user).
+**Invitations.** An admin invites someone by email and role on the Members page. That creates the user without a password, their membership in the organization with that role, and an invitation token (valid 7 days). The admin sees the link once, to copy; with SMTP it is also emailed. Opening the link asks for a password (or offers the provider); saving confirms the user and logs them in. An admin can replace a pending invitation's link or revoke it (which deletes the invited user and the membership). Inviting an email that already has an account into another organization (`:multi`) comes with the hosted edition.
 
 **Login methods:**
 
@@ -1687,9 +1745,11 @@ The setup and invitation pages create the user, then post to `POST /users/log-in
 docker compose exec testfleet bin/testfleet rpc 'TestFleet.Release.invite_admin("ops@example.com")'
 ```
 
-It creates the user as an admin, or makes an existing user an active admin, and prints an invitation link that sets a new password (invitation links therefore also work for existing users). It works regardless of `AUTH_PASSWORD_LOGIN`.
+It creates the user as an admin of the organization (`:single` mode), or makes an existing user an active admin, and prints an invitation link that sets a new password (invitation links therefore also work for existing users). It works regardless of `AUTH_PASSWORD_LOGIN`.
 
 ## Roles
+
+Roles belong to the membership: a user can be an admin of one organization and a member of another.
 
 | Area | Member | Admin |
 |------|--------|-------|
@@ -1698,14 +1758,15 @@ It creates the user as an admin, or makes an existing user an active admin, and 
 | Own settings and API tokens | ✓ | ✓ |
 | Registries | – | ✓ |
 | Notification channels, subscriptions, delivery log | – | ✓ |
-| Users: invite, change role, deactivate | – | ✓ |
+| Members: invite, change role, deactivate (`:single`) or remove (`:multi`) | – | ✓ |
+| Organization settings: name and slug | – | ✓ |
 
 Registries and notification channels hold the most dangerous capabilities (credentials, and outgoing requests to arbitrary URLs), so only admins manage them. Roles are enforced at the edge: `TestFleet.Accounts.Scope.admin?/1`, the `:require_admin` `live_session` (a member is redirected to the dashboard with a flash), and controllers. The navigation hides what the user cannot open.
 
 ## Protected routes
 
-- All LiveViews are in the `live_session`s `:require_authenticated_user` or `:require_admin`.
-- The log download (`/runs/:id/log`) and artifacts (`/runs/:id/artifacts/*name`) require a session. The `:artifacts` pipeline authenticates like the browser pipeline, without `accepts html` (`<img>` and `<video>` requests do not accept HTML).
+- All LiveViews are in the `live_session`s `:require_authenticated_user` or `:require_admin`. Organization pages live under `/:org`; an `on_mount` hook (and a plug for controllers) resolves the slug to the user's membership, or answers 404.
+- The log download (`/:org/runs/:id/log`) and artifacts (`/:org/runs/:id/artifacts/*name`) require a session and membership. The `:artifacts` pipeline authenticates like the browser pipeline, without `accepts html` (`<img>` and `<video>` requests do not accept HTML).
 - Open: `/health`, the login pages, `/setup` (with its token), invitation links, `/auth/oidc` and its callback, static assets.
 - The API authenticates with a bearer token only (section 38).
 - An unauthenticated request is redirected to the login page and returns to the requested page after login.
@@ -1757,7 +1818,7 @@ In `login` mode, in order:
 
 1. **Known identity:** log that user in, unless deactivated; update the identity's email.
 2. **Unknown identity, an existing user with that email, and `email_verified: true`:** link and log in (confirming a pending invitation).
-3. **Unknown identity, no user with that email:** with provisioning on and the domain allowed, create an active, confirmed member; otherwise refuse ("Ask an admin for an invitation", naming the allowed domains where they are the reason).
+3. **Unknown identity, no user with that email:** with provisioning on and the domain allowed, create an active, confirmed user, in `:single` mode as a member of the organization (in `:multi` mode without a membership; mapping a provider or domain to an organization comes with the hosted edition); otherwise refuse ("Ask an admin for an invitation", naming the allowed domains where they are the reason).
 4. **Unknown identity, a user with that email, but not verified:** refuse, and explain invitation links and linking in the settings. Entra and AD FS do not send `email_verified`; linking by email would let anyone who can get a matching address or UPN take over the account.
 
 A token without the email claim is refused with a message naming `OIDC_EMAIL_CLAIM`. Unlinking is allowed while another way in remains. No claim grants the admin role: admins are made by admins or the release command.
@@ -1788,6 +1849,8 @@ never       use the local image; for locally built images such as the fixture su
 ```
 
 Under `auto`, a tag is pulled every time, so a moved tag is picked up; a digest is pulled only if missing. The digest is read from the local image after the pull (`RepoDigests`) and stored in `runs.image_digest`.
+
+**Organizations on one Docker host.** Pulled images are cached host-wide. In `:multi` mode, a digest that one organization pulled with its credentials would otherwise be reused by another organization without any credentials. Runs therefore use `always` in `:multi` mode: every run pulls with its own organization's credentials, and a private image another organization cannot pull fails the run. The `PullCoordinator`'s key already includes the credentials, so concurrent pulls are never shared across credentials.
 
 ## Pull timeout
 
@@ -1839,12 +1902,12 @@ The user-facing reference is [testfleet.io/ci/api](https://testfleet.io/ci/api/)
 
 ## API tokens
 
-A token belongs to a user and acts as that user. Every endpoint is available to members; admin-only areas (registries, channels, users) have no API.
+A token belongs to a user **and one organization**, and acts as that user's membership there. The organization is not part of the API's paths: a token only sees its organization's projects, runs, and test definitions, so the paths stay the same in both modes. Every endpoint is available to members; admin-only areas (registries, channels, members) have no API.
 
 - **Format:** `tf_` followed by 32 random bytes, base64url without padding. The prefix makes tokens recognizable to secret scanners and people reading a CI log.
-- **Storage:** `api_tokens`: `user_id` (`on_delete: :delete_all`), `name`, `token_hash` (SHA-256 of the whole token, unique), `hint` (the last 4 characters), `expires_at` (nullable), `last_used_at`, timestamps. A token is high-entropy, so a fast hash is enough. The token itself is shown once, when created, and never stored.
-- **Lifetime:** expiry chosen when creating (30 days, 90 days, 1 year, or never). Revoking deletes the row. Deactivating a user deletes their tokens. `last_used_at` is written only when older than 5 minutes, so a pipeline polling every few seconds does not write on every request.
-- **Who manages them:** each user their own, in the settings, in sudo mode. Admins cannot see or create other users' tokens; deactivating the user is how an admin cuts one off. The Users page shows how many tokens a user has.
+- **Storage:** `api_tokens`: `user_id` (`on_delete: :delete_all`), `organization_id`, `name`, `token_hash` (SHA-256 of the whole token, unique), `hint` (the last 4 characters), `expires_at` (nullable), `last_used_at`, timestamps. A token is high-entropy, so a fast hash is enough. The token itself is shown once, when created, and never stored.
+- **Lifetime:** expiry chosen when creating (30 days, 90 days, 1 year, or never). Revoking deletes the row. Deactivating a user deletes their tokens; removing a membership deletes the tokens of that organization. A token whose user is no longer a member is refused. `last_used_at` is written only when older than 5 minutes, so a pipeline polling every few seconds does not write on every request.
+- **Who manages them:** each user their own, in the settings, in sudo mode. The settings list the user's tokens of every organization they belong to; a new token is created for one of them (in `:single` mode, the organization). Admins cannot see or create other users' tokens; deactivating the user is how an admin cuts one off. The Members page shows how many tokens a member has.
 - `api_tokens` are the first user-owned data, so their functions take the scope: `list_api_tokens(scope)`, `create_api_token(scope, attrs)`, `delete_api_token(scope, id)`.
 - **CI without a person:** until service accounts exist, an admin invites a dedicated user (`ci@example.com`) and creates the token as that user, so the pipeline does not break when its author leaves.
 
@@ -1856,7 +1919,7 @@ Authorization: Bearer tf_…
 
 - `TestFleetWeb.APIAuth` reads only this header: no session, no cookies, so there is no cross-site request forgery to defend against, and a logged-in browser cannot call the API by accident.
 - A missing, unknown, or expired token, or one whose user is deactivated: `401` with `WWW-Authenticate: Bearer`. The message does not say which.
-- The plug assigns `current_scope` and `api_token`.
+- The plug assigns `current_scope` (the user, the token's organization, and the membership) and `api_token`.
 - The `Authorization` header is never logged.
 
 ## Conventions
@@ -1906,7 +1969,7 @@ The log and artifact files are in their own `:api_files` pipeline without `accep
 ```json
 {
   "id": 1842,
-  "url": "https://testfleet.example.com/runs/1842",
+  "url": "https://testfleet.example.com/acme/runs/1842",
   "project": "customer-portal",
   "test_definition": "e2e",
   "environment": "staging",
@@ -1962,7 +2025,7 @@ Notifications.DeliveryWorker: email · Slack · Teams · webhook (retried)
 
 ## Channels
 
-A channel is one destination. Channels are global and managed by admins.
+A channel is one destination. Channels belong to an organization and are managed by its admins.
 
 | Kind | Target | Secret |
 |------|--------|--------|
@@ -1990,7 +2053,8 @@ channel_id, project_id (nullable), environment_id (nullable; requires project_id
 ```
 
 - A channel can have several subscriptions ("failing and recovered of project A", "errors of everything"). They are managed on the channel's page; a subscription is changed by removing it and adding another.
-- **System events** can only be chosen without a project.
+- A subscription's project and environment belong to the channel's organization; "All projects" means all projects of that organization.
+- **System events** can only be chosen without a project. They concern the whole installation, so they are delivered only in `:single` mode; in `:multi` mode the operators monitor the installation themselves.
 - An event matching several subscriptions of one channel is delivered once to that channel.
 - Deleting a project or environment deletes its subscriptions; deleting a channel deletes its subscriptions and deliveries.
 
@@ -2086,7 +2150,7 @@ Previous run passed · Open run #1234
     "event": "run.failing",
     "delivery_id": 81,
     "occurred_at": "2026-09-28T14:02:11Z",
-    "run": {"id": 1234, "status": "failed", "trigger": "schedule", "url": "https://…/runs/1234",
+    "run": {"id": 1234, "status": "failed", "trigger": "schedule", "url": "https://…/acme/runs/1234",
             "started_at": "…", "finished_at": "…", "duration_ms": 252000, "exit_code": 1,
             "error_message": null, "tests": {"passed": 45, "failed": 3, "skipped": 0},
             "failed_tests": ["…"]},
@@ -2154,19 +2218,24 @@ deliveries     90 days
 Every page begins with `<Layouts.app>`, receives `current_scope`, and updates live where the data changes: runs through the `runs` and `run:<id>` topics, Docker through `system`, deliveries through `notifications`. Lists use LiveView streams. Forms are separate LiveViews (`ProjectLive.Form`), not modals; a form knows where it came from and returns there. Deleting asks for confirmation.
 
 ```text
-/                                           dashboard
-/projects, /projects/new, /projects/:slug, /projects/:slug/edit
-/projects/:slug/test-definitions/new, /:id, /:id/edit
-/projects/:slug/environments/new, /:env, /:env/edit
-/projects/:slug/schedules/new, /:id/edit
-/runs, /runs/:id                            runs list, run page
-/runs/:id/log, /runs/:id/artifacts/*name    downloads
-/registries, /registries/new, /registries/:id/edit                         admin
-/notifications, /notifications/channels/new, /notifications/channels/:id/edit admin
-/users                                      admin
-/users/settings
+/                                                 redirects to the user's organization
+/:org                                             dashboard
+/:org/projects, /new, /:slug, /:slug/edit
+/:org/projects/:slug/test-definitions/new, /:id, /:id/edit
+/:org/projects/:slug/environments/new, /:env, /:env/edit
+/:org/projects/:slug/schedules/new, /:id/edit
+/:org/runs, /:org/runs/:id                        runs list, run page
+/:org/runs/:id/log, /:org/runs/:id/artifacts/*name    downloads
+/:org/registries, /new, /:id/edit                 admin
+/:org/notifications, /channels/new, /channels/:id/edit    admin
+/:org/members                                     admin
+/:org/settings                                    admin: name and slug
+/runs/:id                                         redirects to /:org/runs/:id (links sent before organizations)
+/users/settings                                   personal, no organization
 /users/log-in, /users/invitations/:token, /setup
 ```
+
+`/` opens the user's organization: the only one in `:single` mode; in `:multi` mode the one used last, or a list to choose from. Links TestFleet generates (notifications, API responses) contain the organization's slug. A changed slug breaks links that were sent with the old one; the run redirect at `/runs/:id` keeps working, because run ids are global.
 
 ## Dashboard
 
@@ -2243,9 +2312,15 @@ The latest 50 runs, newest first, live: status, number, test definition, project
 
 Channels (name, kind, target or URL hint, enabled, latest delivery status; edit, send test, enable/disable, delete), each channel's subscriptions on its page (scope and event checkboxes; system events only for "All projects"; a new channel opens there: "Now choose what it receives"), and the last 50 deliveries, live.
 
-## Users page (admin) and settings
+## Members page (admin), organization settings, and personal settings
 
-Users: active, invited, and deactivated, with role, how they log in (password, provider), the number of API tokens, and last login; actions: invite, new link, revoke, change role, deactivate, reactivate. Settings: password, email (with SMTP), linked provider, and the API tokens panel (name, hint `tf_…a1B2`, created, expires, last used; "New token" shows the token once with a copy button; "Revoke").
+Members (`/:org/members`): active, invited, and deactivated members, with role, how they log in (password, provider), the number of API tokens, and last login; actions: invite, new link, revoke, change role, deactivate and reactivate (`:single`) or remove (`:multi`).
+
+Organization settings (`/:org/settings`): the name and the slug, with a warning that links containing the old slug stop working.
+
+Personal settings (`/users/settings`): password, email (with SMTP), linked provider, and the API tokens panel (name, organization, hint `tf_…a1B2`, created, expires, last used; "New token" shows the token once with a copy button; "Revoke").
+
+The navigation shows the organization's name; in `:multi` mode it opens a switcher listing the user's organizations.
 
 ---
 
@@ -2477,6 +2552,16 @@ Options: `--env KEY=VALUE` (repeatable), `--timeout`, `--pull` (default `if_miss
 # 45. Roadmap
 
 Not built, and kept possible by the architecture:
+
+**The hosted edition**
+
+TestFleet may also be offered as a hosted service, from the same repository: the open source core runs in `:multi` mode, and code under a commercial license (an `ee/` directory) adds what only the service needs:
+
+- signup, creating and deleting organizations, inviting existing accounts into another organization, and mapping an identity provider or email domain to an organization
+- plans, usage metering (test minutes), and billing
+- per-organization concurrency limits, and fair admission across organizations in the dispatcher
+- hosted runners: an execution backend on AWS ECS Fargate, one task per run, so suites of different organizations never share a host
+- self-hosted runners (below) for targets in a customer's private network
 
 **Execution**
 

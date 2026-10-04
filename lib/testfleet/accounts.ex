@@ -13,6 +13,8 @@ defmodule TestFleet.Accounts do
 
   alias TestFleet.Accounts.{APIToken, OIDC, Scope, User, UserIdentity, UserToken, UserNotifier}
   alias TestFleet.Notifications
+  alias TestFleet.Organizations
+  alias TestFleet.Organizations.{Membership, Organization}
 
   require Logger
 
@@ -70,18 +72,35 @@ defmodule TestFleet.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
-  @doc "Gets a user with their OIDC identities and API token count, for the Users page."
+  @doc """
+  Gets a user with their OIDC identities, API token count, and role in the
+  organization, for the Users page.
+  """
   def get_user_with_identities!(id) do
     from(u in User, where: u.id == ^id, preload: :identities)
     |> with_api_token_count()
+    |> with_role(Organizations.single!())
     |> Repo.one!()
   end
 
-  @doc "All users, by email, with their OIDC identities and API token counts."
+  @doc """
+  The organization's users, by email, with their OIDC identities, API token
+  counts, and roles.
+  """
   def list_users do
+    organization = Organizations.single!()
+
     from(u in User, order_by: u.email, preload: :identities)
     |> with_api_token_count()
+    |> with_role(organization)
     |> Repo.all()
+  end
+
+  defp with_role(query, %Organization{id: organization_id}) do
+    from u in query,
+      join: m in Membership,
+      on: m.user_id == u.id and m.organization_id == ^organization_id,
+      select_merge: %{role: m.role}
   end
 
   defp with_api_token_count(query) do
@@ -141,19 +160,36 @@ defmodule TestFleet.Accounts do
   end
 
   @doc """
-  Creates the first admin, if there is no user yet. Two concurrent setups create
-  one admin: the other gets `{:error, :already_set_up}`.
+  Creates the first admin, if there is no user yet, and the organization, unless
+  it exists already (an installation from before organizations). Two concurrent
+  setups create one admin: the other gets `{:error, :already_set_up}`.
   """
   def create_first_admin(attrs) do
     Repo.transact(fn ->
       lock(:setup)
 
       if setup_needed?() do
-        %User{} |> User.setup_changeset(attrs) |> Repo.insert()
+        with {:ok, user} <- %User{} |> User.setup_changeset(attrs) |> Repo.insert(),
+             {:ok, _} <- join_first_organization(user) do
+          {:ok, user}
+        end
       else
         {:error, :already_set_up}
       end
     end)
+  end
+
+  defp join_first_organization(user) do
+    with {:ok, organization} <- first_organization() do
+      Organizations.put_membership(user, organization, :admin)
+    end
+  end
+
+  defp first_organization do
+    case Organizations.single() do
+      nil -> Organizations.create_organization(%{name: "Default"})
+      organization -> {:ok, organization}
+    end
   end
 
   ## Invitations
@@ -171,7 +207,8 @@ defmodule TestFleet.Accounts do
   """
   def invite_user(attrs, url_fun) when is_function(url_fun, 1) do
     Repo.transact(fn ->
-      with {:ok, user} <- %User{} |> User.invite_changeset(attrs) |> Repo.insert() do
+      with {:ok, user} <- %User{} |> User.invite_changeset(attrs) |> Repo.insert(),
+           {:ok, _} <- Organizations.put_membership(user, Organizations.single!(), user.role) do
         {:ok, {user, insert_invite_token(user)}}
       end
     end)
@@ -262,13 +299,14 @@ defmodule TestFleet.Accounts do
       result =
         case get_user_by_email(email) do
           nil ->
-            %User{} |> User.invite_changeset(%{email: email, role: :admin}) |> Repo.insert()
+            %User{} |> User.invite_changeset(%{email: email}) |> Repo.insert()
 
           user ->
-            user |> Ecto.Changeset.change(role: :admin, deactivated_at: nil) |> Repo.update()
+            user |> Ecto.Changeset.change(deactivated_at: nil) |> Repo.update()
         end
 
-      with {:ok, user} <- result do
+      with {:ok, user} <- result,
+           {:ok, _} <- Organizations.put_membership(user, Organizations.single!(), :admin) do
         Repo.delete_all(
           from(t in UserToken, where: t.user_id == ^user.id and t.context == "invite")
         )
@@ -351,7 +389,8 @@ defmodule TestFleet.Accounts do
         {:error, :domain_not_allowed}
 
       true ->
-        with {:ok, user} <- insert_confirmed(identity.email, :member),
+        with {:ok, user} <- insert_confirmed(identity.email),
+             {:ok, _} <- join_provisioned(user),
              {:ok, _} <- insert_identity(user, identity) do
           {:ok, user}
         end
@@ -367,7 +406,8 @@ defmodule TestFleet.Accounts do
       lock(:setup)
 
       if setup_needed?() do
-        with {:ok, user} <- insert_confirmed(identity.email, :admin),
+        with {:ok, user} <- insert_confirmed(identity.email),
+             {:ok, _} <- join_first_organization(user),
              {:ok, _} <- insert_identity(user, identity) do
           {:ok, user}
         end
@@ -432,9 +472,16 @@ defmodule TestFleet.Accounts do
     (password_login_enabled?() and not is_nil(user.hashed_password)) or magic_link_enabled?()
   end
 
-  defp insert_confirmed(email, role) do
+  # In :multi mode a provisioned user belongs to no organization yet.
+  defp join_provisioned(user) do
+    if Organizations.multi?(),
+      do: {:ok, nil},
+      else: Organizations.put_membership(user, Organizations.single!(), :member)
+  end
+
+  defp insert_confirmed(email) do
     %User{}
-    |> User.invite_changeset(%{email: email, role: role})
+    |> User.invite_changeset(%{email: email})
     |> User.confirm_changeset()
     |> Repo.insert()
   end
@@ -483,9 +530,12 @@ defmodule TestFleet.Accounts do
 
       {:ok, {token, api_token}} | {:error, changeset}
   """
-  def create_api_token(%Scope{user: %User{} = user}, attrs) do
+  def create_api_token(
+        %Scope{user: %User{} = user, organization: %Organization{} = organization},
+        attrs
+      ) do
     {token, changeset} =
-      %APIToken{user_id: user.id}
+      %APIToken{user_id: user.id, organization_id: organization.id}
       |> APIToken.changeset(attrs)
       |> APIToken.generate()
 
@@ -501,27 +551,32 @@ defmodule TestFleet.Accounts do
   end
 
   @doc """
-  The active user and the token for an API token, or nil: unknown, expired, and
-  deactivated users' tokens are all nil. Records the use, at most every
-  #{div(@last_used_interval_seconds, 60)} minutes.
+  The scope (the active user, the token's organization, and the membership) and
+  the token for an API token, or nil: unknown and expired tokens, deactivated
+  users' tokens, and tokens of users who are no longer members are all nil.
+  Records the use, at most every #{div(@last_used_interval_seconds, 60)} minutes.
   """
-  def get_user_by_api_token(token, now \\ DateTime.utc_now(:second))
+  def get_scope_by_api_token(token, now \\ DateTime.utc_now(:second))
 
-  def get_user_by_api_token(token, now) when is_binary(token) do
+  def get_scope_by_api_token(token, now) when is_binary(token) do
     with true <- APIToken.well_formed?(token),
-         %APIToken{user: user} = api_token <-
+         %APIToken{user: user, organization: organization} = api_token <-
            Repo.one(
-             from t in APIToken, where: t.token_hash == ^APIToken.hash(token), preload: :user
+             from t in APIToken,
+               where: t.token_hash == ^APIToken.hash(token),
+               preload: [:user, :organization]
            ),
          false <- APIToken.expired?(api_token, now),
-         true <- User.active?(user) do
-      {user, touch_api_token(api_token, now)}
+         true <- User.active?(user),
+         %Membership{} = membership <- Organizations.get_membership(user, organization) do
+      scope = Scope.put_organization(%Scope{user: user}, organization, membership)
+      {scope, touch_api_token(api_token, now)}
     else
       _ -> nil
     end
   end
 
-  def get_user_by_api_token(_token, _now), do: nil
+  def get_scope_by_api_token(_token, _now), do: nil
 
   defp touch_api_token(%APIToken{last_used_at: last} = api_token, now) do
     if is_nil(last) or DateTime.diff(now, last) >= @last_used_interval_seconds do
@@ -538,28 +593,32 @@ defmodule TestFleet.Accounts do
   ## Roles and deactivation
 
   @doc """
-  Changes the role. The last active admin cannot be demoted:
-  `{:error, :last_admin}`.
+  Changes the user's role in the organization. The organization's last active
+  admin cannot be demoted: `{:error, :last_admin}`.
   """
   def update_user_role(%User{} = user, role) when role in [:admin, :member] do
+    organization = Organizations.single!()
+
     Repo.transact(fn ->
-      if role == :member and last_active_admin?(user) do
+      if role == :member and last_active_admin?(user, organization) do
         {:error, :last_admin}
       else
-        user |> User.role_changeset(role) |> Repo.update()
+        with {:ok, _membership} <- Organizations.put_membership(user, organization, role) do
+          {:ok, %{user | role: role}}
+        end
       end
     end)
   end
 
   @doc """
-  Deactivates a user: login is refused and all tokens are deleted, API tokens
-  included. Returns the deleted session tokens, so their
-  LiveViews can be disconnected. The last active admin cannot be deactivated:
+  Deactivates a user, account-wide: login is refused and all tokens are deleted,
+  API tokens included. Returns the deleted session tokens, so their LiveViews can
+  be disconnected. An organization's last active admin cannot be deactivated:
   `{:error, :last_admin}`.
   """
   def deactivate_user(%User{} = user) do
     Repo.transact(fn ->
-      if last_active_admin?(user) do
+      if last_active_admin_anywhere?(user) do
         {:error, :last_admin}
       else
         Repo.delete_all(from t in APIToken, where: t.user_id == ^user.id)
@@ -578,15 +637,38 @@ defmodule TestFleet.Accounts do
 
   # Inside a transaction: locks the admins, so two admins cannot demote each other
   # at the same time.
-  defp last_active_admin?(%User{} = user) do
+  defp last_active_admin?(%User{} = user, %Organization{id: organization_id}) do
+    lock(:admins)
+    last_active_admin_in?(user, organization_id)
+  end
+
+  defp last_active_admin_anywhere?(%User{id: user_id} = user) do
     lock(:admins)
 
-    User.admin?(user) and User.active?(user) and
-      not Repo.exists?(
-        from u in User,
+    from(m in Membership,
+      where: m.user_id == ^user_id and m.role == :admin,
+      select: m.organization_id
+    )
+    |> Repo.all()
+    |> Enum.any?(&last_active_admin_in?(user, &1))
+  end
+
+  defp last_active_admin_in?(%User{id: user_id} = user, organization_id) do
+    admin? =
+      Repo.exists?(
+        from m in Membership,
           where:
-            u.role == :admin and u.id != ^user.id and is_nil(u.deactivated_at) and
-              not is_nil(u.confirmed_at)
+            m.user_id == ^user_id and m.organization_id == ^organization_id and
+              m.role == :admin
+      )
+
+    admin? and User.active?(user) and
+      not Repo.exists?(
+        from m in Membership,
+          join: u in assoc(m, :user),
+          where:
+            m.organization_id == ^organization_id and m.role == :admin and
+              u.id != ^user_id and is_nil(u.deactivated_at) and not is_nil(u.confirmed_at)
       )
   end
 

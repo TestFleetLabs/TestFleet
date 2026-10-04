@@ -8,6 +8,7 @@ defmodule TestFleet.AccountsFixtures do
 
   alias TestFleet.Accounts
   alias TestFleet.Accounts.{Scope, User}
+  alias TestFleet.Organizations
   alias TestFleet.Repo
 
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
@@ -21,15 +22,31 @@ defmodule TestFleet.AccountsFixtures do
     })
   end
 
-  @doc "An active member with a password (`valid_user_password/0`)."
+  @doc """
+  An active member with a password (`valid_user_password/0`), of the
+  organization (`:organization`, default: the installation's), in `:role`.
+  """
   def user_fixture(attrs \\ %{}) do
     attrs = valid_user_attributes(attrs)
+    organization = attrs[:organization] || Organizations.single!()
 
-    %User{}
-    |> User.invite_changeset(attrs)
-    |> User.password_changeset(attrs)
-    |> User.confirm_changeset()
-    |> Repo.insert!()
+    user =
+      %User{}
+      |> User.invite_changeset(attrs)
+      |> User.password_changeset(attrs)
+      |> User.confirm_changeset()
+      |> Repo.insert!()
+
+    {:ok, _membership} = Organizations.put_membership(user, organization, user.role)
+    user
+  end
+
+  @doc "The user's role in the installation's organization, or nil without a membership."
+  def role(user) do
+    case Organizations.get_membership(user, Organizations.single!()) do
+      nil -> nil
+      membership -> membership.role
+    end
   end
 
   @doc "An active admin with a password."

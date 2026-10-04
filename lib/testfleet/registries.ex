@@ -25,7 +25,7 @@ defmodule TestFleet.Registries do
   end
 
   def create_registry(attrs) do
-    %Registry{}
+    %Registry{organization_id: TestFleet.Organizations.single!().id}
     |> Registry.changeset(attrs)
     |> Repo.insert()
   end

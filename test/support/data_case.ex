@@ -31,7 +31,7 @@ defmodule TestFleet.DataCase do
 
   setup tags do
     TestFleet.DataCase.setup_sandbox(tags)
-    :ok
+    TestFleet.DataCase.setup_organization(tags)
   end
 
   @doc """
@@ -41,6 +41,16 @@ defmodule TestFleet.DataCase do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(TestFleet.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
+
+  @doc """
+  Creates the installation's organization (`:single` mode), returned as
+  `%{organization: organization}`. Tag a test `@tag :no_organization` to start
+  without one, like a fresh installation before its first-run setup.
+  """
+  def setup_organization(%{no_organization: true}), do: %{organization: nil}
+
+  def setup_organization(_tags),
+    do: %{organization: TestFleet.OrganizationsFixtures.organization_fixture()}
 
   @doc """
   A helper that transforms changeset errors into a map of messages.

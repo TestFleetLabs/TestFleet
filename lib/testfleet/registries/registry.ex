@@ -21,6 +21,8 @@ defmodule TestFleet.Registries.Registry do
     field :username, :string
     field :password, TestFleet.Encrypted.Binary, source: :password_encrypted, redact: true
 
+    belongs_to :organization, TestFleet.Organizations.Organization
+
     timestamps(type: :utc_datetime)
   end
 
@@ -38,7 +40,10 @@ defmodule TestFleet.Registries.Registry do
     |> validate_length(:username, max: 255)
     |> validate_length(:password, max: 4096)
     |> validate_host()
-    |> unique_constraint(:host, message: "already has credentials")
+    |> unique_constraint(:host,
+      name: :registries_organization_id_host_index,
+      message: "already has credentials"
+    )
   end
 
   # An existing registry keeps its password when the field is left empty.

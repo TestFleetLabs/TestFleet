@@ -93,7 +93,8 @@ defmodule TestFleet.Accounts.OIDCTest do
     test "3. an unknown user gets a member account" do
       identity = identity()
 
-      assert {:ok, %User{role: :member} = user} = Accounts.oidc_login(identity)
+      assert {:ok, %User{} = user} = Accounts.oidc_login(identity)
+      assert role(user) == :member
       assert User.status(user) == :active
       assert user.email == identity.email
       assert is_nil(user.hashed_password)
@@ -123,7 +124,8 @@ defmodule TestFleet.Accounts.OIDCTest do
 
   describe "oidc_setup/1" do
     test "creates the first admin with the identity" do
-      assert {:ok, %User{role: :admin} = user} = Accounts.oidc_setup(identity())
+      assert {:ok, %User{} = user} = Accounts.oidc_setup(identity())
+      assert role(user) == :admin
       assert User.status(user) == :active
       assert Accounts.get_identity(user)
     end

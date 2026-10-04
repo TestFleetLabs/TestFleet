@@ -48,6 +48,7 @@ defmodule TestFleet.Runs.Run do
     field :artifacts_expired_at, :utc_datetime_usec
     field :logs_expired_at, :utc_datetime_usec
 
+    belongs_to :organization, TestFleet.Organizations.Organization
     belongs_to :test_definition, TestFleet.TestDefinitions.TestDefinition
     belongs_to :environment, TestFleet.Environments.Environment
     belongs_to :schedule, TestFleet.Schedules.Schedule

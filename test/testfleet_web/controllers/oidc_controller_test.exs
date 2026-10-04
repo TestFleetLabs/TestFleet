@@ -42,7 +42,7 @@ defmodule TestFleetWeb.OIDCControllerTest do
       assert redirected_to(conn) == ~p"/"
       assert get_session(conn, :user_token)
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
-      assert %User{role: :member} = Accounts.get_user_by_email(claims["email"])
+      assert claims["email"] |> Accounts.get_user_by_email() |> role() == :member
     end
 
     test "logs in a known identity", %{conn: conn} do
@@ -133,7 +133,7 @@ defmodule TestFleetWeb.OIDCControllerTest do
 
       assert redirected_to(conn) == ~p"/"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome to TestFleet!"
-      assert %User{role: :admin} = Accounts.get_user_by_email(claims["email"])
+      assert claims["email"] |> Accounts.get_user_by_email() |> role() == :admin
     end
 
     test "is 404 without a valid token", %{conn: conn} do

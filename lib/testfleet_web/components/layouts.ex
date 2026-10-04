@@ -174,7 +174,7 @@ defmodule TestFleetWeb.Layouts do
         <p class="truncate text-sm font-medium" title={@current_scope.user.email}>
           {@current_scope.user.email}
         </p>
-        <p class="text-xs text-base-content/50">{role_label(@current_scope.user.role)}</p>
+        <p class="text-xs text-base-content/50">{role_label(Scope.role(@current_scope))}</p>
       </div>
       <.link
         navigate={~p"/users/settings"}
@@ -202,6 +202,7 @@ defmodule TestFleetWeb.Layouts do
   @doc "The display name of a role."
   def role_label(:admin), do: gettext("Admin")
   def role_label(:member), do: gettext("Member")
+  def role_label(nil), do: ""
 
   attr :id, :string, required: true, doc: "prefix for the ids of the entries"
   attr :active, :atom, default: nil

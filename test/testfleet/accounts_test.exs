@@ -86,7 +86,7 @@ defmodule TestFleet.AccountsTest do
       email = unique_user_email()
       {:ok, %{user: user}} = Accounts.invite_user(%{email: email, role: :admin}, & &1)
       assert user.email == email
-      assert user.role == :admin
+      assert role(user) == :admin
       assert is_nil(user.hashed_password)
       assert is_nil(user.confirmed_at)
       assert User.status(user) == :invited

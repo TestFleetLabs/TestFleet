@@ -12,7 +12,6 @@ defmodule TestFleetWeb.APIAuth do
   import Plug.Conn
 
   alias TestFleet.Accounts
-  alias TestFleet.Accounts.Scope
   alias TestFleetWeb.API.Error
 
   @impl true
@@ -21,9 +20,9 @@ defmodule TestFleetWeb.APIAuth do
   @impl true
   def call(conn, _opts) do
     with {:ok, token} <- bearer_token(conn),
-         {user, api_token} <- Accounts.get_user_by_api_token(token) do
+         {scope, api_token} <- Accounts.get_scope_by_api_token(token) do
       conn
-      |> assign(:current_scope, Scope.for_user(user))
+      |> assign(:current_scope, scope)
       |> assign(:api_token, api_token)
     else
       _ ->

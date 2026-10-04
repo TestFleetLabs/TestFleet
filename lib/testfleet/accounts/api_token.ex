@@ -21,6 +21,7 @@ defmodule TestFleet.Accounts.APIToken do
     field :expires_in, :string, virtual: true, default: "365"
 
     belongs_to :user, TestFleet.Accounts.User
+    belongs_to :organization, TestFleet.Organizations.Organization
 
     timestamps(type: :utc_datetime)
   end

@@ -13,6 +13,8 @@ defmodule TestFleet.Projects.Project do
     field :slug, :string
     field :description, :string
 
+    belongs_to :organization, TestFleet.Organizations.Organization
+
     timestamps(type: :utc_datetime)
   end
 
@@ -24,6 +26,6 @@ defmodule TestFleet.Projects.Project do
     |> validate_length(:name, max: 100)
     |> validate_length(:description, max: 2000)
     |> Slug.put_and_validate()
-    |> unique_constraint(:slug)
+    |> unique_constraint(:slug, name: :projects_organization_id_slug_index)
   end
 end

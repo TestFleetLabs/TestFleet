@@ -24,7 +24,7 @@ defmodule TestFleet.Projects do
   def get_project_by_slug(slug) when is_binary(slug), do: Repo.get_by(Project, slug: slug)
 
   def create_project(attrs) do
-    %Project{}
+    %Project{organization_id: TestFleet.Organizations.single!().id}
     |> Project.changeset(attrs)
     |> Repo.insert()
   end

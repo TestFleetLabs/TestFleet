@@ -207,7 +207,7 @@ defmodule TestFleetWeb.UserLive.SettingsTest do
       [api_token] = Accounts.list_api_tokens(TestFleet.Accounts.Scope.for_user(user))
       value = lv |> element("#new-api-token-value") |> render()
       [_, token] = Regex.run(~r/value="(tf_[^"]+)"/, value)
-      assert {_user, _} = Accounts.get_user_by_api_token(token)
+      assert {_scope, _} = Accounts.get_scope_by_api_token(token)
 
       assert has_element?(lv, "#api_tokens-#{api_token.id}", "GitLab deploy")
       assert has_element?(lv, "#api_tokens-#{api_token.id}", api_token.hint)
@@ -239,7 +239,7 @@ defmodule TestFleetWeb.UserLive.SettingsTest do
       lv |> element("#revoke-api-token-#{api_token.id}") |> render_click()
 
       refute has_element?(lv, "#api_tokens-#{api_token.id}")
-      refute Accounts.get_user_by_api_token(token)
+      refute Accounts.get_scope_by_api_token(token)
     end
 
     test "does not show other users' tokens", %{conn: conn} do

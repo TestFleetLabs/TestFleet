@@ -3,6 +3,7 @@ defmodule TestFleet.ReleaseTest do
   use TestFleet.DataCase, async: true
 
   import ExUnit.CaptureIO
+  import TestFleet.AccountsFixtures, only: [role: 1]
 
   alias TestFleet.Accounts
 
@@ -11,7 +12,7 @@ defmodule TestFleet.ReleaseTest do
 
     assert output =~ "ops@example.com is an admin"
     [_, token] = Regex.run(~r{/users/invitations/(\S+)}, output)
-    assert Accounts.get_user_by_invitation_token(token).role == :admin
+    assert token |> Accounts.get_user_by_invitation_token() |> role() == :admin
   end
 
   test "invite_admin/1 reports an invalid email" do

@@ -29,6 +29,8 @@ defmodule TestFleet.Notifications.Channel do
     field :url, TestFleet.Encrypted.Binary, source: :url_encrypted, redact: true
     field :url_hint, :string
 
+    belongs_to :organization, TestFleet.Organizations.Organization
+
     field :signing_secret, TestFleet.Encrypted.Binary,
       source: :signing_secret_encrypted,
       redact: true
@@ -56,7 +58,7 @@ defmodule TestFleet.Notifications.Channel do
     |> validate_required([:name, :kind])
     |> validate_length(:name, max: 100)
     |> unique_constraint(:name,
-      name: :notification_channels_name_index,
+      name: :notification_channels_organization_id_name_index,
       message: "is already used by another channel"
     )
     |> put_kind_fields(attrs)

@@ -9,14 +9,14 @@ defmodule TestFleet.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @roles [:admin, :member]
-
   schema "users" do
     field :email, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :confirmed_at, :utc_datetime
-    field :role, Ecto.Enum, values: @roles, default: :member
+    # The role in an organization, from the membership: for the invitation form and
+    # the Users page. Not stored on the user.
+    field :role, Ecto.Enum, values: [:admin, :member], virtual: true, default: :member
     field :deactivated_at, :utc_datetime
     field :last_login_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
@@ -24,12 +24,13 @@ defmodule TestFleet.Accounts.User do
     field :api_token_count, :integer, virtual: true, default: 0
 
     has_many :identities, TestFleet.Accounts.UserIdentity
+    has_many :memberships, TestFleet.Organizations.Membership
 
     timestamps(type: :utc_datetime)
   end
 
   @doc "The roles, least privileged last."
-  def roles, do: @roles
+  defdelegate roles, to: TestFleet.Organizations.Membership
 
   @doc "`:active`, `:invited` (not accepted yet), or `:deactivated`."
   def status(%__MODULE__{deactivated_at: %DateTime{}}), do: :deactivated
@@ -39,9 +40,6 @@ defmodule TestFleet.Accounts.User do
   @doc "Whether the user may log in."
   def active?(user), do: status(user) == :active
 
-  @doc "Whether the user is an admin."
-  def admin?(%__MODULE__{role: role}), do: role == :admin
-
   @doc """
   A changeset for the first admin (first-run setup): email and password, confirmed.
   Takes the options of `password_changeset/3`.
@@ -50,7 +48,6 @@ defmodule TestFleet.Accounts.User do
     user
     |> email_changeset(attrs)
     |> password_changeset(attrs, opts)
-    |> put_change(:role, :admin)
     |> put_change(:confirmed_at, DateTime.utc_now(:second))
   end
 
@@ -61,9 +58,6 @@ defmodule TestFleet.Accounts.User do
     |> validate_required([:role])
     |> email_changeset(attrs, opts)
   end
-
-  @doc "A changeset for changing the role."
-  def role_changeset(user, role), do: change(user, role: role)
 
   @doc """
   A user changeset for registering or changing the email.

@@ -33,7 +33,10 @@ defmodule TestFleetWeb.ConnCase do
 
   setup tags do
     TestFleet.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+
+    tags
+    |> TestFleet.DataCase.setup_organization()
+    |> Map.put(:conn, Phoenix.ConnTest.build_conn())
   end
 
   @doc """

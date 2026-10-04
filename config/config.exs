@@ -26,6 +26,9 @@ config :testfleet,
   ecto_repos: [TestFleet.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# :single (self-hosted: exactly one organization) or :multi (the hosted edition)
+config :testfleet, :organizations, :single
+
 # Configure the endpoint
 config :testfleet, TestFleetWeb.Endpoint,
   url: [host: "localhost"],

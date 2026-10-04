@@ -58,7 +58,7 @@ defmodule TestFleet.Notifications do
   def get_channel(id), do: Repo.get(Channel, id)
 
   def create_channel(attrs) do
-    %Channel{}
+    %Channel{organization_id: TestFleet.Organizations.single!().id}
     |> Channel.changeset(attrs)
     |> Repo.insert()
   end

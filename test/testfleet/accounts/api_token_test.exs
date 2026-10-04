@@ -54,32 +54,44 @@ defmodule TestFleet.Accounts.APITokenTest do
     end
   end
 
-  describe "get_user_by_api_token/2" do
-    test "returns the user and the token", %{user: user} do
+  describe "get_scope_by_api_token/2" do
+    test "returns the scope in the token's organization, and the token", %{
+      user: user,
+      organization: organization
+    } do
       {token, api_token} = api_token_fixture(user)
 
-      assert {found, %APIToken{id: id}} = Accounts.get_user_by_api_token(token)
-      assert found.id == user.id
+      assert {%Scope{} = scope, %APIToken{id: id}} = Accounts.get_scope_by_api_token(token)
+      assert scope.user.id == user.id
+      assert scope.organization.id == organization.id
+      assert scope.membership.role == :member
       assert id == api_token.id
+    end
+
+    test "refuses the token of a user who is no longer a member", %{user: user} do
+      {token, _api_token} = api_token_fixture(user)
+      Repo.delete_all(from m in TestFleet.Organizations.Membership, where: m.user_id == ^user.id)
+
+      refute Accounts.get_scope_by_api_token(token)
     end
 
     test "refuses unknown, malformed, and revoked tokens", %{user: user, scope: scope} do
       {token, api_token} = api_token_fixture(user)
 
-      refute Accounts.get_user_by_api_token("tf_" <> String.duplicate("a", 43))
-      refute Accounts.get_user_by_api_token("not a token")
-      refute Accounts.get_user_by_api_token(String.slice(token, 0..-2//1))
+      refute Accounts.get_scope_by_api_token("tf_" <> String.duplicate("a", 43))
+      refute Accounts.get_scope_by_api_token("not a token")
+      refute Accounts.get_scope_by_api_token(String.slice(token, 0..-2//1))
 
       :ok = Accounts.delete_api_token(scope, api_token.id)
-      refute Accounts.get_user_by_api_token(token)
+      refute Accounts.get_scope_by_api_token(token)
     end
 
     test "refuses expired tokens", %{user: user} do
       {token, api_token} = api_token_fixture(user, %{expires_in: "30"})
       later = DateTime.add(api_token.expires_at, 1, :second)
 
-      assert Accounts.get_user_by_api_token(token, DateTime.add(later, -2, :second))
-      refute Accounts.get_user_by_api_token(token, later)
+      assert Accounts.get_scope_by_api_token(token, DateTime.add(later, -2, :second))
+      refute Accounts.get_scope_by_api_token(token, later)
     end
 
     test "deactivating the user deletes the tokens", %{user: user} do
@@ -88,7 +100,7 @@ defmodule TestFleet.Accounts.APITokenTest do
 
       {:ok, _} = Accounts.deactivate_user(user)
 
-      refute Accounts.get_user_by_api_token(token)
+      refute Accounts.get_scope_by_api_token(token)
       assert Repo.aggregate(APIToken, :count) == 0
     end
 
@@ -96,14 +108,14 @@ defmodule TestFleet.Accounts.APITokenTest do
       {token, api_token} = api_token_fixture(user)
       now = DateTime.utc_now(:second)
 
-      {_user, %{last_used_at: first}} = Accounts.get_user_by_api_token(token, now)
+      {_scope, %{last_used_at: first}} = Accounts.get_scope_by_api_token(token, now)
       assert first == now
 
-      Accounts.get_user_by_api_token(token, DateTime.add(now, 4, :minute))
+      Accounts.get_scope_by_api_token(token, DateTime.add(now, 4, :minute))
       assert Repo.get!(APIToken, api_token.id).last_used_at == now
 
       later = DateTime.add(now, 5, :minute)
-      Accounts.get_user_by_api_token(token, later)
+      Accounts.get_scope_by_api_token(token, later)
       assert Repo.get!(APIToken, api_token.id).last_used_at == later
     end
   end

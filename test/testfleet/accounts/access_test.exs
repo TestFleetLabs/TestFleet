@@ -9,6 +9,8 @@ defmodule TestFleet.Accounts.AccessTest do
   alias TestFleet.Accounts
   alias TestFleet.Accounts.{User, UserToken}
   alias TestFleet.Notifications
+  alias TestFleet.Organizations
+  alias TestFleet.Organizations.Organization
 
   @password "a valid password"
 
@@ -33,9 +35,32 @@ defmodule TestFleet.Accounts.AccessTest do
                  password_confirmation: @password
                })
 
-      assert user.role == :admin
+      assert role(user) == :admin
       assert User.status(user) == :active
       assert Accounts.get_user_by_email_and_password("first@example.com", @password)
+    end
+
+    @tag :no_organization
+    test "on a fresh installation, also creates the organization" do
+      refute Organizations.single()
+
+      assert {:ok, user} =
+               Accounts.create_first_admin(%{email: "first@example.com", password: @password})
+
+      assert %Organization{name: "Default", slug: "default"} =
+               organization = Organizations.single()
+
+      assert Organizations.get_membership(user, organization).role == :admin
+    end
+
+    test "on an installation from before organizations, joins the existing one", %{
+      organization: organization
+    } do
+      assert {:ok, user} =
+               Accounts.create_first_admin(%{email: "first@example.com", password: @password})
+
+      assert Organizations.single().id == organization.id
+      assert Organizations.get_membership(user, organization).role == :admin
     end
 
     test "validates email and password" do
@@ -170,7 +195,7 @@ defmodule TestFleet.Accounts.AccessTest do
     test "creates a new admin with a working link" do
       assert {:ok, token} = Accounts.invite_admin("ops@example.com", & &1)
       assert {:ok, {user, _}} = Accounts.accept_invitation(token, %{password: @password})
-      assert user.role == :admin
+      assert role(user) == :admin
       assert User.status(user) == :active
     end
 
@@ -180,7 +205,7 @@ defmodule TestFleet.Accounts.AccessTest do
 
       assert {:ok, token} = Accounts.invite_admin(user.email, & &1)
       assert {:ok, {user, _}} = Accounts.accept_invitation(token, %{password: @password})
-      assert user.role == :admin
+      assert role(user) == :admin
       assert Accounts.get_user_by_email_and_password(user.email, @password)
     end
   end

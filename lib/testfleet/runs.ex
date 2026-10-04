@@ -171,6 +171,7 @@ defmodule TestFleet.Runs do
           Repo.insert!(%Run{
             trigger: trigger,
             status: :queued,
+            organization_id: organization_id(test_definition),
             test_definition_id: test_definition.id,
             environment_id: environment.id,
             triggered_by_user_id: user && user.id,
@@ -213,6 +214,7 @@ defmodule TestFleet.Runs do
         run = %Run{
           trigger: :schedule,
           status: :queued,
+          organization_id: organization_id(test_definition),
           schedule_id: schedule.id,
           scheduled_for: usec(scheduled_for),
           test_definition_id: test_definition.id,
@@ -232,6 +234,11 @@ defmodule TestFleet.Runs do
           {:ok, run} -> {:ok, preload(run)}
         end
     end
+  end
+
+  # A run belongs to its project's organization.
+  defp organization_id(%TestDefinition{project_id: project_id}) do
+    Repo.one!(from p in Project, where: p.id == ^project_id, select: p.organization_id)
   end
 
   # A schedule's own unfinished runs; manual runs do not count.
