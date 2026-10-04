@@ -288,16 +288,16 @@ defmodule TestFleetWeb.RunComponents do
   defp round_unit(value), do: Float.round(value, 1)
 
   @doc """
-  The URL of a run's artifact. Each segment of the name is encoded on its own, so
+  The URL of a run's artifact (the run with its organization). Each segment of the name is encoded on its own, so
   the directory structure stays in the URL and relative links in a report work.
   """
-  def artifact_url(run_id, name) do
+  def artifact_url(%{id: run_id, organization: organization}, name) do
     path =
       name
       |> String.split("/")
       |> Enum.map_join("/", fn segment -> URI.encode(segment, &URI.char_unreserved?/1) end)
 
-    ~p"/runs/#{run_id}/artifacts" <> "/" <> path
+    ~p"/#{organization}/runs/#{run_id}/artifacts" <> "/" <> path
   end
 
   @image_types ~w(image/png image/jpeg image/gif image/webp)
@@ -375,7 +375,7 @@ defmodule TestFleetWeb.RunComponents do
     ~H"""
     <li id={@id}>
       <.link
-        navigate={~p"/runs/#{@run.id}"}
+        navigate={~p"/#{@run.organization}/runs/#{@run.id}"}
         class="group flex items-center gap-4 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40"
       >
         <.run_status status={@run.status} />

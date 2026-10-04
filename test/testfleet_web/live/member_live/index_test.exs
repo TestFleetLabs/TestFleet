@@ -1,5 +1,5 @@
-defmodule TestFleetWeb.UserLive.IndexTest do
-  # The Users page.
+defmodule TestFleetWeb.MemberLive.IndexTest do
+  # The organization's Members page.
   use TestFleetWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
@@ -14,7 +14,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     member = user_fixture()
     {invited, _token} = invited_user_fixture()
 
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     assert has_element?(lv, "#users-#{admin.id}")
     assert has_element?(lv, "#user-status-#{member.id}", "Active")
@@ -32,7 +32,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
         email_verified: false
       })
 
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     assert has_element?(lv, "#user-logins-#{admin.id}", "Password")
     refute has_element?(lv, "#user-logins-#{admin.id}", "Company SSO")
@@ -46,7 +46,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     api_token_fixture(user)
     without = user_fixture()
 
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     assert has_element?(lv, "#user-api-tokens-#{user.id}", "2 API tokens")
     refute has_element?(lv, "#user-api-tokens-#{without.id}")
@@ -56,7 +56,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
   end
 
   test "invites a user and shows the link once", %{conn: conn} do
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     lv
     |> form("#invite-form", %{"user" => %{"email" => "new@example.com", "role" => "admin"}})
@@ -80,7 +80,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
   end
 
   test "shows invitation errors", %{conn: conn, user: admin} do
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     html =
       lv
@@ -92,7 +92,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
 
   test "renews and revokes a pending invitation", %{conn: conn} do
     {user, old} = invited_user_fixture()
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     lv |> element("#renew-#{user.id}") |> render_click()
     assert has_element?(lv, "#invite-link")
@@ -105,7 +105,7 @@ defmodule TestFleetWeb.UserLive.IndexTest do
 
   test "changes roles", %{conn: conn} do
     member = user_fixture()
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
 
     lv |> element("#role-#{member.id}") |> render_click()
     assert role(member) == :admin
@@ -122,12 +122,12 @@ defmodule TestFleetWeb.UserLive.IndexTest do
     # LiveViewTest has no transport socket: assert the broadcast that closes it.
     TestFleetWeb.Endpoint.subscribe("users_sessions:#{Base.url_encode64(token)}")
 
-    {:ok, lv, _html} = live(conn, ~p"/users")
+    {:ok, lv, _html} = live(conn, ~p"/#{org()}/members")
     lv |> element("#deactivate-#{member.id}") |> render_click()
 
     assert_receive %Phoenix.Socket.Broadcast{event: "disconnect"}
     assert has_element?(lv, "#user-status-#{member.id}", "Deactivated")
-    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(member_conn, ~p"/runs")
+    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(member_conn, ~p"/#{org()}/runs")
 
     lv |> element("#reactivate-#{member.id}") |> render_click()
     assert has_element?(lv, "#user-status-#{member.id}", "Active")

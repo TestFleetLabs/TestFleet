@@ -43,7 +43,7 @@ defmodule TestFleetWeb.ProjectLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Project created."))
-         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/projects/#{project.slug}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
@@ -56,15 +56,15 @@ defmodule TestFleetWeb.ProjectLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Project saved."))
-         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/projects/#{project.slug}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
 
-  defp back_path(%Project{id: nil}), do: ~p"/projects"
-  defp back_path(project), do: ~p"/projects/#{project.slug}"
+  defp back_path(organization, %Project{id: nil}), do: ~p"/#{organization}/projects"
+  defp back_path(organization, project), do: ~p"/#{organization}/projects/#{project.slug}"
 
   @impl true
   def render(assigns) do
@@ -73,8 +73,12 @@ defmodule TestFleetWeb.ProjectLive.Form do
       <div class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
-            <:crumb :if={@project.id} navigate={back_path(@project)}>{@project.name}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
+            <:crumb :if={@project.id} navigate={back_path(@organization, @project)}>
+              {@project.name}
+            </:crumb>
+
             <:crumb>{if @project.id, do: gettext("Edit"), else: gettext("New")}</:crumb>
           </.breadcrumbs>
           <.page_header title={@page_title} />
@@ -95,9 +99,8 @@ defmodule TestFleetWeb.ProjectLive.Form do
               label={gettext("Description")}
               rows="3"
             />
-
             <:footer>
-              <.button navigate={back_path(@project)}>{gettext("Cancel")}</.button>
+              <.button navigate={back_path(@organization, @project)}>{gettext("Cancel")}</.button>
               <.button id="save-project" variant="primary" phx-disable-with={gettext("Saving...")}>
                 {gettext("Save")}
               </.button>

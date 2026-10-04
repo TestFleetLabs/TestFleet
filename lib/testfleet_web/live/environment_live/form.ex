@@ -52,17 +52,21 @@ defmodule TestFleetWeb.EnvironmentLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Environment saved."))
-         |> push_navigate(to: ~p"/projects/#{project.slug}/environments/#{environment.slug}")}
+         |> push_navigate(
+           to:
+             ~p"/#{socket.assigns.organization}/projects/#{project.slug}/environments/#{environment.slug}"
+         )}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
 
-  defp back_path(project, %Environment{id: nil}), do: ~p"/projects/#{project.slug}"
+  defp back_path(organization, project, %Environment{id: nil}),
+    do: ~p"/#{organization}/projects/#{project.slug}"
 
-  defp back_path(project, environment),
-    do: ~p"/projects/#{project.slug}/environments/#{environment.slug}"
+  defp back_path(organization, project, environment),
+    do: ~p"/#{organization}/projects/#{project.slug}/environments/#{environment.slug}"
 
   @impl true
   def render(assigns) do
@@ -71,11 +75,16 @@ defmodule TestFleetWeb.EnvironmentLive.Form do
       <div class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
-            <:crumb navigate={~p"/projects/#{@project.slug}"}>{@project.name}</:crumb>
-            <:crumb :if={@environment.id} navigate={back_path(@project, @environment)}>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
+            <:crumb navigate={~p"/#{@organization}/projects/#{@project.slug}"}>
+              {@project.name}
+            </:crumb>
+
+            <:crumb :if={@environment.id} navigate={back_path(@organization, @project, @environment)}>
               {@environment.name}
             </:crumb>
+
             <:crumb>
               {if @environment.id, do: gettext("Edit"), else: gettext("New environment")}
             </:crumb>
@@ -110,9 +119,8 @@ defmodule TestFleetWeb.EnvironmentLive.Form do
               label={gettext("Description")}
               rows="3"
             />
-
             <:footer>
-              <.button navigate={back_path(@project, @environment)}>{gettext("Cancel")}</.button>
+              <.button navigate={back_path(@organization, @project, @environment)}>{gettext("Cancel")}</.button>
               <.button
                 id="save-environment"
                 variant="primary"

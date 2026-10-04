@@ -17,7 +17,9 @@ defmodule TestFleetWeb.AccessTest do
     {"GET", "/auth/oidc/callback"}
   ]
 
-  @admin_pages ~w(/registries /registries/new /notifications /notifications/channels/new /users)
+  @admin_pages ~w(/registries /registries/new /notifications /notifications/channels/new /members /settings)
+
+  defp admin_paths, do: Enum.map(@admin_pages, &("/#{org().slug}" <> &1))
 
   test "every route requires a login, except the open ones and the API", %{conn: conn} do
     routes =
@@ -62,17 +64,22 @@ defmodule TestFleetWeb.AccessTest do
     setup :register_and_log_in_user
 
     test "is sent from every admin page to the dashboard", %{conn: conn} do
-      for path <- @admin_pages do
-        assert {:error, {:redirect, %{to: "/", flash: %{"error" => _}}}} = live(conn, path),
+      dashboard = ~p"/#{org()}"
+
+      for path <- admin_paths() do
+        assert {:error, {:redirect, %{to: ^dashboard, flash: %{"error" => _}}}} = live(conn, path),
                "#{path} must be admin only"
       end
     end
 
     test "does not see the admin pages in the navigation", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/")
+      {:ok, lv, _html} = live(conn, ~p"/#{org()}")
 
       for key <- ~w(dashboard projects runs), do: assert(has_element?(lv, "#nav-#{key}"))
-      for key <- ~w(registries notifications users), do: refute(has_element?(lv, "#nav-#{key}"))
+
+      for key <- ~w(registries notifications members settings),
+          do: refute(has_element?(lv, "#nav-#{key}"))
+
       assert has_element?(lv, "#user-menu-log-out")
     end
   end
@@ -81,10 +88,12 @@ defmodule TestFleetWeb.AccessTest do
     setup :register_and_log_in_admin
 
     test "opens the admin pages and sees them in the navigation", %{conn: conn} do
-      for path <- @admin_pages, do: assert({:ok, _lv, _html} = live(conn, path))
+      for path <- admin_paths(), do: assert({:ok, _lv, _html} = live(conn, path))
 
-      {:ok, lv, _html} = live(conn, ~p"/")
-      for key <- ~w(registries notifications users), do: assert(has_element?(lv, "#nav-#{key}"))
+      {:ok, lv, _html} = live(conn, ~p"/#{org()}")
+
+      for key <- ~w(registries notifications members settings),
+          do: assert(has_element?(lv, "#nav-#{key}"))
     end
   end
 
@@ -94,6 +103,6 @@ defmodule TestFleetWeb.AccessTest do
     conn = log_in_user(conn, user)
     {:ok, _} = TestFleet.Accounts.deactivate_user(user)
 
-    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/")
+    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/#{org()}")
   end
 end

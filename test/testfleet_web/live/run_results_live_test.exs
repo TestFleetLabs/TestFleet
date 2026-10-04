@@ -55,7 +55,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
   describe "tests panel" do
     test "shows the counts and the failures, with their details", %{conn: conn} do
       run = junit_run()
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-tests-summary", "3 passed")
       assert has_element?(view, "#run-tests-summary", "2 failed")
@@ -93,7 +93,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
 
     test "shows all tests on demand", %{conn: conn} do
       run = junit_run()
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#show-all-tests", "Show all 6 tests")
       view |> element("#show-all-tests") |> render_click()
@@ -110,7 +110,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
           test_results: [test_case("adds", :passed)]
         )
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#test-failures-empty")
       assert has_element?(view, "#show-all-tests")
@@ -118,14 +118,14 @@ defmodule TestFleetWeb.RunResultsLiveTest do
 
     test "is not shown without JUnit", %{conn: conn} do
       run = finish(run_fixture(status: :running), [])
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       refute has_element?(view, "#run-tests")
     end
 
     test "appears when the run finishes while the page is open", %{conn: conn} do
       run = run_fixture(status: :running)
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       refute has_element?(view, "#run-tests")
 
       finish(run,
@@ -157,7 +157,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
     end
 
     test "lists the files as a tree, directories first", %{conn: conn, run: run} do
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-artifacts-summary", "6 files")
       assert has_element?(view, "#run-artifacts-summary", "3.0 MiB")
@@ -185,41 +185,41 @@ defmodule TestFleetWeb.RunResultsLiveTest do
     end
 
     test "links to the files, keeping the directories in the URL", %{conn: conn, run: run} do
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(
                view,
-               "#artifact-tree a[href='/runs/#{run.id}/artifacts/screenshots/login%20page.png']"
+               "#artifact-tree a[href='/#{org().slug}/runs/#{run.id}/artifacts/screenshots/login%20page.png']"
              )
 
       # A directory with an index.html, and a standalone HTML file, open as reports.
       assert has_element?(
                view,
-               "#artifact-tree li[data-kind='dir'] a[data-report][href='/runs/#{run.id}/artifacts/reports/index.html']"
+               "#artifact-tree li[data-kind='dir'] a[data-report][href='/#{org().slug}/runs/#{run.id}/artifacts/reports/index.html']"
              )
 
       assert has_element?(
                view,
-               "#artifact-tree a[data-report][href='/runs/#{run.id}/artifacts/trace.html']"
+               "#artifact-tree a[data-report][href='/#{org().slug}/runs/#{run.id}/artifacts/trace.html']"
              )
     end
 
     test "previews images and videos", %{conn: conn, run: run} do
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(
                view,
-               "#artifact-media img[src='/runs/#{run.id}/artifacts/screenshots/login%20page.png']"
+               "#artifact-media img[src='/#{org().slug}/runs/#{run.id}/artifacts/screenshots/login%20page.png']"
              )
 
       assert has_element?(
                view,
-               "#artifact-media video[src='/runs/#{run.id}/artifacts/videos/checkout.webm']"
+               "#artifact-media video[src='/#{org().slug}/runs/#{run.id}/artifacts/videos/checkout.webm']"
              )
     end
 
     test "shows the warnings", %{conn: conn, run: run} do
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-warnings", "1 entry was skipped")
     end
@@ -227,7 +227,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
 
   test "a run without artifacts or warnings has no artifacts panel", %{conn: conn} do
     run = finish(run_fixture(status: :running), [])
-    {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
     refute has_element?(view, "#run-artifacts")
   end
@@ -236,7 +236,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
     run =
       finish(run_fixture(status: :running), warnings: ["Artifacts could not be collected: boom"])
 
-    {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
     assert has_element?(view, "#run-warnings", "boom")
     refute has_element?(view, "#artifact-tree li")
@@ -245,7 +245,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
   describe "retention" do
     test "the pin toggle pins and unpins a finished run", %{conn: conn} do
       run = finish(run_fixture(status: :running), [])
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#pin-run[aria-pressed='false']")
       view |> element("#pin-run") |> render_click()
@@ -258,7 +258,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
 
     test "an active run has no pin toggle", %{conn: conn} do
       run = run_fixture(status: :running)
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       refute has_element?(view, "#pin-run")
     end
@@ -275,7 +275,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
         ]
       )
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-artifacts-expired", "1 Sep 2026")
       assert has_element?(view, "#log-empty", "The log expired on 1 Sep 2026")
@@ -300,7 +300,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
         artifacts: [%{path: "shot.png", size_bytes: 3}]
       )
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       assert has_element?(view, "#artifact-tree li", "shot.png")
       assert has_element?(view, "#log-lines li[data-stream]", "hello")
 
@@ -321,13 +321,14 @@ defmodule TestFleetWeb.RunResultsLiveTest do
         set: [logs_expired_at: ~U[2026-09-01 10:00:00.000000Z]]
       )
 
-      assert conn |> get(~p"/runs/#{run.id}/log") |> response(410) =~ "expired on 2026-09-01"
+      assert conn |> get(~p"/#{org()}/runs/#{run.id}/log") |> response(410) =~
+               "expired on 2026-09-01"
     end
   end
 
   test "run lists show the test counts", %{conn: conn} do
     run = junit_run()
-    {:ok, view, _html} = live(conn, ~p"/runs")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/runs")
 
     assert has_element?(view, "#runs-#{run.id}-tests [data-count='passed']", "3")
     assert has_element?(view, "#runs-#{run.id}-tests [data-count='failed']", "2")

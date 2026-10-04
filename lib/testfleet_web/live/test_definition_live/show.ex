@@ -39,7 +39,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
 
     case environment && Runs.create_run(socket.assigns.test_definition, environment, user: user) do
       {:ok, run} ->
-        {:noreply, push_navigate(socket, to: ~p"/runs/#{run.id}")}
+        {:noreply, push_navigate(socket, to: ~p"/#{socket.assigns.organization}/runs/#{run.id}")}
 
       {:error, :test_definition_disabled} ->
         {:noreply,
@@ -65,17 +65,24 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
       <div id="test-definition" class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
-            <:crumb navigate={~p"/projects/#{@project.slug}"}>{@project.name}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
+            <:crumb navigate={~p"/#{@organization}/projects/#{@project.slug}"}>
+              {@project.name}
+            </:crumb>
+
             <:crumb>{@test_definition.name}</:crumb>
           </.breadcrumbs>
 
           <.page_header title={@test_definition.name} description={@test_definition.description}>
             <:actions>
               <.badge :if={!@test_definition.enabled} tone={:warning}>{gettext("disabled")}</.badge>
+
               <.button
                 id="edit-test-definition"
-                navigate={~p"/projects/#{@project.slug}/test-definitions/#{@test_definition.id}/edit"}
+                navigate={
+                  ~p"/#{@organization}/projects/#{@project.slug}/test-definitions/#{@test_definition.id}/edit"
+                }
               >
                 <.icon name="hero-pencil-square-mini" class="size-4" /> {gettext("Edit")}
               </.button>
@@ -91,8 +98,9 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                 id="run-now-disabled"
                 class="flex items-center gap-2 border-b border-base-300 bg-warning/5 px-5 py-3 text-sm text-base-content/70"
               >
-                <.icon name="hero-pause-circle-mini" class="size-4 shrink-0 text-warning" />
-                {gettext("This test definition is disabled. Enable it to run it.")}
+                <.icon name="hero-pause-circle-mini" class="size-4 shrink-0 text-warning" /> {gettext(
+                  "This test definition is disabled. Enable it to run it."
+                )}
               </p>
 
               <.empty_state
@@ -104,7 +112,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
               >
                 {gettext("A run needs an environment to point the suite at.")}
                 <:actions>
-                  <.button navigate={~p"/projects/#{@project.slug}/environments/new"}>
+                  <.button navigate={~p"/#{@organization}/projects/#{@project.slug}/environments/new"}>
                     <.icon name="hero-plus-mini" class="size-4" /> {gettext("New environment")}
                   </.button>
                 </:actions>
@@ -118,6 +126,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                 >
                   <div class="min-w-0">
                     <p class="truncate text-sm font-medium">{environment.name}</p>
+
                     <p class="truncate text-xs text-base-content/60">
                       <span class="font-mono">{environment.slug}</span>
                       · {ngettext(
@@ -127,6 +136,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                       )}
                     </p>
                   </div>
+
                   <.button
                     id={"run-now-#{environment.id}"}
                     variant="primary"
@@ -154,6 +164,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                     {gettext("Start one above.")}
                   </.empty_state>
                 </li>
+
                 <.run_row
                   :for={{id, run} <- @streams.runs}
                   id={id}
@@ -169,6 +180,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
               <.setting label={gettext("Image")}>
                 <span class="font-mono text-xs break-all">{@test_definition.image}</span>
               </.setting>
+
               <.setting label={gettext("Command")}>
                 <code
                   :if={@test_definition.command != []}
@@ -178,20 +190,25 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                   {gettext("the image's entrypoint")}
                 </span>
               </.setting>
+
               <.setting label={gettext("Timeout")}>
                 {format_timeout(@test_definition.timeout_seconds)}
               </.setting>
+
               <.setting label={gettext("CPUs")}>
                 {@test_definition.cpu_limit || gettext("unlimited")}
               </.setting>
+
               <.setting label={gettext("Memory")}>
                 {if @test_definition.memory_limit,
                   do: format_bytes(@test_definition.memory_limit),
                   else: gettext("unlimited")}
               </.setting>
+
               <.setting label={gettext("Shared memory")}>
                 {format_bytes(@test_definition.shm_size_bytes)}
               </.setting>
+
               <.setting label={gettext("Slug")}>
                 <span class="font-mono text-xs">{@test_definition.slug}</span>
               </.setting>
@@ -210,6 +227,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
     ~H"""
     <div class="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-5 py-3">
       <dt class="text-base-content/60">{@label}</dt>
+
       <dd class="min-w-0">{render_slot(@inner_block)}</dd>
     </div>
     """

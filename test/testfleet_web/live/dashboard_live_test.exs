@@ -15,7 +15,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
   setup :register_and_log_in_user
 
   test "shows the run figures and empty lists", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}")
 
     for id <- ~w(stat-running stat-passed-today stat-failed-today stat-timeouts-today) do
       assert has_element?(view, "#dashboard-stats ##{id}")
@@ -43,7 +43,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
         environment: environment_fixture(project: project)
       )
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}")
       refute has_element?(view, "#docker-unreachable")
 
       docker_status(false, "Docker Engine unreachable: connection refused")
@@ -62,7 +62,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
     end
 
     test "without queued runs, the queue shows no Docker note", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}")
       docker_status(false)
 
       assert has_element?(view, "#docker-unreachable")
@@ -95,7 +95,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
       run(context, status: :timeout, finished_at: now)
       run(context, status: :passed, finished_at: DateTime.add(now, -3, :day))
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}")
 
       assert has_element?(view, "#stat-running", "2")
       assert has_element?(view, "#stat-passed-today", "0")
@@ -106,7 +106,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
     test "lists recent and queued runs and updates them live", %{conn: conn} = context do
       finished = run(context, status: :passed, finished_at: DateTime.utc_now())
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}")
       assert has_element?(view, "#recent-run-list #recent-#{finished.id}")
       refute has_element?(view, "#queued-run-list #queued-#{finished.id}")
 
@@ -123,7 +123,7 @@ defmodule TestFleetWeb.DashboardLiveTest do
     test "shows how many more runs are waiting", %{conn: conn} = context do
       runs = for _ <- 1..12, do: run(context)
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}")
 
       # The oldest wait longest and start first.
       assert has_element?(view, "#queued-#{hd(runs).id}")

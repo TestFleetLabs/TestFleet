@@ -29,10 +29,10 @@ defmodule TestFleetWeb.NotificationEmailUnconfiguredTest do
   test "the pages say so", %{conn: conn} do
     channel_fixture(kind: :email)
 
-    {:ok, view, _html} = live(conn, ~p"/notifications")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
     assert has_element?(view, "#email-unconfigured")
 
-    {:ok, view, _html} = live(conn, ~p"/notifications/channels/new")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications/channels/new")
     view |> form("#channel-form", channel: %{kind: "email"}) |> render_change()
     assert has_element?(view, "#email-unconfigured")
   end

@@ -27,12 +27,12 @@ defmodule TestFleetWeb.RunLogTest do
       run = run_fixture(status: :passed, finished_at: DateTime.utc_now())
       append(run, [line(1, "starting suite"), line(2, "a warning", :stderr)])
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#log-1", "starting suite")
       assert has_element?(view, "#log-2[data-stream='stderr']", "a warning")
       assert has_element?(view, "#run-output-count", "2 lines")
-      assert has_element?(view, "#download-log[href='/runs/#{run.id}/log']")
+      assert has_element?(view, "#download-log[href='/#{org().slug}/runs/#{run.id}/log']")
       refute has_element?(view, "#run-output-earlier")
     end
 
@@ -40,7 +40,7 @@ defmodule TestFleetWeb.RunLogTest do
       run = run_fixture(status: :running)
       append(run, [line(1, "tick 1")])
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       assert has_element?(view, "#run-output-live")
 
       # An overlapping batch, as after subscribing before loading the history.
@@ -56,7 +56,7 @@ defmodule TestFleetWeb.RunLogTest do
       run = run_fixture(status: :running)
       append(run, [line(1, "token=[MASKED] used")])
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#log-1 span span", "MASKED")
       refute has_element?(view, "#log-1", "[MASKED]")
@@ -69,26 +69,26 @@ defmodule TestFleetWeb.RunLogTest do
       run = run_fixture(status: :passed, finished_at: DateTime.utc_now())
       append(run, for(n <- 1..1_005, do: line(n, "line #{n}")))
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       refute has_element?(view, "#log-5")
       assert has_element?(view, "#log-6")
-      assert has_element?(view, "#run-output-earlier a[href='/runs/#{run.id}/log']")
+      assert has_element?(view, "#run-output-earlier a[href='/#{org().slug}/runs/#{run.id}/log']")
     end
 
     test "shows what to expect without output", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run_fixture(status: :running).id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run_fixture(status: :running).id}")
       assert has_element?(view, "#log-empty", "Waiting for output")
 
       finished = run_fixture(status: :passed, finished_at: DateTime.utc_now())
-      {:ok, view, _html} = live(conn, ~p"/runs/#{finished.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{finished.id}")
       assert has_element?(view, "#log-empty", "no output")
       refute has_element?(view, "#download-log")
     end
 
     test "says when the log limit was reached, live", %{conn: conn} do
       run = run_fixture(status: :running)
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       refute has_element?(view, "#run-output-truncated")
 
       append(run, [line(1, "12345"), line(2, "678")], max_log_bytes: 6)
@@ -104,7 +104,7 @@ defmodule TestFleetWeb.RunLogTest do
       run = run_fixture(status: :passed, finished_at: DateTime.utc_now())
       append(run, for(n <- 1..2_500, do: line(n, "line #{n}")))
 
-      conn = get(conn, ~p"/runs/#{run.id}/log")
+      conn = get(conn, ~p"/#{org()}/runs/#{run.id}/log")
 
       assert response_content_type(conn, :text) =~ "charset=utf-8"
 
@@ -119,14 +119,14 @@ defmodule TestFleetWeb.RunLogTest do
       run = run_fixture(status: :passed, finished_at: DateTime.utc_now())
       append(run, [line(1, "kept"), line(2, "dropped")], max_log_bytes: 4)
 
-      body = conn |> get(~p"/runs/#{run.id}/log") |> response(200)
+      body = conn |> get(~p"/#{org()}/runs/#{run.id}/log") |> response(200)
 
       assert ["kept", note, ""] = String.split(body, "\n")
       assert note =~ "Log limit"
     end
 
     test "an unknown run is not found", %{conn: conn} do
-      assert_error_sent 404, fn -> get(conn, ~p"/runs/0/log") end
+      assert_error_sent 404, fn -> get(conn, ~p"/#{org()}/runs/0/log") end
     end
   end
 

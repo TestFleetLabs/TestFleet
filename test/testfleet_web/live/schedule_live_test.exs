@@ -34,7 +34,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
           cron_expression: "0 6 * * 1-5"
         )
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       row = "#schedules-#{schedule.id}"
       assert has_element?(view, row, "Checkout")
@@ -48,7 +48,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
 
       assert has_element?(
                view,
-               "#{row} a[href='/projects/customer-portal/schedules/#{schedule.id}/edit']"
+               "#{row} a[href='/#{org().slug}/projects/customer-portal/schedules/#{schedule.id}/edit']"
              )
     end
 
@@ -62,7 +62,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
           overlap_policy: :queue
         )
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert has_element?(view, "#schedules-#{schedule.id}", "disabled")
       assert has_element?(view, "#schedules-#{schedule.id}", "queues overlaps")
@@ -72,13 +72,13 @@ defmodule TestFleetWeb.ScheduleLiveTest do
 
   describe "new" do
     test "explains what is missing before anything can be scheduled", %{conn: conn} = context do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/schedules/new")
 
       assert has_element?(view, "#schedule-prerequisites")
       refute has_element?(view, "#schedule-form")
 
       test_definition_fixture(project: context.project, enabled: false)
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/schedules/new")
       assert has_element?(view, "#schedule-prerequisites a[href$='/test-definitions/new']")
       assert has_element?(view, "#schedule-prerequisites a[href$='/environments/new']")
     end
@@ -87,7 +87,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
       %{test_definition: test_definition, environment: environment} =
         with_suite_and_environment(context)
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/schedules/new")
 
       # A single test definition and environment are preselected.
       assert has_element?(
@@ -112,7 +112,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
           }
         )
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert [schedule] = Schedules.list_schedules(project)
 
@@ -130,7 +130,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
 
     test "previews the next runs while typing", %{conn: conn} = context do
       with_suite_and_environment(context)
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/schedules/new")
 
       assert has_element?(view, "#schedule-preview-empty")
 
@@ -151,7 +151,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
 
     test "a preset fills in the cron expression", %{conn: conn} = context do
       with_suite_and_environment(context)
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/schedules/new")
 
       view |> element("#cron-presets button", "Weekdays at 06:00") |> render_click()
 
@@ -162,7 +162,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
     test "shows validation errors after a failed save",
          %{conn: conn, project: project} = context do
       with_suite_and_environment(context)
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/schedules/new")
 
       view |> form("#schedule-form", schedule: %{cron_expression: ""}) |> render_submit()
 
@@ -186,26 +186,28 @@ defmodule TestFleetWeb.ScheduleLiveTest do
     end
 
     test "saves changes", %{conn: conn, project: project, schedule: schedule} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/#{schedule.id}/edit")
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/schedules/#{schedule.id}/edit")
 
       {:ok, _show, _html} =
         view
         |> form("#schedule-form", schedule: %{cron_expression: "0 22 * * *", enabled: "false"})
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert %{cron_expression: "0 22 * * *", enabled: false} =
                Schedules.get_schedule!(project, schedule.id)
     end
 
     test "deletes the schedule", %{conn: conn, project: project, schedule: schedule} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/schedules/#{schedule.id}/edit")
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/schedules/#{schedule.id}/edit")
 
       {:ok, _show, _html} =
         view
         |> element("#delete-schedule")
         |> render_click()
-        |> follow_redirect(conn, ~p"/projects/customer-portal")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert Schedules.list_schedules(project) == []
     end
@@ -214,7 +216,7 @@ defmodule TestFleetWeb.ScheduleLiveTest do
       other = schedule_fixture()
 
       assert_raise Ecto.NoResultsError, fn ->
-        live(conn, ~p"/projects/customer-portal/schedules/#{other.id}/edit")
+        live(conn, ~p"/#{org()}/projects/customer-portal/schedules/#{other.id}/edit")
       end
     end
   end
@@ -230,10 +232,14 @@ defmodule TestFleetWeb.ScheduleLiveTest do
         environment: environment
       )
 
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}")
 
     assert has_element?(view, "#upcoming-#{schedule.id}", "Checkout")
     assert has_element?(view, "#upcoming-#{schedule.id}", "Customer Portal")
-    assert has_element?(view, "#upcoming-#{schedule.id} a[href='/projects/customer-portal']")
+
+    assert has_element?(
+             view,
+             "#upcoming-#{schedule.id} a[href='/#{org().slug}/projects/customer-portal']"
+           )
   end
 end

@@ -37,7 +37,7 @@ defmodule TestFleetWeb.ScheduledRunsTest do
 
   describe "schedule rows" do
     test "show the run the last tick created, live", %{conn: conn, schedule: schedule} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
       refute has_element?(view, "#schedule-#{schedule.id}-last-tick")
 
       tick()
@@ -57,7 +57,7 @@ defmodule TestFleetWeb.ScheduledRunsTest do
 
       tick()
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert has_element?(
                view,
@@ -72,11 +72,11 @@ defmodule TestFleetWeb.ScheduledRunsTest do
       tick()
       run = scheduled_run(schedule)
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(
                view,
-               "#run-schedule[href='/projects/customer-portal/schedules/#{schedule.id}/edit']",
+               "#run-schedule[href='/#{org().slug}/projects/customer-portal/schedules/#{schedule.id}/edit']",
                "0 6 * * *"
              )
 
@@ -88,7 +88,7 @@ defmodule TestFleetWeb.ScheduledRunsTest do
       run = scheduled_run(schedule)
       {:ok, _} = Schedules.delete_schedule(schedule)
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       refute has_element?(view, "#run-schedule")
       assert has_element?(view, "#run-trigger", "Schedule")
@@ -97,7 +97,7 @@ defmodule TestFleetWeb.ScheduledRunsTest do
 
     test "a manual run shows no schedule", %{conn: conn} = context do
       run = TestFleet.RunsFixtures.run_fixture(test_definition: context.test_definition)
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-trigger", "Manual")
       refute has_element?(view, "#run-scheduled-for")
@@ -113,7 +113,7 @@ defmodule TestFleetWeb.ScheduledRunsTest do
           environment: environment_fixture(project: context.project)
         )
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}")
 
       # The setup's schedule was due in September 2026 and never ticked.
       assert has_element?(view, "#schedule-#{context.schedule.id}-overdue")

@@ -13,7 +13,7 @@ defmodule TestFleetWeb.API.RunJSON do
   def data(%Run{} = run) do
     %{
       id: run.id,
-      url: url(~p"/runs/#{run}"),
+      url: url(~p"/#{run.organization}/runs/#{run}"),
       project: run.test_definition.project.slug,
       test_definition: run.test_definition.slug,
       environment: run.environment.slug,

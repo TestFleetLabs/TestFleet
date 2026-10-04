@@ -29,7 +29,7 @@ defmodule TestFleetWeb.RunLiveTest do
   end
 
   defp test_definition_path(%{test_definition: test_definition}),
-    do: ~p"/projects/customer-portal/test-definitions/#{test_definition.id}"
+    do: ~p"/#{org()}/projects/customer-portal/test-definitions/#{test_definition.id}"
 
   describe "test definition page" do
     test "shows the settings and links to the edit form", %{conn: conn} = context do
@@ -46,7 +46,7 @@ defmodule TestFleetWeb.RunLiveTest do
     end
 
     test "the project page links to it", %{conn: conn} = context do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert has_element?(
                view,
@@ -84,12 +84,12 @@ defmodule TestFleetWeb.RunLiveTest do
           api_token: api_token
         )
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run}")
       assert has_element?(view, "#run-triggered-by", context.user.email)
       assert has_element?(view, "#run-triggered-via", "GitLab deploy")
 
       :ok = TestFleet.Accounts.delete_api_token(context.scope, api_token.id)
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run}")
       assert has_element?(view, "#run-triggered-via", "a revoked token")
     end
 
@@ -110,7 +110,7 @@ defmodule TestFleetWeb.RunLiveTest do
       test_definition = test_definition_fixture(project: project)
 
       {:ok, view, _html} =
-        live(conn, ~p"/projects/billing/test-definitions/#{test_definition.id}")
+        live(conn, ~p"/#{org()}/projects/billing/test-definitions/#{test_definition.id}")
 
       assert has_element?(view, "#run-now-no-environments")
     end
@@ -131,7 +131,7 @@ defmodule TestFleetWeb.RunLiveTest do
       other = test_definition_fixture()
 
       assert_raise Ecto.NoResultsError, fn ->
-        live(conn, ~p"/projects/customer-portal/test-definitions/#{other.id}")
+        live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/#{other.id}")
       end
     end
   end
@@ -141,7 +141,7 @@ defmodule TestFleetWeb.RunLiveTest do
       run =
         run_fixture(test_definition: context.test_definition, environment: context.environment)
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-status[data-status='queued']")
       assert has_element?(view, "#run-test-definition[href='#{test_definition_path(context)}']")
@@ -153,7 +153,7 @@ defmodule TestFleetWeb.RunLiveTest do
     test "cancels a queued run", %{conn: conn} = context do
       run = run_fixture(test_definition: context.test_definition)
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       view |> element("#cancel-run") |> render_click()
 
       assert has_element?(view, "#run-status[data-status='cancelled']")
@@ -165,7 +165,7 @@ defmodule TestFleetWeb.RunLiveTest do
          %{conn: conn} = context do
       run = run_fixture(test_definition: context.test_definition, status: :running)
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       view |> element("#cancel-run") |> render_click()
 
       assert has_element?(view, "#cancelling-run[disabled]")
@@ -173,7 +173,7 @@ defmodule TestFleetWeb.RunLiveTest do
       assert has_element?(view, "#run-status[data-status='running']")
 
       # The request is stored, so a reload still shows it.
-      {:ok, reloaded, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, reloaded, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       assert has_element?(reloaded, "#cancelling-run[disabled]")
 
       # What the recorder does once the container has stopped.
@@ -190,7 +190,7 @@ defmodule TestFleetWeb.RunLiveTest do
 
     test "updates live", %{conn: conn} = context do
       run = run_fixture(test_definition: context.test_definition)
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       :ok = Runs.cancel_run(run)
       assert has_element?(view, "#run-status[data-status='cancelled']")
@@ -211,7 +211,7 @@ defmodule TestFleetWeb.RunLiveTest do
           error_message: "memory limit exceeded"
         )
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
 
       assert has_element?(view, "#run-status[data-status='error']")
       assert has_element?(view, "#run-error", "memory limit exceeded")
@@ -226,8 +226,8 @@ defmodule TestFleetWeb.RunLiveTest do
     test "lists runs and adds new ones live", %{conn: conn} = context do
       run = run_fixture(test_definition: context.test_definition)
 
-      {:ok, view, _html} = live(conn, ~p"/runs")
-      assert has_element?(view, "#runs-#{run.id} a[href='/runs/#{run.id}']")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs")
+      assert has_element?(view, "#runs-#{run.id} a[href='/#{org().slug}/runs/#{run.id}']")
       assert has_element?(view, "#runs-#{run.id}", "Checkout")
 
       {:ok, new} = Runs.create_run(context.test_definition, context.environment)
@@ -243,7 +243,7 @@ defmodule TestFleetWeb.RunLiveTest do
       other_project_run = run_fixture()
       run = run_fixture(test_definition: context.test_definition)
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
       assert has_element?(view, "#recent-run-list #runs-#{run.id}")
       refute has_element?(view, "#runs-#{other_project_run.id}")
 
@@ -257,7 +257,7 @@ defmodule TestFleetWeb.RunLiveTest do
     test "keeps the latest 10 when an older run changes", %{conn: conn} = context do
       [oldest | _] = for _ <- 1..10, do: run_fixture(test_definition: context.test_definition)
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
       assert has_element?(view, "#runs-#{oldest.id}")
 
       {:ok, new} = Runs.create_run(context.test_definition, context.environment)
@@ -270,7 +270,7 @@ defmodule TestFleetWeb.RunLiveTest do
     end
 
     test "shows an empty state without runs", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
       assert has_element?(view, "#recent-runs-empty-state")
     end
   end
@@ -293,14 +293,17 @@ defmodule TestFleetWeb.RunLiveTest do
 
     test "an environment shows why it cannot be deleted", %{conn: conn} = context do
       {:ok, view, _html} =
-        live(conn, ~p"/projects/customer-portal/environments/#{context.environment.slug}")
+        live(
+          conn,
+          ~p"/#{org()}/projects/customer-portal/environments/#{context.environment.slug}"
+        )
 
       view |> element("#delete-environment") |> render_click()
       assert has_element?(view, "#flash-error", "has runs")
     end
 
     test "a project shows why it cannot be deleted", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       view |> element("#delete-project") |> render_click()
       assert has_element?(view, "#flash-error", "has runs")

@@ -88,7 +88,9 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
            gettext("Test definition %{name} saved.", name: test_definition.name)
          )
          # The assigned definition, not the saved one: a new one returns to the project.
-         |> push_navigate(to: return_path(project, socket.assigns.test_definition))}
+         |> push_navigate(
+           to: return_path(socket.assigns.organization, project, socket.assigns.test_definition)
+         )}
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, changeset)}
@@ -106,7 +108,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
            :info,
            gettext("Test definition %{name} deleted.", name: test_definition.name)
          )
-         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/projects/#{project.slug}")}
 
       {:error, :has_runs} ->
         {:noreply,
@@ -121,10 +123,11 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
   end
 
   # A new definition returns to the project, an edited one to its own page.
-  defp return_path(project, %TestDefinition{id: nil}), do: ~p"/projects/#{project.slug}"
+  defp return_path(organization, project, %TestDefinition{id: nil}),
+    do: ~p"/#{organization}/projects/#{project.slug}"
 
-  defp return_path(project, test_definition),
-    do: ~p"/projects/#{project.slug}/test-definitions/#{test_definition.id}"
+  defp return_path(organization, project, test_definition),
+    do: ~p"/#{organization}/projects/#{project.slug}/test-definitions/#{test_definition.id}"
 
   @impl true
   def render(assigns) do
@@ -133,14 +136,21 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
       <div class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
-            <:crumb navigate={~p"/projects/#{@project.slug}"}>{@project.name}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
+            <:crumb navigate={~p"/#{@organization}/projects/#{@project.slug}"}>
+              {@project.name}
+            </:crumb>
+
             <:crumb
               :if={@test_definition.id}
-              navigate={~p"/projects/#{@project.slug}/test-definitions/#{@test_definition.id}"}
+              navigate={
+                ~p"/#{@organization}/projects/#{@project.slug}/test-definitions/#{@test_definition.id}"
+              }
             >
               {@test_definition.name}
             </:crumb>
+
             <:crumb>
               {if @test_definition.id, do: gettext("Edit"), else: gettext("New test definition")}
             </:crumb>
@@ -177,7 +187,6 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
               label={gettext("Description")}
               rows="2"
             />
-
             <.form_section title={gettext("Container")}>
               <div class="space-y-2">
                 <.input
@@ -192,8 +201,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
                       "Prefer a fixed tag or a digest. Mutable tags work too; every run records the digest it used."
                     )
                   }
-                />
-                <.image_source source={@image_source} />
+                /> <.image_source source={@image_source} organization={@organization} />
               </div>
 
               <.input
@@ -254,11 +262,11 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
               label={gettext("Enabled")}
               hint={gettext("Disabled test definitions cannot be run or scheduled.")}
             />
-
             <:footer>
-              <.button navigate={return_path(@project, @test_definition)}>
+              <.button navigate={return_path(@organization, @project, @test_definition)}>
                 {gettext("Cancel")}
               </.button>
+
               <.button
                 id="save-test-definition"
                 variant="primary"
@@ -281,6 +289,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
     ~H"""
     <fieldset class="space-y-5 border-t border-base-300 pt-5">
       <legend class="sr-only">{@title}</legend>
+
       <h3
         aria-hidden="true"
         class="text-xs font-semibold tracking-wide text-base-content/50 uppercase"
@@ -293,6 +302,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
   end
 
   attr :source, :any, required: true
+  attr :organization, :any, required: true
 
   defp image_source(%{source: nil} = assigns), do: ~H""
 
@@ -305,7 +315,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
       <span>
         {gettext("Pulled with the credentials of")}
         <.link
-          navigate={~p"/registries/#{@registry.id}/edit"}
+          navigate={~p"/#{@organization}/registries/#{@registry.id}/edit"}
           class="font-medium underline decoration-success/40 underline-offset-2 hover:decoration-success"
         >
           {@registry.name}
@@ -324,7 +334,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
       <span>
         {gettext("No registry for %{host}: pulled anonymously.", host: @host)}
         <.link
-          navigate={~p"/registries/new"}
+          navigate={~p"/#{@organization}/registries/new"}
           class="font-medium underline decoration-base-content/30 underline-offset-2 hover:text-base-content"
         >
           {gettext("Add credentials")}

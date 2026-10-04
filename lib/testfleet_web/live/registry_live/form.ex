@@ -62,7 +62,7 @@ defmodule TestFleetWeb.RegistryLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Registry %{name} saved.", name: registry.name))
-         |> push_navigate(to: ~p"/registries")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/registries")}
 
       {:error, changeset} ->
         # A failed update was built from the stored registry; its password must not
@@ -109,7 +109,8 @@ defmodule TestFleetWeb.RegistryLive.Form do
       <div class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/registries"}>{gettext("Registries")}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/registries"}>{gettext("Registries")}</:crumb>
+
             <:crumb>{if @registry.id, do: @registry.name, else: gettext("New registry")}</:crumb>
           </.breadcrumbs>
           <.page_header title={@page_title} />
@@ -145,9 +146,7 @@ defmodule TestFleetWeb.RegistryLive.Form do
                 hint={if @registry.id, do: gettext("Leave empty to keep the current password.")}
               />
             </div>
-
             <.connection_result result={@connection} />
-
             <:footer>
               <.button
                 id="test-connection"
@@ -158,7 +157,7 @@ defmodule TestFleetWeb.RegistryLive.Form do
               >
                 <.icon name="hero-signal-mini" class="size-4" /> {gettext("Test connection")}
               </.button>
-              <.button navigate={~p"/registries"}>{gettext("Cancel")}</.button>
+              <.button navigate={~p"/#{@organization}/registries"}>{gettext("Cancel")}</.button>
               <.button id="save-registry" variant="primary" phx-disable-with={gettext("Saving...")}>
                 {gettext("Save")}
               </.button>

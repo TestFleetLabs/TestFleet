@@ -11,7 +11,8 @@ defmodule TestFleetWeb.UserLive.Settings do
   on_mount {TestFleetWeb.UserAuth, :require_sudo_mode}
 
   alias TestFleet.Accounts
-  alias TestFleet.Accounts.{APIToken, OIDC}
+  alias TestFleet.Accounts.{APIToken, OIDC, Scope}
+  alias TestFleet.Organizations
   alias TestFleet.Schedules.Timezones
 
   @impl true
@@ -122,6 +123,14 @@ defmodule TestFleetWeb.UserLive.Settings do
                   required
                 />
               </div>
+              <div :if={@multi?} class="w-44">
+                <.input
+                  field={@api_token_form[:organization_id]}
+                  type="select"
+                  aria-label={gettext("Organization")}
+                  options={Enum.map(@memberships, &{&1.organization.name, &1.organization_id})}
+                />
+              </div>
               <div class="w-36">
                 <.input
                   field={@api_token_form[:expires_in]}
@@ -179,6 +188,7 @@ defmodule TestFleetWeb.UserLive.Settings do
                 <p class="flex items-center gap-2 text-sm font-medium">
                   <span class="truncate">{token.name}</span>
                   <span class="font-mono text-xs text-base-content/50">tf_…{token.hint}</span>
+                  <.badge :if={@multi?}>{token.organization.name}</.badge>
                   <.badge :if={APIToken.expired?(token, @now)} tone={:warning}>
                     {gettext("Expired")}
                   </.badge>
@@ -290,6 +300,8 @@ defmodule TestFleetWeb.UserLive.Settings do
       |> assign(:now, DateTime.utc_now())
       |> assign(:api_token_form, to_form(Accounts.change_api_token()))
       |> assign(:new_api_token, nil)
+      |> assign(:multi?, Organizations.multi?())
+      |> assign(:memberships, Organizations.list_memberships(user))
       |> stream(:api_tokens, Accounts.list_api_tokens(socket.assigns.current_scope))
 
     {:ok, socket}
@@ -355,7 +367,7 @@ defmodule TestFleetWeb.UserLive.Settings do
   end
 
   def handle_event("create_api_token", %{"api_token" => params}, socket) do
-    scope = socket.assigns.current_scope
+    scope = token_scope(socket, params["organization_id"])
     true = Accounts.sudo_mode?(scope.user)
 
     case Accounts.create_api_token(scope, params) do
@@ -426,5 +438,21 @@ defmodule TestFleetWeb.UserLive.Settings do
       identity: OIDC.enabled?() && Accounts.get_identity(user),
       can_unlink: Accounts.can_unlink?(user)
     )
+  end
+
+  # A token is for one organization: in :multi mode one of the user's, chosen in
+  # the form; otherwise the organization.
+  defp token_scope(socket, organization_id) do
+    scope = socket.assigns.current_scope
+
+    if socket.assigns.multi? do
+      membership =
+        Enum.find(socket.assigns.memberships, &(to_string(&1.organization_id) == organization_id)) ||
+          raise Ecto.NoResultsError, queryable: TestFleet.Organizations.Membership
+
+      Scope.put_organization(scope, membership.organization, membership)
+    else
+      scope
+    end
   end
 end

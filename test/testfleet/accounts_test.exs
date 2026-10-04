@@ -55,36 +55,41 @@ defmodule TestFleet.AccountsTest do
 
   describe "invite_user/2" do
     test "requires email to be set" do
-      {:error, changeset} = Accounts.invite_user(%{}, & &1)
+      {:error, changeset} = Accounts.invite_user(org_scope(), %{}, & &1)
 
       assert %{email: ["can't be blank"]} = errors_on(changeset)
     end
 
     test "validates email when given" do
-      {:error, changeset} = Accounts.invite_user(%{email: "not valid"}, & &1)
+      {:error, changeset} = Accounts.invite_user(org_scope(), %{email: "not valid"}, & &1)
 
       assert %{email: ["must have the @ sign and no spaces"]} = errors_on(changeset)
     end
 
     test "validates maximum values for email for security" do
       too_long = String.duplicate("db", 100)
-      {:error, changeset} = Accounts.invite_user(%{email: too_long}, & &1)
+      {:error, changeset} = Accounts.invite_user(org_scope(), %{email: too_long}, & &1)
       assert "should be at most 160 character(s)" in errors_on(changeset).email
     end
 
     test "validates email uniqueness" do
       %{email: email} = user_fixture()
-      {:error, changeset} = Accounts.invite_user(%{email: email}, & &1)
+      {:error, changeset} = Accounts.invite_user(org_scope(), %{email: email}, & &1)
       assert "has already been taken" in errors_on(changeset).email
 
       # Now try with the uppercased email too, to check that email case is ignored.
-      {:error, changeset} = Accounts.invite_user(%{email: String.upcase(email)}, & &1)
+      {:error, changeset} =
+        Accounts.invite_user(org_scope(), %{email: String.upcase(email)}, & &1)
+
       assert "has already been taken" in errors_on(changeset).email
     end
 
     test "invites users without password" do
       email = unique_user_email()
-      {:ok, %{user: user}} = Accounts.invite_user(%{email: email, role: :admin}, & &1)
+
+      {:ok, %{user: user}} =
+        Accounts.invite_user(org_scope(), %{email: email, role: :admin}, & &1)
+
       assert user.email == email
       assert role(user) == :admin
       assert is_nil(user.hashed_password)

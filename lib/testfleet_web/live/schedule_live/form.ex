@@ -93,7 +93,7 @@ defmodule TestFleetWeb.ScheduleLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Schedule saved."))
-         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/projects/#{project.slug}")}
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, changeset)}
@@ -106,7 +106,9 @@ defmodule TestFleetWeb.ScheduleLive.Form do
     {:noreply,
      socket
      |> put_flash(:info, gettext("Schedule deleted."))
-     |> push_navigate(to: ~p"/projects/#{socket.assigns.project.slug}")}
+     |> push_navigate(
+       to: ~p"/#{socket.assigns.organization}/projects/#{socket.assigns.project.slug}"
+     )}
   end
 
   defp test_definition_options(test_definitions, current_id) do
@@ -147,8 +149,12 @@ defmodule TestFleetWeb.ScheduleLive.Form do
       <div class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
-            <:crumb navigate={~p"/projects/#{@project.slug}"}>{@project.name}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
+            <:crumb navigate={~p"/#{@organization}/projects/#{@project.slug}"}>
+              {@project.name}
+            </:crumb>
+
             <:crumb>{@page_title}</:crumb>
           </.breadcrumbs>
 
@@ -176,13 +182,14 @@ defmodule TestFleetWeb.ScheduleLive.Form do
           <:actions>
             <.button
               :if={!Enum.any?(@test_definitions, & &1.enabled)}
-              navigate={~p"/projects/#{@project.slug}/test-definitions/new"}
+              navigate={~p"/#{@organization}/projects/#{@project.slug}/test-definitions/new"}
             >
               <.icon name="hero-beaker-mini" class="size-4" /> {gettext("New test definition")}
             </.button>
+
             <.button
               :if={@environments == []}
-              navigate={~p"/projects/#{@project.slug}/environments/new"}
+              navigate={~p"/#{@organization}/projects/#{@project.slug}/environments/new"}
             >
               <.icon name="hero-globe-alt-mini" class="size-4" /> {gettext("New environment")}
             </.button>
@@ -246,23 +253,20 @@ defmodule TestFleetWeb.ScheduleLive.Form do
                   )
                 }
               />
-
               <.input
                 field={@form[:overlap_policy]}
                 type="select"
                 label={gettext("When the previous run is still active")}
                 options={overlap_options()}
               />
-
               <.input
                 field={@form[:enabled]}
                 type="checkbox"
                 label={gettext("Enabled")}
                 hint={gettext("A disabled schedule keeps its settings but starts no runs.")}
               />
-
               <:footer>
-                <.button navigate={~p"/projects/#{@project.slug}"}>{gettext("Cancel")}</.button>
+                <.button navigate={~p"/#{@organization}/projects/#{@project.slug}"}>{gettext("Cancel")}</.button>
                 <.button id="save-schedule" variant="primary" phx-disable-with={gettext("Saving...")}>
                   {gettext("Save")}
                 </.button>
@@ -283,6 +287,7 @@ defmodule TestFleetWeb.ScheduleLive.Form do
                 <.local_time at={run} timezone={@preview_timezone} />
               </li>
             </ol>
+
             <p
               :if={@preview == []}
               id="schedule-preview-empty"

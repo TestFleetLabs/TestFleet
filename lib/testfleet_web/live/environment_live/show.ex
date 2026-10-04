@@ -114,7 +114,7 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Environment %{name} deleted.", name: environment.name))
-         |> push_navigate(to: ~p"/projects/#{project.slug}")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/projects/#{project.slug}")}
 
       {:error, :has_runs} ->
         {:noreply,
@@ -147,8 +147,12 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
       <div id="environment" class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
-            <:crumb navigate={~p"/projects/#{@project.slug}"}>{@project.name}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
+            <:crumb navigate={~p"/#{@organization}/projects/#{@project.slug}"}>
+              {@project.name}
+            </:crumb>
+
             <:crumb>{@environment.name}</:crumb>
           </.breadcrumbs>
 
@@ -156,10 +160,13 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
             <:actions>
               <.button
                 id="edit-environment"
-                navigate={~p"/projects/#{@project.slug}/environments/#{@environment.slug}/edit"}
+                navigate={
+                  ~p"/#{@organization}/projects/#{@project.slug}/environments/#{@environment.slug}/edit"
+                }
               >
                 <.icon name="hero-pencil-square-mini" class="size-4" /> {gettext("Edit")}
               </.button>
+
               <.button
                 id="delete-environment"
                 variant="danger"
@@ -177,9 +184,9 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
 
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <.badge class="font-mono">{@environment.slug}</.badge>
+
             <.badge>
-              <.icon name="hero-bolt-mini" class="size-3.5" />
-              {ngettext(
+              <.icon name="hero-bolt-mini" class="size-3.5" /> {ngettext(
                 "at most 1 run at a time",
                 "at most %{count} runs at a time",
                 @environment.max_concurrent_runs
@@ -247,6 +254,7 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
                 >
                   {gettext("Cancel")}
                 </.button>
+
                 <.button id="save-variable" variant="primary" phx-disable-with={gettext("Saving...")}>
                   {if @editing, do: gettext("Save variable"), else: gettext("Add variable")}
                 </.button>
@@ -271,10 +279,13 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
               <thead class="border-b border-base-300 text-xs font-medium tracking-wide text-base-content/60 uppercase">
                 <tr>
                   <th class="px-5 py-3 font-medium">{gettext("Key")}</th>
+
                   <th class="px-5 py-3 font-medium">{gettext("Value")}</th>
+
                   <th class="px-5 py-3"><span class="sr-only">{gettext("Actions")}</span></th>
                 </tr>
               </thead>
+
               <tbody id="variable-list" phx-update="stream" class="divide-y divide-base-300">
                 <tr
                   :for={{id, variable} <- @streams.variables}
@@ -290,6 +301,7 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
                   <td class="px-5 py-3 font-mono text-xs font-medium whitespace-nowrap">
                     {variable.key}
                   </td>
+
                   <td class="px-5 py-3 font-mono text-xs">
                     <%= cond do %>
                       <% variable.secret -> %>
@@ -304,6 +316,7 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
                         </span>
                     <% end %>
                   </td>
+
                   <td class="w-0 px-5 py-2">
                     <div class="flex items-center justify-end gap-1">
                       <.button
@@ -316,6 +329,7 @@ defmodule TestFleetWeb.EnvironmentLive.Show do
                       >
                         <.icon name="hero-pencil-square-mini" class="size-4" />
                       </.button>
+
                       <.button
                         id={"delete-variable-#{variable.id}"}
                         variant="ghost"

@@ -7,10 +7,10 @@ defmodule TestFleetWeb.NavigationTest do
 
   defp pages do
     [
-      {~p"/", "#dashboard", "#nav-dashboard"},
-      {~p"/projects", "#projects", "#nav-projects"},
-      {~p"/runs", "#runs", "#nav-runs"},
-      {~p"/registries", "#registries", "#nav-registries"}
+      {~p"/#{org()}", "#dashboard", "#nav-dashboard"},
+      {~p"/#{org()}/projects", "#projects", "#nav-projects"},
+      {~p"/#{org()}/runs", "#runs", "#nav-runs"},
+      {~p"/#{org()}/registries", "#registries", "#nav-registries"}
     ]
   end
 
@@ -26,10 +26,10 @@ defmodule TestFleetWeb.NavigationTest do
   end
 
   test "the sidebar navigates between pages", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}")
 
     {:ok, view, _html} =
-      view |> element("#nav-runs") |> render_click() |> follow_redirect(conn, ~p"/runs")
+      view |> element("#nav-runs") |> render_click() |> follow_redirect(conn, ~p"/#{org()}/runs")
 
     assert has_element?(view, "#runs")
 
@@ -37,13 +37,13 @@ defmodule TestFleetWeb.NavigationTest do
       view
       |> element("#nav-registries")
       |> render_click()
-      |> follow_redirect(conn, ~p"/registries")
+      |> follow_redirect(conn, ~p"/#{org()}/registries")
 
     assert has_element?(view, "#registries")
   end
 
   test "the mobile navigation has the same entries", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/projects")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/projects")
 
     assert has_element?(view, "#mobile-nav-toggle[aria-controls=mobile-menu]")
 
@@ -55,7 +55,7 @@ defmodule TestFleetWeb.NavigationTest do
   end
 
   test "pages set their title", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/runs")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/runs")
     assert page_title(view) == "Runs · TestFleet"
   end
 end

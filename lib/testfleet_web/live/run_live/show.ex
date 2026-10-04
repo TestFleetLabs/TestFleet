@@ -194,7 +194,7 @@ defmodule TestFleetWeb.RunLive.Show do
       <div id="run" class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/runs"}>{gettext("Runs")}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/runs"}>{gettext("Runs")}</:crumb>
             <:crumb>#{@run.id}</:crumb>
           </.breadcrumbs>
 
@@ -210,7 +210,7 @@ defmodule TestFleetWeb.RunLive.Show do
                 <.link
                   id="run-test-definition"
                   navigate={
-                    ~p"/projects/#{@run.test_definition.project.slug}/test-definitions/#{@run.test_definition.id}"
+                    ~p"/#{@organization}/projects/#{@run.test_definition.project.slug}/test-definitions/#{@run.test_definition.id}"
                   }
                   class="font-medium text-base-content/80 transition-colors hover:text-primary"
                 >
@@ -220,7 +220,7 @@ defmodule TestFleetWeb.RunLive.Show do
                 <.link
                   id="run-environment"
                   navigate={
-                    ~p"/projects/#{@run.test_definition.project.slug}/environments/#{@run.environment.slug}"
+                    ~p"/#{@organization}/projects/#{@run.test_definition.project.slug}/environments/#{@run.environment.slug}"
                   }
                   class="font-medium text-base-content/80 transition-colors hover:text-primary"
                 >
@@ -228,7 +228,7 @@ defmodule TestFleetWeb.RunLive.Show do
                 </.link>
                 <span>·</span>
                 <.link
-                  navigate={~p"/projects/#{@run.test_definition.project.slug}"}
+                  navigate={~p"/#{@organization}/projects/#{@run.test_definition.project.slug}"}
                   class="transition-colors hover:text-base-content"
                 >
                   {@run.test_definition.project.name}
@@ -397,7 +397,7 @@ defmodule TestFleetWeb.RunLive.Show do
               id="download-log"
               variant="ghost"
               size="sm"
-              href={~p"/runs/#{@run.id}/log"}
+              href={~p"/#{@organization}/runs/#{@run.id}/log"}
               download
             >
               <.icon name="hero-arrow-down-tray-mini" class="size-4" /> {gettext("Download")}
@@ -412,7 +412,7 @@ defmodule TestFleetWeb.RunLive.Show do
             >
               {gettext("Earlier lines are not shown here.")}
               <.link
-                href={~p"/runs/#{@run.id}/log"}
+                href={~p"/#{@organization}/runs/#{@run.id}/log"}
                 class="font-medium text-zinc-200 underline underline-offset-2 hover:text-white"
               >
                 {gettext("Download the full log")}
@@ -561,13 +561,13 @@ defmodule TestFleetWeb.RunLive.Show do
               <figure :for={{id, artifact} <- @streams.media} id={id} class="group min-w-0">
                 <a
                   :if={artifact_kind(artifact) == :image}
-                  href={artifact_url(@run.id, artifact.name)}
+                  href={artifact_url(@run, artifact.name)}
                   target="_blank"
                   rel="noopener"
                   class="block aspect-video overflow-hidden rounded-lg border border-base-300 bg-base-200"
                 >
                   <img
-                    src={artifact_url(@run.id, artifact.name)}
+                    src={artifact_url(@run, artifact.name)}
                     alt={artifact.name}
                     loading="lazy"
                     class="size-full object-cover object-top transition duration-200 group-hover:scale-[1.03]"
@@ -575,7 +575,7 @@ defmodule TestFleetWeb.RunLive.Show do
                 </a>
                 <video
                   :if={artifact_kind(artifact) == :video}
-                  src={artifact_url(@run.id, artifact.name)}
+                  src={artifact_url(@run, artifact.name)}
                   controls
                   preload="none"
                   class="aspect-video w-full rounded-lg border border-base-300 bg-black"
@@ -612,14 +612,14 @@ defmodule TestFleetWeb.RunLive.Show do
               <%= if row.kind == :dir do %>
                 <.icon name="hero-folder-mini" class="size-4 shrink-0 text-base-content/40" />
                 <span class="min-w-0 flex-1 truncate font-medium">{row.name}/</span>
-                <.report_link :if={row.index} href={artifact_url(@run.id, row.index.name)} />
+                <.report_link :if={row.index} href={artifact_url(@run, row.index.name)} />
               <% else %>
                 <.icon
                   name={artifact_icon(artifact_kind(row.artifact))}
                   class="size-4 shrink-0 text-base-content/40"
                 />
                 <a
-                  href={artifact_url(@run.id, row.artifact.name)}
+                  href={artifact_url(@run, row.artifact.name)}
                   target="_blank"
                   rel="noopener"
                   class="min-w-0 flex-1 truncate transition-colors hover:text-primary"
@@ -629,7 +629,7 @@ defmodule TestFleetWeb.RunLive.Show do
                 </a>
                 <.report_link
                   :if={artifact_kind(row.artifact) == :html and row.name != "index.html"}
-                  href={artifact_url(@run.id, row.artifact.name)}
+                  href={artifact_url(@run, row.artifact.name)}
                 />
                 <span class="shrink-0 text-xs text-base-content/50 tabular-nums">
                   {format_size(row.artifact.size_bytes)}
@@ -647,7 +647,7 @@ defmodule TestFleetWeb.RunLive.Show do
                   <.link
                     id="run-schedule"
                     navigate={
-                      ~p"/projects/#{@run.test_definition.project.slug}/schedules/#{@schedule.id}/edit"
+                      ~p"/#{@organization}/projects/#{@run.test_definition.project.slug}/schedules/#{@schedule.id}/edit"
                     }
                     class="font-medium transition-colors hover:text-primary"
                   >

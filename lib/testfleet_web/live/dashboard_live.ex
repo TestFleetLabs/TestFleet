@@ -171,7 +171,7 @@ defmodule TestFleetWeb.DashboardLive do
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <.panel id="recent-runs" title={gettext("Recent runs")} class="lg:col-span-2">
             <:actions>
-              <.button id="all-runs" variant="ghost" size="sm" navigate={~p"/runs"}>
+              <.button id="all-runs" variant="ghost" size="sm" navigate={~p"/#{@organization}/runs"}>
                 {gettext("All runs")} <.icon name="hero-arrow-right-mini" class="size-4" />
               </.button>
             </:actions>
@@ -243,7 +243,7 @@ defmodule TestFleetWeb.DashboardLive do
                 </li>
                 <li :for={{id, schedule} <- @streams.upcoming} id={id}>
                   <.link
-                    navigate={~p"/projects/#{schedule.test_definition.project.slug}"}
+                    navigate={~p"/#{@organization}/projects/#{schedule.test_definition.project.slug}"}
                     class="block px-5 py-3 transition-colors duration-150 hover:bg-base-200/40"
                   >
                     <p class="truncate text-sm font-medium">{schedule.test_definition.name}</p>

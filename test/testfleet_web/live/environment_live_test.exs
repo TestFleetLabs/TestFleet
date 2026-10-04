@@ -20,11 +20,11 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
       environment = environment_fixture(project: project, name: "Production")
       variable_fixture(environment)
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert has_element?(
                view,
-               "#environments-#{environment.id} a[href='/projects/customer-portal/environments/production']"
+               "#environments-#{environment.id} a[href='/#{org().slug}/projects/customer-portal/environments/production']"
              )
 
       assert has_element?(view, "#environments-#{environment.id}", "1 variable")
@@ -33,7 +33,7 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
 
   describe "form" do
     test "creates an environment and opens it", %{conn: conn, project: project} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/environments/new")
 
       {:ok, show, _html} =
         view
@@ -41,7 +41,7 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
           environment: %{name: "Production", slug: "", max_concurrent_runs: "2"}
         )
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal/environments/production")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
 
       assert has_element?(show, "#environment")
       assert Environments.get_environment!(project, "production").max_concurrent_runs == 2
@@ -49,7 +49,7 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
 
     # Fields left out of form/3 are taken from the rendered DOM, like a browser does.
     test "generates the slug from the whole name while typing", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/environments/new")
 
       for name <- ["P", "Pre", "Pre-Production"] do
         view |> form("#environment-form", environment: %{name: name}) |> render_change()
@@ -61,18 +61,23 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
         view
         |> form("#environment-form", environment: %{name: "Pre-Production"})
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal/environments/pre-production")
+        |> follow_redirect(
+          conn,
+          ~p"/#{org()}/projects/customer-portal/environments/pre-production"
+        )
     end
 
     test "edits an environment", %{conn: conn, project: project} do
       environment_fixture(project: project, name: "Production")
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/production/edit")
+
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/environments/production/edit")
 
       {:ok, _show, _html} =
         view
         |> form("#environment-form", environment: %{name: "Prod", slug: "prod"})
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal/environments/prod")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal/environments/prod")
     end
   end
 
@@ -82,7 +87,9 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
     end
 
     test "adds a variable", %{conn: conn, project: project} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/production")
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
+
       assert has_element?(view, "#variables-empty")
 
       view
@@ -96,7 +103,8 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
     end
 
     test "shows validation errors", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/production")
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
 
       view
       |> form("#variable-form", variable: %{key: "TestFleet_RUN_ID", value: "x"})
@@ -110,7 +118,9 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
       variable =
         variable_fixture(environment, %{key: "API_TOKEN", value: "s3cret-value", secret: true})
 
-      {:ok, view, html} = live(conn, ~p"/projects/customer-portal/environments/production")
+      {:ok, view, html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
+
       refute html =~ "s3cret-value"
 
       view |> element("#edit-variable-#{variable.id}") |> render_click()
@@ -129,7 +139,8 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
       variable =
         variable_fixture(environment, %{key: "API_TOKEN", value: "s3cret-value", secret: true})
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/production")
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
 
       view |> element("#edit-variable-#{variable.id}") |> render_click()
       assert has_element?(view, "#variable-form-editing", "API_TOKEN")
@@ -145,7 +156,9 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
 
     test "deletes a variable", %{conn: conn, environment: environment} do
       variable = variable_fixture(environment, %{key: "BASE_URL"})
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/production")
+
+      {:ok, view, _html} =
+        live(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
 
       view |> element("#delete-variable-#{variable.id}") |> render_click()
 
@@ -157,13 +170,15 @@ defmodule TestFleetWeb.EnvironmentLiveTest do
 
   test "deletes an environment", %{conn: conn, project: project} do
     environment_fixture(project: project, name: "Production")
-    {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/environments/production")
+
+    {:ok, view, _html} =
+      live(conn, ~p"/#{org()}/projects/customer-portal/environments/production")
 
     {:ok, _project_view, _html} =
       view
       |> element("#delete-environment")
       |> render_click()
-      |> follow_redirect(conn, ~p"/projects/customer-portal")
+      |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal")
 
     assert Environments.list_environments(project) == []
   end

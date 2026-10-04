@@ -32,18 +32,18 @@ defmodule TestFleetWeb.OrganizationIsolationTest do
     setup :register_and_log_in_user
 
     test "a run of another organization is not found", %{conn: conn, run: run} do
-      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/runs/#{run.id}") end
-      assert_error_sent 404, fn -> get(conn, ~p"/runs/#{run.id}/log") end
-      assert conn |> get(~p"/runs/#{run.id}/artifacts/report.html") |> response(404)
+      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/#{org()}/runs/#{run.id}") end
+      assert_error_sent 404, fn -> get(conn, ~p"/#{org()}/runs/#{run.id}/log") end
+      assert conn |> get(~p"/#{org()}/runs/#{run.id}/artifacts/report.html") |> response(404)
     end
 
     test "a project of another organization is not found", %{conn: conn} do
-      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/projects/theirs") end
+      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/#{org()}/projects/theirs") end
     end
 
     test "its runs are not listed, and do not arrive live", %{conn: conn, run: run} do
       ours = run_fixture()
-      {:ok, lv, _html} = live(conn, ~p"/runs")
+      {:ok, lv, _html} = live(conn, ~p"/#{org()}/runs")
       assert has_element?(lv, "#runs-#{ours.id}")
       refute has_element?(lv, "#runs-#{run.id}")
 

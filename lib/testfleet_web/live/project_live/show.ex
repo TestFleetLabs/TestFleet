@@ -72,17 +72,14 @@ defmodule TestFleetWeb.ProjectLive.Show do
         <% :created -> %>
           <span>{gettext("Last run")}</span>
           <span :if={@schedule.last_run} class="tabular-nums">#{@schedule.last_run.id}</span>
-          <.run_status :if={@schedule.last_run} status={@schedule.last_run.status} />
-          <span>·</span>
+          <.run_status :if={@schedule.last_run} status={@schedule.last_run.status} /> <span>·</span>
           <.local_time at={@schedule.last_tick_at} timezone={@schedule.timezone} />
         <% :skipped_overlap -> %>
-          <.icon name="hero-forward-mini" class="size-3.5" />
-          <span>{gettext("Skipped")}</span>
+          <.icon name="hero-forward-mini" class="size-3.5" /> <span>{gettext("Skipped")}</span>
           <.local_time at={@schedule.last_tick_at} timezone={@schedule.timezone} />
           <span>{gettext("because the previous run was unfinished")}</span>
         <% :skipped_disabled -> %>
-          <.icon name="hero-forward-mini" class="size-3.5" />
-          <span>{gettext("Skipped")}</span>
+          <.icon name="hero-forward-mini" class="size-3.5" /> <span>{gettext("Skipped")}</span>
           <.local_time at={@schedule.last_tick_at} timezone={@schedule.timezone} />
           <span>{gettext("because the test definition is disabled")}</span>
       <% end %>
@@ -100,7 +97,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Project %{name} deleted.", name: project.name))
-         |> push_navigate(to: ~p"/projects")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/projects")}
 
       {:error, :has_runs} ->
         {:noreply,
@@ -119,15 +116,20 @@ defmodule TestFleetWeb.ProjectLive.Show do
       <div id="project" class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/projects"}>{gettext("Projects")}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/projects"}>{gettext("Projects")}</:crumb>
+
             <:crumb>{@project.name}</:crumb>
           </.breadcrumbs>
 
           <.page_header title={@project.name} description={@project.description}>
             <:actions>
-              <.button id="edit-project" navigate={~p"/projects/#{@project.slug}/edit"}>
+              <.button
+                id="edit-project"
+                navigate={~p"/#{@organization}/projects/#{@project.slug}/edit"}
+              >
                 <.icon name="hero-pencil-square-mini" class="size-4" /> {gettext("Edit")}
               </.button>
+
               <.button
                 id="delete-project"
                 variant="danger"
@@ -152,7 +154,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                 id="new-test-definition"
                 variant="ghost"
                 size="sm"
-                navigate={~p"/projects/#{@project.slug}/test-definitions/new"}
+                navigate={~p"/#{@organization}/projects/#{@project.slug}/test-definitions/new"}
               >
                 <.icon name="hero-plus-mini" class="size-4" /> {gettext("New")}
               </.button>
@@ -169,9 +171,12 @@ defmodule TestFleetWeb.ProjectLive.Show do
                   {gettext("A test definition names the image that contains the test suite.")}
                 </.empty_state>
               </li>
+
               <li :for={{id, test_definition} <- @streams.test_definitions} id={id}>
                 <.link
-                  navigate={~p"/projects/#{@project.slug}/test-definitions/#{test_definition.id}"}
+                  navigate={
+                    ~p"/#{@organization}/projects/#{@project.slug}/test-definitions/#{test_definition.id}"
+                  }
                   class={[
                     "group flex items-center justify-between gap-3 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40",
                     !test_definition.enabled && "opacity-60 hover:opacity-100"
@@ -179,6 +184,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                 >
                   <div class="min-w-0">
                     <p class="truncate text-sm font-medium">{test_definition.name}</p>
+
                     <p
                       class="truncate font-mono text-xs text-base-content/50"
                       title={test_definition.image}
@@ -186,14 +192,18 @@ defmodule TestFleetWeb.ProjectLive.Show do
                       {test_definition.image}
                     </p>
                   </div>
+
                   <div class="flex shrink-0 items-center gap-2">
                     <.badge :if={!test_definition.enabled} tone={:warning}>
                       {gettext("disabled")}
                     </.badge>
+
                     <.badge title={gettext("Timeout")}>
-                      <.icon name="hero-clock-mini" class="size-3.5" />
-                      {format_timeout(test_definition.timeout_seconds)}
+                      <.icon name="hero-clock-mini" class="size-3.5" /> {format_timeout(
+                        test_definition.timeout_seconds
+                      )}
                     </.badge>
+
                     <.icon
                       name="hero-chevron-right-mini"
                       class="size-4 text-base-content/30 transition group-hover:translate-x-0.5 group-hover:text-primary"
@@ -210,7 +220,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                 id="new-environment"
                 variant="ghost"
                 size="sm"
-                navigate={~p"/projects/#{@project.slug}/environments/new"}
+                navigate={~p"/#{@organization}/projects/#{@project.slug}/environments/new"}
               >
                 <.icon name="hero-plus-mini" class="size-4" /> {gettext("New")}
               </.button>
@@ -229,19 +239,25 @@ defmodule TestFleetWeb.ProjectLive.Show do
                   )}
                 </.empty_state>
               </li>
+
               <li :for={{id, environment} <- @streams.environments} id={id}>
                 <.link
-                  navigate={~p"/projects/#{@project.slug}/environments/#{environment.slug}"}
+                  navigate={
+                    ~p"/#{@organization}/projects/#{@project.slug}/environments/#{environment.slug}"
+                  }
                   class="group flex items-center justify-between gap-3 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40"
                 >
                   <div class="min-w-0">
                     <p class="truncate text-sm font-medium">{environment.name}</p>
+
                     <p class="font-mono text-xs text-base-content/50">{environment.slug}</p>
                   </div>
+
                   <div class="flex shrink-0 items-center gap-2">
                     <.badge>
                       {ngettext("1 variable", "%{count} variables", environment.variable_count)}
                     </.badge>
+
                     <.icon
                       name="hero-chevron-right-mini"
                       class="size-4 text-base-content/30 transition group-hover:translate-x-0.5 group-hover:text-primary"
@@ -258,7 +274,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                 id="new-schedule"
                 variant="ghost"
                 size="sm"
-                navigate={~p"/projects/#{@project.slug}/schedules/new"}
+                navigate={~p"/#{@organization}/projects/#{@project.slug}/schedules/new"}
               >
                 <.icon name="hero-plus-mini" class="size-4" /> {gettext("New")}
               </.button>
@@ -275,9 +291,12 @@ defmodule TestFleetWeb.ProjectLive.Show do
                   {gettext("A schedule runs a test definition against an environment at fixed times.")}
                 </.empty_state>
               </li>
+
               <li :for={{id, schedule} <- @streams.schedules} id={id}>
                 <.link
-                  navigate={~p"/projects/#{@project.slug}/schedules/#{schedule.id}/edit"}
+                  navigate={
+                    ~p"/#{@organization}/projects/#{@project.slug}/schedules/#{schedule.id}/edit"
+                  }
                   class={[
                     "group flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 transition-colors duration-150 hover:bg-base-200/40",
                     !schedule.enabled && "opacity-60 hover:opacity-100"
@@ -286,20 +305,22 @@ defmodule TestFleetWeb.ProjectLive.Show do
                   <div class="min-w-0">
                     <p class="flex items-center gap-1.5 truncate text-sm font-medium">
                       {schedule.test_definition.name}
-                      <.icon name="hero-arrow-right-mini" class="size-3.5 text-base-content/40" />
-                      {schedule.environment.name}
+                      <.icon name="hero-arrow-right-mini" class="size-3.5 text-base-content/40" /> {schedule.environment.name}
                     </p>
+
                     <p class="font-mono text-xs text-base-content/50">
-                      {schedule.cron_expression}
-                      <span class="font-sans">· {schedule.timezone}</span>
+                      {schedule.cron_expression} <span class="font-sans">· {schedule.timezone}</span>
                     </p>
                     <.last_tick schedule={schedule} />
                   </div>
+
                   <div class="flex shrink-0 items-center gap-2">
                     <.badge :if={schedule.overlap_policy != :skip}>
                       {overlap_label(schedule.overlap_policy)}
                     </.badge>
+
                     <.badge :if={!schedule.enabled} tone={:warning}>{gettext("disabled")}</.badge>
+
                     <span
                       :if={schedule.enabled}
                       class="flex items-center gap-1.5 text-xs text-base-content/60"
@@ -307,6 +328,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                       <.icon name="hero-clock-mini" class="size-3.5" />
                       <.local_time at={schedule.next_run_at} timezone={schedule.timezone} />
                     </span>
+
                     <.icon
                       name="hero-chevron-right-mini"
                       class="size-4 text-base-content/30 transition group-hover:translate-x-0.5 group-hover:text-primary"
@@ -329,6 +351,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
                   {gettext("Start a test definition with Run now on its page.")}
                 </.empty_state>
               </li>
+
               <.run_row
                 :for={{id, run} <- @streams.runs}
                 id={id}

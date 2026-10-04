@@ -31,7 +31,7 @@ defmodule TestFleetWeb.UserLive.WithoutEmailTest do
   end
 
   test "an invitation link is shown, not emailed", %{conn: conn} do
-    {:ok, lv, _html} = conn |> log_in_user(admin_fixture()) |> live(~p"/users")
+    {:ok, lv, _html} = conn |> log_in_user(admin_fixture()) |> live(~p"/#{org()}/members")
 
     lv
     |> form("#invite-form", %{"user" => %{"email" => "new@example.com", "role" => "member"}})

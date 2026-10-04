@@ -61,13 +61,13 @@ defmodule TestFleet.Notifications.Message do
       title: run_title(event, run, test_definition.name, environment.name),
       summary: run_summary(event, run, duration_ms),
       facts: facts,
-      link: %{label: "Open run ##{run.id}", url: url(~p"/runs/#{run.id}")},
+      link: %{label: "Open run ##{run.id}", url: url(~p"/#{run.organization}/runs/#{run.id}")},
       payload: %{
         "run" => %{
           "id" => run.id,
           "status" => to_string(run.status),
           "trigger" => to_string(run.trigger),
-          "url" => url(~p"/runs/#{run.id}"),
+          "url" => url(~p"/#{run.organization}/runs/#{run.id}"),
           "started_at" => run.started_at && DateTime.to_iso8601(run.started_at),
           "finished_at" => run.finished_at && DateTime.to_iso8601(run.finished_at),
           "duration_ms" => duration_ms,
@@ -241,7 +241,7 @@ defmodule TestFleet.Notifications.Message do
       title: "Test notification from TestFleet",
       summary: "The channel #{channel.name} is set up correctly.",
       facts: [{"Channel", channel.name}],
-      link: %{label: "Open notifications", url: url(~p"/notifications")},
+      link: %{label: "Open TestFleet", url: url(~p"/")},
       payload: %{"channel" => %{"name" => channel.name}},
       occurred_at: DateTime.truncate(now, :second)
     }

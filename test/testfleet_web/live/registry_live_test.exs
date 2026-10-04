@@ -11,14 +11,14 @@ defmodule TestFleetWeb.RegistryLiveTest do
   describe "index" do
     test "lists registries with their host and username", %{conn: conn} do
       registry = registry_fixture(name: "Company GitLab", host: "registry.company.com")
-      {:ok, view, _html} = live(conn, ~p"/registries")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries")
 
       assert has_element?(view, "#registries-#{registry.id}", "Company GitLab")
       assert has_element?(view, "#registries-#{registry.id}", "registry.company.com")
 
       assert has_element?(
                view,
-               "#edit-registry-#{registry.id}[href='/registries/#{registry.id}/edit']"
+               "#edit-registry-#{registry.id}[href='/#{org().slug}/registries/#{registry.id}/edit']"
              )
 
       refute has_element?(view, "#registries-empty")
@@ -26,7 +26,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
 
     test "deletes a registry", %{conn: conn} do
       registry = registry_fixture()
-      {:ok, view, _html} = live(conn, ~p"/registries")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries")
 
       view |> element("#delete-registry-#{registry.id}") |> render_click()
 
@@ -38,7 +38,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
 
   describe "form" do
     test "creates a registry", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/registries/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/new")
 
       {:ok, index, _html} =
         view
@@ -51,7 +51,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
           }
         )
         |> render_submit()
-        |> follow_redirect(conn, ~p"/registries")
+        |> follow_redirect(conn, ~p"/#{org()}/registries")
 
       assert [registry] = Registries.list_registries(org_scope())
       assert {registry.host, registry.password} == {"registry.company.com", "s3cret-token"}
@@ -59,7 +59,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
     end
 
     test "shows validation errors", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/registries/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/new")
 
       view
       |> form("#registry-form", registry: %{name: "X", host: "https://x.com", username: ""})
@@ -72,7 +72,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
 
     test "editing with an empty password keeps it", %{conn: conn} do
       registry = registry_fixture(password: "s3cret-token")
-      {:ok, view, _html} = live(conn, ~p"/registries/#{registry.id}/edit")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/#{registry.id}/edit")
 
       view
       |> form("#registry-form", registry: %{name: "Renamed", password: ""})
@@ -86,10 +86,10 @@ defmodule TestFleetWeb.RegistryLiveTest do
     test "the stored password never reaches the browser", %{conn: conn} do
       registry = registry_fixture(password: "s3cret-token")
 
-      {:ok, _view, html} = live(conn, ~p"/registries")
+      {:ok, _view, html} = live(conn, ~p"/#{org()}/registries")
       refute html =~ "s3cret-token"
 
-      {:ok, view, html} = live(conn, ~p"/registries/#{registry.id}/edit")
+      {:ok, view, html} = live(conn, ~p"/#{org()}/registries/#{registry.id}/edit")
       refute html =~ "s3cret-token"
       assert has_element?(view, "#registry-form #registry_password[type=password]")
 
@@ -102,7 +102,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
     end
 
     test "test connection asks for complete credentials first", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/registries/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/new")
 
       view |> form("#registry-form", registry: %{host: "registry.company.com"}) |> render_change()
       view |> element("#test-connection") |> render_click()
@@ -117,7 +117,7 @@ defmodule TestFleetWeb.RegistryLiveTest do
     end
 
     test "changing a field clears the previous test result", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/registries/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/new")
 
       view |> element("#test-connection") |> render_click()
       render_async(view)

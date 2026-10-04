@@ -16,6 +16,8 @@ defmodule TestFleet.Organizations.Organization do
     settings setup signup static status support users www
   )
 
+  # ~p"/#{organization}/projects" uses the slug.
+  @derive {Phoenix.Param, key: :slug}
   schema "organizations" do
     field :name, :string
     field :slug, :string

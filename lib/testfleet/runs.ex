@@ -72,6 +72,11 @@ defmodule TestFleet.Runs do
   @doc "Internal, for background processes: gets any organization's run, preloaded."
   def get_run!(id), do: Run |> Repo.get!(id) |> preload()
 
+  @doc "Internal, like `get_run!/1`: any organization's run, or nil."
+  def get_run(id) when is_integer(id) do
+    if run = Repo.get(Run, id), do: preload(run)
+  end
+
   @doc """
   The scope's organization's runs, newest first, preloaded like `get_run!/2`.
 
@@ -734,6 +739,7 @@ defmodule TestFleet.Runs do
   # Runs are broadcast: of the user and the token, only what the UI shows.
   defp preload(run_or_runs) do
     Repo.preload(run_or_runs, [
+      :organization,
       :environment,
       test_definition: :project,
       triggered_by_user: from(u in User, select: struct(u, [:id, :email])),

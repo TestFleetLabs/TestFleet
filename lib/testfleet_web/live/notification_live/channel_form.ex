@@ -125,13 +125,15 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
            :info,
            gettext("Channel %{name} saved. Now choose what it receives.", name: channel.name)
          )
-         |> push_navigate(to: ~p"/notifications/channels/#{channel.id}/edit")}
+         |> push_navigate(
+           to: ~p"/#{socket.assigns.organization}/notifications/channels/#{channel.id}/edit"
+         )}
 
       {{:ok, channel}, _id} ->
         {:noreply,
          socket
          |> put_flash(:info, gettext("Channel %{name} saved.", name: channel.name))
-         |> push_navigate(to: ~p"/notifications")}
+         |> push_navigate(to: ~p"/#{socket.assigns.organization}/notifications")}
 
       {{:error, changeset}, _id} ->
         # A failed update was built from the stored channel; its secrets must not
@@ -217,7 +219,8 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
       <div class="space-y-8">
         <div>
           <.breadcrumbs>
-            <:crumb navigate={~p"/notifications"}>{gettext("Notifications")}</:crumb>
+            <:crumb navigate={~p"/#{@organization}/notifications"}>{gettext("Notifications")}</:crumb>
+
             <:crumb>{if @channel.id, do: @channel.name, else: gettext("New channel")}</:crumb>
           </.breadcrumbs>
           <.page_header title={@page_title} />
@@ -226,7 +229,6 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
         <.form for={@form} id="channel-form" phx-change="validate" phx-submit="save">
           <.form_card>
             <.input field={@form[:name]} label={gettext("Name")} placeholder="#e2e-alerts" />
-
             <.input
               :if={!@channel.id}
               field={@form[:kind]}
@@ -258,8 +260,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
                 <.icon
                   name="hero-exclamation-triangle-mini"
                   class="mt-0.5 size-4 shrink-0 text-warning"
-                />
-                {gettext(
+                /> {gettext(
                   "Email is not configured on this server: this channel can be saved, but sends nothing until SMTP_HOST is set."
                 )}
               </p>
@@ -275,7 +276,6 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
               spellcheck="false"
               hint={url_hint(@kind, @channel)}
             />
-
             <%= if @kind == :webhook do %>
               <.input
                 field={@form[:signing_secret]}
@@ -304,10 +304,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
               type="checkbox"
               label={gettext("Enabled")}
               hint={gettext("A disabled channel keeps its settings but sends nothing.")}
-            />
-
-            <.test_result result={@test_result} />
-
+            /> <.test_result result={@test_result} />
             <:footer>
               <.button
                 id="send-test"
@@ -318,7 +315,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
               >
                 <.icon name="hero-paper-airplane-mini" class="size-4" /> {gettext("Send test")}
               </.button>
-              <.button navigate={~p"/notifications"}>{gettext("Cancel")}</.button>
+              <.button navigate={~p"/#{@organization}/notifications"}>{gettext("Cancel")}</.button>
               <.button id="save-channel" variant="primary" phx-disable-with={gettext("Saving...")}>
                 {gettext("Save")}
               </.button>
@@ -337,8 +334,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
             id="subscriptions-empty"
             class="flex items-start gap-2 border-b border-base-300 bg-warning/5 px-5 py-3 text-sm text-base-content/70"
           >
-            <.icon name="hero-bell-slash-mini" class="mt-0.5 size-4 shrink-0 text-warning" />
-            {gettext(
+            <.icon name="hero-bell-slash-mini" class="mt-0.5 size-4 shrink-0 text-warning" /> {gettext(
               "Nothing yet: this channel receives no notifications until you add a subscription."
             )}
           </p>
@@ -351,6 +347,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
             >
               <div class="min-w-0 space-y-1.5 text-sm">
                 <p><.subscription_scope subscription={subscription} /></p>
+
                 <p class="flex flex-wrap gap-1.5">
                   <.badge
                     :for={event <- subscription.events}
@@ -360,6 +357,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
                   </.badge>
                 </p>
               </div>
+
               <.button
                 id={"delete-subscription-#{subscription.id}"}
                 variant="ghost"
@@ -381,6 +379,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
             class="space-y-4 border-t border-base-300 bg-base-200/30 px-5 py-4"
           >
             <p class="text-sm font-semibold">{gettext("Add a subscription")}</p>
+
             <div class="grid gap-4 sm:grid-cols-2">
               <.input
                 field={@subscription_form[:project_id]}
@@ -403,6 +402,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
               <%!-- An empty value, so that unchecking everything sends an empty list. --%>
               <input type="hidden" name="subscription[events][]" value="" />
               <legend class="mb-1 text-sm font-medium">{gettext("Run events")}</legend>
+
               <.event_checkbox
                 :for={event <- Subscription.run_events()}
                 event={event}
@@ -418,6 +418,7 @@ defmodule TestFleetWeb.NotificationLive.ChannelForm do
                   · {gettext("only for all projects")}
                 </span>
               </legend>
+
               <.event_checkbox
                 :for={event <- Subscription.system_events()}
                 event={event}

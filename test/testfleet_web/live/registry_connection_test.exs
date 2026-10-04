@@ -27,7 +27,7 @@ defmodule TestFleetWeb.RegistryConnectionTest do
   end
 
   test "a new registry can be tested before it is saved", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/registries/new")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/new")
 
     view
     |> form("#registry-form", registry: Map.put(@registry, :name, "Fixtures"))
@@ -41,7 +41,7 @@ defmodule TestFleetWeb.RegistryConnectionTest do
 
   test "an existing registry is tested with its stored password", %{conn: conn} do
     registry = registry_fixture(Map.put(@registry, :name, "Fixtures"))
-    {:ok, view, _html} = live(conn, ~p"/registries/#{registry.id}/edit")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/#{registry.id}/edit")
 
     view |> element("#test-connection") |> render_click()
     render_async(view, 10_000)
@@ -50,7 +50,7 @@ defmodule TestFleetWeb.RegistryConnectionTest do
   end
 
   test "wrong credentials show Docker's message", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/registries/new")
+    {:ok, view, _html} = live(conn, ~p"/#{org()}/registries/new")
 
     view
     |> form("#registry-form",

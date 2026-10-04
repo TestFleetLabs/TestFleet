@@ -75,7 +75,7 @@ defmodule TestFleet.Accounts.AccessTest do
       assert {:error, :already_set_up} =
                Accounts.create_first_admin(%{attrs | email: "second@example.com"})
 
-      assert [_one] = Accounts.list_users()
+      assert [_one] = Accounts.list_members(org_scope())
     end
   end
 
@@ -133,7 +133,11 @@ defmodule TestFleet.Accounts.AccessTest do
 
     test "are emailed with SMTP" do
       {:ok, %{user: user, url: url, emailed?: true}} =
-        Accounts.invite_user(%{email: unique_user_email(), role: :member}, &"https://tf/#{&1}")
+        Accounts.invite_user(
+          org_scope(),
+          %{email: unique_user_email(), role: :member},
+          &"https://tf/#{&1}"
+        )
 
       assert_email_sent(fn email ->
         assert email.to == [{"", user.email}]
@@ -147,7 +151,11 @@ defmodule TestFleet.Accounts.AccessTest do
       on_exit(fn -> Application.put_env(:testfleet, Notifications, previous) end)
 
       assert {:ok, %{emailed?: false}} =
-               Accounts.invite_user(%{email: unique_user_email(), role: :member}, & &1)
+               Accounts.invite_user(
+                 org_scope(),
+                 %{email: unique_user_email(), role: :member},
+                 & &1
+               )
 
       assert_no_email_sent()
     end
@@ -157,7 +165,7 @@ defmodule TestFleet.Accounts.AccessTest do
     test "an admin can be demoted while another admin is active" do
       admin = admin_fixture()
       _other = admin_fixture()
-      assert {:ok, %{role: :member}} = Accounts.update_user_role(admin, :member)
+      assert {:ok, %{role: :member}} = Accounts.update_user_role(org_scope(), admin, :member)
     end
 
     test "the last active admin cannot be demoted or deactivated" do
@@ -166,12 +174,13 @@ defmodule TestFleet.Accounts.AccessTest do
       invited_user_fixture(role: :admin)
       admin_fixture() |> Accounts.deactivate_user()
 
-      assert {:error, :last_admin} = Accounts.update_user_role(admin, :member)
+      assert {:error, :last_admin} = Accounts.update_user_role(org_scope(), admin, :member)
       assert {:error, :last_admin} = Accounts.deactivate_user(admin)
     end
 
     test "members can be promoted" do
-      assert {:ok, %{role: :admin}} = Accounts.update_user_role(user_fixture(), :admin)
+      assert {:ok, %{role: :admin}} =
+               Accounts.update_user_role(org_scope(), user_fixture(), :admin)
     end
   end
 

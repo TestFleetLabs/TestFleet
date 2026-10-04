@@ -73,29 +73,29 @@ defmodule TestFleet.Accounts do
   def get_user!(id), do: Repo.get!(User, id)
 
   @doc """
-  Gets a user with their OIDC identities, API token count, and role in the
-  organization, for the Users page.
+  Gets a member of the scope's organization with their OIDC identities, API token
+  count there, and role there, for the Members page. Raises `Ecto.NoResultsError`
+  for a user who is not a member.
   """
-  def get_user_with_identities!(id) do
+  def get_member!(%Scope{organization: %Organization{} = organization}, id) do
     from(u in User, where: u.id == ^id, preload: :identities)
-    |> with_api_token_count()
-    |> with_role(Organizations.single!())
+    |> with_api_token_count(organization)
+    |> with_role(organization)
     |> Repo.one!()
   end
 
   @doc """
-  The organization's users, by email, with their OIDC identities, API token
-  counts, and roles.
+  The scope's organization's members, by email, with their OIDC identities, API
+  token counts there, and roles there.
   """
-  def list_users do
-    organization = Organizations.single!()
-
+  def list_members(%Scope{organization: %Organization{} = organization}) do
     from(u in User, order_by: u.email, preload: :identities)
-    |> with_api_token_count()
+    |> with_api_token_count(organization)
     |> with_role(organization)
     |> Repo.all()
   end
 
+  # Members only: the join drops everyone else.
   defp with_role(query, %Organization{id: organization_id}) do
     from u in query,
       join: m in Membership,
@@ -103,9 +103,12 @@ defmodule TestFleet.Accounts do
       select_merge: %{role: m.role}
   end
 
-  defp with_api_token_count(query) do
+  defp with_api_token_count(query, %Organization{id: organization_id}) do
     counts =
-      from t in APIToken, group_by: t.user_id, select: %{user_id: t.user_id, count: count(t.id)}
+      from t in APIToken,
+        where: t.organization_id == ^organization_id,
+        group_by: t.user_id,
+        select: %{user_id: t.user_id, count: count(t.id)}
 
     from u in query,
       left_join: c in subquery(counts),
@@ -144,6 +147,10 @@ defmodule TestFleet.Accounts do
     end
   end
 
+  @doc "Whether the first-run setup creates the organization (there is none yet)."
+  def setup_creates_organization?,
+    do: not Organizations.multi?() and is_nil(Organizations.single())
+
   @doc "Whether the setup is still open (there is no user yet)."
   def setup_needed?, do: not Repo.exists?(User)
 
@@ -169,9 +176,18 @@ defmodule TestFleet.Accounts do
       lock(:setup)
 
       if setup_needed?() do
-        with {:ok, user} <- %User{} |> User.setup_changeset(attrs) |> Repo.insert(),
-             {:ok, _} <- join_first_organization(user) do
+        changeset = User.setup_changeset(%User{}, attrs)
+        name = Ecto.Changeset.get_field(changeset, :organization_name)
+
+        with {:ok, user} <- Repo.insert(changeset),
+             {:ok, _} <- join_first_organization(user, name) do
           {:ok, user}
+        else
+          {:error, %Ecto.Changeset{data: %Organization{}} = org_changeset} ->
+            {:error, organization_error(changeset, org_changeset)}
+
+          error ->
+            error
         end
       else
         {:error, :already_set_up}
@@ -179,17 +195,40 @@ defmodule TestFleet.Accounts do
     end)
   end
 
-  defp join_first_organization(user) do
-    with {:ok, organization} <- first_organization() do
+  defp join_first_organization(user, name \\ nil) do
+    with {:ok, organization} <- first_organization(name) do
       Organizations.put_membership(user, organization, :admin)
     end
   end
 
-  defp first_organization do
+  # An installation from before organizations already has one.
+  defp first_organization(name) do
     case Organizations.single() do
-      nil -> Organizations.create_organization(%{name: "Default"})
-      organization -> {:ok, organization}
+      nil ->
+        Organizations.create_organization(%{
+          name: if(name in [nil, ""], do: "Default", else: name)
+        })
+
+      organization ->
+        {:ok, organization}
     end
+  end
+
+  # The organization's name is invalid, e.g. its slug is reserved: shown on the setup form.
+  defp organization_error(changeset, org_changeset) do
+    message =
+      case org_changeset.errors do
+        [{:slug, {msg, _}} | _] ->
+          slug = Ecto.Changeset.get_field(org_changeset, :slug)
+          ~s(gives the URL name "#{slug}", which #{msg}; choose another name)
+
+        [{_field, {msg, _}} | _] ->
+          msg
+      end
+
+    changeset
+    |> Ecto.Changeset.add_error(:organization_name, message)
+    |> Map.put(:action, :insert)
   end
 
   ## Invitations
@@ -200,15 +239,16 @@ defmodule TestFleet.Accounts do
   end
 
   @doc """
-  Invites a user by email and role. Returns the link, to be shown to the admin
-  once; with SMTP, it is also emailed.
+  Invites a user by email and role into the scope's organization. Returns the
+  link, to be shown to the admin once; with SMTP, it is also emailed.
 
       {:ok, %{user: user, url: url, emailed?: boolean}}
   """
-  def invite_user(attrs, url_fun) when is_function(url_fun, 1) do
+  def invite_user(%Scope{organization: %Organization{} = organization}, attrs, url_fun)
+      when is_function(url_fun, 1) do
     Repo.transact(fn ->
       with {:ok, user} <- %User{} |> User.invite_changeset(attrs) |> Repo.insert(),
-           {:ok, _} <- Organizations.put_membership(user, Organizations.single!(), user.role) do
+           {:ok, _} <- Organizations.put_membership(user, organization, user.role) do
         {:ok, {user, insert_invite_token(user)}}
       end
     end)
@@ -516,17 +556,22 @@ defmodule TestFleet.Accounts do
   # Polling pipelines would otherwise write on every request.
   @last_used_interval_seconds 5 * 60
 
-  @doc "The scope's user's API tokens, newest first."
+  @doc "The scope's user's API tokens, of all their organizations, newest first."
   def list_api_tokens(%Scope{user: %User{id: user_id}}) do
-    Repo.all(from t in APIToken, where: t.user_id == ^user_id, order_by: [desc: t.id])
+    Repo.all(
+      from t in APIToken,
+        where: t.user_id == ^user_id,
+        order_by: [desc: t.id],
+        preload: :organization
+    )
   end
 
   @doc "Returns an `%Ecto.Changeset{}` for the new-token form."
   def change_api_token(attrs \\ %{}), do: APIToken.changeset(%APIToken{}, attrs)
 
   @doc """
-  Creates an API token for the scope's user. The token is returned once and never
-  stored:
+  Creates an API token for the scope's user, in the scope's organization. The
+  token is returned once and never stored:
 
       {:ok, {token, api_token}} | {:error, changeset}
   """
@@ -539,7 +584,8 @@ defmodule TestFleet.Accounts do
       |> APIToken.changeset(attrs)
       |> APIToken.generate()
 
-    with {:ok, api_token} <- Repo.insert(changeset), do: {:ok, {token, api_token}}
+    with {:ok, api_token} <- Repo.insert(changeset),
+         do: {:ok, {token, %{api_token | organization: organization}}}
   end
 
   @doc "Revokes one of the scope's user's API tokens. Another user's token is `{:error, :not_found}`."
@@ -593,12 +639,15 @@ defmodule TestFleet.Accounts do
   ## Roles and deactivation
 
   @doc """
-  Changes the user's role in the organization. The organization's last active
-  admin cannot be demoted: `{:error, :last_admin}`.
+  Changes a member's role in the scope's organization. The organization's last
+  active admin cannot be demoted: `{:error, :last_admin}`.
   """
-  def update_user_role(%User{} = user, role) when role in [:admin, :member] do
-    organization = Organizations.single!()
-
+  def update_user_role(
+        %Scope{organization: %Organization{} = organization},
+        %User{} = user,
+        role
+      )
+      when role in [:admin, :member] do
     Repo.transact(fn ->
       if role == :member and last_active_admin?(user, organization) do
         {:error, :last_admin}
@@ -626,6 +675,37 @@ defmodule TestFleet.Accounts do
         user
         |> Ecto.Changeset.change(deactivated_at: DateTime.utc_now(:second))
         |> update_user_and_delete_all_tokens()
+      end
+    end)
+  end
+
+  @doc """
+  Removes a member from the scope's organization (`:multi` mode; in `:single`
+  mode, deactivate instead): deletes the membership and the user's API tokens of
+  that organization. Returns the user's session tokens, so their pages can be
+  disconnected. The organization's last active admin cannot be removed:
+  `{:error, :last_admin}`.
+  """
+  def remove_member(
+        %Scope{organization: %Organization{id: organization_id} = organization},
+        %User{} = user
+      ) do
+    Repo.transact(fn ->
+      if last_active_admin?(user, organization) do
+        {:error, :last_admin}
+      else
+        Repo.delete_all(
+          from m in Membership,
+            where: m.user_id == ^user.id and m.organization_id == ^organization_id
+        )
+
+        Repo.delete_all(
+          from t in APIToken,
+            where: t.user_id == ^user.id and t.organization_id == ^organization_id
+        )
+
+        {:ok,
+         Repo.all(from t in UserToken, where: t.user_id == ^user.id and t.context == "session")}
       end
     end)
   end

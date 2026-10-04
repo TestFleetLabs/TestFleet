@@ -46,7 +46,7 @@ defmodule TestFleetWeb.ArtifactControllerTest do
     %{run: run}
   end
 
-  defp artifact_path(run, path), do: "/runs/#{run.id}/artifacts/#{path}"
+  defp artifact_path(run, path), do: "/#{org().slug}/runs/#{run.id}/artifacts/#{path}"
 
   test "serves HTML inline in a sandbox", %{conn: conn, run: run} do
     conn = get(conn, artifact_path(run, "reports/index.html"))
@@ -90,7 +90,7 @@ defmodule TestFleetWeb.ArtifactControllerTest do
   test "unknown names are not found, even when the file exists", %{conn: conn, run: run} do
     assert conn |> get(artifact_path(run, "unlisted.txt")) |> response(404)
     assert conn |> get(artifact_path(run, "missing.png")) |> response(404)
-    assert conn |> get("/runs/not-a-number/artifacts/trace.zip") |> response(404)
+    assert conn |> get("/#{org().slug}/runs/not-a-number/artifacts/trace.zip") |> response(404)
   end
 
   test "names with .. are not found", %{conn: conn, run: run} do

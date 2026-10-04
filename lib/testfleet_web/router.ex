@@ -34,59 +34,6 @@ defmodule TestFleetWeb.Router do
     plug TestFleetWeb.APIAuth
   end
 
-  # Everything behind a login. /health is answered in the
-  # endpoint, before the router.
-  scope "/", TestFleetWeb do
-    pipe_through [:browser, :require_authenticated_user]
-
-    live_session :require_authenticated_user,
-      on_mount: [{TestFleetWeb.UserAuth, :require_authenticated}] do
-      live "/", DashboardLive, :index
-      live "/projects", ProjectLive.Index, :index
-      live "/projects/new", ProjectLive.Form, :new
-      live "/projects/:slug", ProjectLive.Show, :show
-      live "/projects/:slug/edit", ProjectLive.Form, :edit
-      live "/projects/:slug/test-definitions/new", TestDefinitionLive.Form, :new
-      live "/projects/:slug/test-definitions/:id", TestDefinitionLive.Show, :show
-      live "/projects/:slug/test-definitions/:id/edit", TestDefinitionLive.Form, :edit
-      live "/projects/:slug/schedules/new", ScheduleLive.Form, :new
-      live "/projects/:slug/schedules/:id/edit", ScheduleLive.Form, :edit
-      live "/projects/:slug/environments/new", EnvironmentLive.Form, :new
-      live "/projects/:slug/environments/:env", EnvironmentLive.Show, :show
-      live "/projects/:slug/environments/:env/edit", EnvironmentLive.Form, :edit
-      live "/runs", RunLive.Index, :index
-      live "/runs/:id", RunLive.Show, :show
-      live "/users/settings", UserLive.Settings, :edit
-      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
-    end
-
-    # Registries and notification channels hold credentials and send requests to
-    # arbitrary URLs; users manage access.
-    live_session :require_admin,
-      on_mount: [
-        {TestFleetWeb.UserAuth, :require_authenticated},
-        {TestFleetWeb.UserAuth, :require_admin}
-      ] do
-      live "/registries", RegistryLive.Index, :index
-      live "/registries/new", RegistryLive.Form, :new
-      live "/registries/:id/edit", RegistryLive.Form, :edit
-      live "/notifications", NotificationLive.Index, :index
-      live "/notifications/channels/new", NotificationLive.ChannelForm, :new
-      live "/notifications/channels/:id/edit", NotificationLive.ChannelForm, :edit
-      live "/users", UserLive.Index, :index
-    end
-
-    get "/runs/:id/log", RunLogController, :show
-    post "/users/update-password", UserSessionController, :update_password
-    get "/auth/oidc/link", OIDCController, :link
-  end
-
-  scope "/", TestFleetWeb do
-    pipe_through :artifacts
-
-    get "/runs/:id/artifacts/*name", ArtifactController, :show
-  end
-
   # Open: logging in, the first-run setup (with its token), and invitation links.
   scope "/", TestFleetWeb do
     pipe_through [:browser]
@@ -106,6 +53,27 @@ defmodule TestFleetWeb.Router do
     # provider redirects back to the callback.
     get "/auth/oidc", OIDCController, :start
     get "/auth/oidc/callback", OIDCController, :callback
+  end
+
+  # Behind a login, outside any organization: personal pages, and the ways into an
+  # organization. Before the /:org routes, whose first segment matches anything;
+  # reserved slugs keep organizations off these paths.
+  scope "/", TestFleetWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    get "/", OrganizationController, :home
+    # Links sent before runs had their organization in the path
+    get "/runs/:id", OrganizationController, :run
+
+    live_session :require_authenticated_user,
+      on_mount: [{TestFleetWeb.UserAuth, :require_authenticated}] do
+      live "/organizations", OrganizationLive.Index, :index
+      live "/users/settings", UserLive.Settings, :edit
+      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+    end
+
+    post "/users/update-password", UserSessionController, :update_password
+    get "/auth/oidc/link", OIDCController, :link
   end
 
   # The API for CI: every route needs an API token.
@@ -142,5 +110,59 @@ defmodule TestFleetWeb.Router do
       live_dashboard "/dashboard", metrics: TestFleetWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  # Organization pages: the user must be a member of the organization in the path
+  # (otherwise 404). The on_mount and the plug put it into the scope.
+  scope "/:org", TestFleetWeb do
+    pipe_through [:browser, :require_authenticated_user, :fetch_organization]
+
+    live_session :organization,
+      on_mount: [
+        {TestFleetWeb.UserAuth, :require_authenticated},
+        {TestFleetWeb.UserAuth, :mount_organization}
+      ] do
+      live "/", DashboardLive, :index
+      live "/projects", ProjectLive.Index, :index
+      live "/projects/new", ProjectLive.Form, :new
+      live "/projects/:slug", ProjectLive.Show, :show
+      live "/projects/:slug/edit", ProjectLive.Form, :edit
+      live "/projects/:slug/test-definitions/new", TestDefinitionLive.Form, :new
+      live "/projects/:slug/test-definitions/:id", TestDefinitionLive.Show, :show
+      live "/projects/:slug/test-definitions/:id/edit", TestDefinitionLive.Form, :edit
+      live "/projects/:slug/schedules/new", ScheduleLive.Form, :new
+      live "/projects/:slug/schedules/:id/edit", ScheduleLive.Form, :edit
+      live "/projects/:slug/environments/new", EnvironmentLive.Form, :new
+      live "/projects/:slug/environments/:env", EnvironmentLive.Show, :show
+      live "/projects/:slug/environments/:env/edit", EnvironmentLive.Form, :edit
+      live "/runs", RunLive.Index, :index
+      live "/runs/:id", RunLive.Show, :show
+    end
+
+    # Registries and notification channels hold credentials and send requests to
+    # arbitrary URLs; members and the organization's settings decide access.
+    live_session :require_admin,
+      on_mount: [
+        {TestFleetWeb.UserAuth, :require_authenticated},
+        {TestFleetWeb.UserAuth, :mount_organization},
+        {TestFleetWeb.UserAuth, :require_admin}
+      ] do
+      live "/registries", RegistryLive.Index, :index
+      live "/registries/new", RegistryLive.Form, :new
+      live "/registries/:id/edit", RegistryLive.Form, :edit
+      live "/notifications", NotificationLive.Index, :index
+      live "/notifications/channels/new", NotificationLive.ChannelForm, :new
+      live "/notifications/channels/:id/edit", NotificationLive.ChannelForm, :edit
+      live "/members", MemberLive.Index, :index
+      live "/settings", OrganizationLive.Settings, :edit
+    end
+
+    get "/runs/:id/log", RunLogController, :show
+  end
+
+  scope "/:org", TestFleetWeb do
+    pipe_through [:artifacts, :fetch_organization]
+
+    get "/runs/:id/artifacts/*name", ArtifactController, :show
   end
 end

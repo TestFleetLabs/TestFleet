@@ -14,7 +14,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
   describe "index" do
     test "shows the empty state and the navigation entry", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/notifications")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
 
       assert has_element?(view, "#channels-empty")
       assert has_element?(view, "#nav-notifications[aria-current=page]")
@@ -24,7 +24,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       slack = channel_fixture(kind: :slack)
       email = channel_fixture(kind: :email, recipients_text: "qa@example.com, dev@example.com")
 
-      {:ok, view, html} = live(conn, ~p"/notifications")
+      {:ok, view, html} = live(conn, ~p"/#{org()}/notifications")
 
       assert has_element?(view, "#channels-#{slack.id}", "hooks.slack.com/…")
       assert has_element?(view, "#channels-#{email.id}", "qa@example.com")
@@ -34,7 +34,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
     test "send test reports the result", %{conn: conn} do
       stub_ok()
       channel = channel_fixture()
-      {:ok, view, _html} = live(conn, ~p"/notifications")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
 
       view |> element("#test-channel-#{channel.id}") |> render_click()
 
@@ -44,7 +44,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
     test "send test shows why it failed", %{conn: conn} do
       Req.Test.stub(TestFleet.Notifications, &Plug.Conn.send_resp(&1, 404, ""))
       channel = channel_fixture()
-      {:ok, view, _html} = live(conn, ~p"/notifications")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
 
       view |> element("#test-channel-#{channel.id}") |> render_click()
 
@@ -53,7 +53,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
     test "disables and enables a channel", %{conn: conn} do
       channel = channel_fixture()
-      {:ok, view, _html} = live(conn, ~p"/notifications")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
 
       view |> element("#toggle-channel-#{channel.id}") |> render_click()
       assert has_element?(view, "#channel-#{channel.id}-disabled")
@@ -65,7 +65,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
     test "deletes a channel", %{conn: conn} do
       channel = channel_fixture()
-      {:ok, view, _html} = live(conn, ~p"/notifications")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
 
       view |> element("#delete-channel-#{channel.id}") |> render_click()
 
@@ -76,7 +76,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
   describe "form" do
     test "creates a Slack channel", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/notifications/channels/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications/channels/new")
 
       # The URL field appears once a kind is chosen.
       refute has_element?(view, "#channel_url")
@@ -91,12 +91,12 @@ defmodule TestFleetWeb.NotificationLiveTest do
       assert [%{id: id, name: "#e2e-alerts", kind: :slack, url: url}] =
                Notifications.list_channels(org_scope())
 
-      assert_redirect(view, ~p"/notifications/channels/#{id}/edit")
+      assert_redirect(view, ~p"/#{org()}/notifications/channels/#{id}/edit")
       assert url == slack_url()
     end
 
     test "creates an email channel", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/notifications/channels/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications/channels/new")
       view |> form("#channel-form", channel: %{kind: "email"}) |> render_change()
 
       view
@@ -108,11 +108,11 @@ defmodule TestFleetWeb.NotificationLiveTest do
       assert [%{id: id, kind: :email, email_recipients: ["qa@example.com"]}] =
                Notifications.list_channels(org_scope())
 
-      assert_redirect(view, ~p"/notifications/channels/#{id}/edit")
+      assert_redirect(view, ~p"/#{org()}/notifications/channels/#{id}/edit")
     end
 
     test "shows validation errors", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/notifications/channels/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications/channels/new")
       view |> form("#channel-form", channel: %{kind: "webhook"}) |> render_change()
 
       html =
@@ -127,7 +127,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
          %{conn: conn} do
       channel = channel_fixture(kind: :webhook, signing_secret: "a-long-signing-secret")
 
-      {:ok, view, html} = live(conn, ~p"/notifications/channels/#{channel.id}/edit")
+      {:ok, view, html} = live(conn, ~p"/#{org()}/notifications/channels/#{channel.id}/edit")
 
       refute html =~ "token=abc123"
       refute html =~ "a-long-signing-secret"
@@ -148,7 +148,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       |> form("#channel-form", channel: %{name: "Renamed", url: "", signing_secret: ""})
       |> render_submit()
 
-      assert_redirect(view, ~p"/notifications")
+      assert_redirect(view, ~p"/#{org()}/notifications")
       stored = Notifications.get_channel!(org_scope(), channel.id)
       assert stored.name == "Renamed"
       assert stored.url == channel.url
@@ -163,7 +163,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
         Req.Test.text(conn, "ok")
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/notifications/channels/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications/channels/new")
       view |> form("#channel-form", channel: %{kind: "webhook"}) |> render_change()
 
       view
@@ -181,7 +181,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
     end
 
     test "send test on an invalid form asks to fix it", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/notifications/channels/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications/channels/new")
 
       view |> element("#send-test") |> render_click()
       render_async(view)
@@ -204,11 +204,11 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
     test "a new channel says it receives nothing, here and in the list", context do
       {:ok, view, _html} =
-        live(context.conn, ~p"/notifications/channels/#{context.channel.id}/edit")
+        live(context.conn, ~p"/#{org()}/notifications/channels/#{context.channel.id}/edit")
 
       assert has_element?(view, "#subscriptions-empty")
 
-      {:ok, view, _html} = live(context.conn, ~p"/notifications")
+      {:ok, view, _html} = live(context.conn, ~p"/#{org()}/notifications")
 
       assert has_element?(
                view,
@@ -219,7 +219,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
     test "adds a subscription for all projects, with the run events preselected", context do
       {:ok, view, _html} =
-        live(context.conn, ~p"/notifications/channels/#{context.channel.id}/edit")
+        live(context.conn, ~p"/#{org()}/notifications/channels/#{context.channel.id}/edit")
 
       assert has_element?(view, "#subscription-event-run-failing[checked]")
       refute has_element?(view, "#subscription-event-system-docker_unreachable[checked]")
@@ -240,7 +240,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
     test "a project scope offers its environments and no system events", context do
       {:ok, view, _html} =
-        live(context.conn, ~p"/notifications/channels/#{context.channel.id}/edit")
+        live(context.conn, ~p"/#{org()}/notifications/channels/#{context.channel.id}/edit")
 
       refute has_element?(view, "#subscription_environment_id")
       refute has_element?(view, "#subscription-event-system-docker_unreachable[disabled]")
@@ -273,7 +273,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
 
     test "choosing no event shows an error", context do
       {:ok, view, _html} =
-        live(context.conn, ~p"/notifications/channels/#{context.channel.id}/edit")
+        live(context.conn, ~p"/#{org()}/notifications/channels/#{context.channel.id}/edit")
 
       view
       |> form("#subscription-form", subscription: %{events: [""]})
@@ -287,7 +287,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
         Notifications.create_subscription(context.channel, %{"events" => ["run.error"]})
 
       {:ok, view, _html} =
-        live(context.conn, ~p"/notifications/channels/#{context.channel.id}/edit")
+        live(context.conn, ~p"/#{org()}/notifications/channels/#{context.channel.id}/edit")
 
       view |> element("#delete-subscription-#{subscription.id}") |> render_click()
 
@@ -299,7 +299,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
   describe "deliveries" do
     test "the log shows deliveries and follows them live", %{conn: conn} do
       channel = channel_fixture(name: "Alerts")
-      {:ok, view, _html} = live(conn, ~p"/notifications")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/notifications")
 
       {:ok, delivery} = Notifications.enqueue_delivery(channel, "test", "test:live")
       assert has_element?(view, "#deliveries-#{delivery.id}", "Alerts")
@@ -319,7 +319,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       run = TestFleet.RunsFixtures.run_fixture(status: :failed)
       channel = channel_fixture(name: "#e2e-alerts")
 
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       refute has_element?(view, "#run-notifications")
 
       {:ok, delivery} =
@@ -333,7 +333,7 @@ defmodule TestFleetWeb.NotificationLiveTest do
       assert has_element?(view, "#run-delivery-#{delivery.id}", "sent")
 
       # Reloaded, it is still there.
-      {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
       assert has_element?(view, "#run-delivery-#{delivery.id}", "sent")
     end
   end

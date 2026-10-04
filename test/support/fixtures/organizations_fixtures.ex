@@ -21,6 +21,9 @@ defmodule TestFleet.OrganizationsFixtures do
     organization
   end
 
+  @doc "The installation's organization, e.g. for paths."
+  def org, do: Organizations.single!()
+
   @doc """
   A scope within the organization (default: the installation's), without a user:
   for calling the contexts in tests.

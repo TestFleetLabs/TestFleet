@@ -1721,7 +1721,7 @@ Users are never deleted, because runs refer to them. An admin **deactivates** a 
 No users yet. Create the first admin at https://<PHX_HOST>/setup?token=<token>
 ```
 
-The token is random, generated when the application starts, kept in memory, and new on every start. `/setup` without it, with a wrong one, or once a user exists answers 404. Because only someone who can read the container log can set up TestFleet, an empty installation cannot be taken over by the first visitor. The setup asks for the organization's name, the admin's email, and a password, and creates the organization, the user, and the admin membership in one transaction under an advisory lock, so two submissions create one of each. In `:single` mode, a database that already has the organization (migrated) but no user only creates the user and the membership.
+The token is random, generated when the application starts, kept in memory, and new on every start. `/setup` without it, with a wrong one, or once a user exists answers 404. Because only someone who can read the container log can set up TestFleet, an empty installation cannot be taken over by the first visitor. The setup asks for the organization's name (optional, `Default` when empty; a name whose slug is reserved is refused), the admin's email, and a password, and creates the organization, the user, and the admin membership in one transaction under an advisory lock, so two submissions create one of each. A database that already has the organization (migrated) but no user does not ask for a name, and only creates the user and the membership. Setup with the identity provider names the organization `Default`; admins rename it afterwards.
 
 **Invitations.** An admin invites someone by email and role on the Members page. That creates the user without a password, their membership in the organization with that role, and an invitation token (valid 7 days). The admin sees the link once, to copy; with SMTP it is also emailed. Opening the link asks for a password (or offers the provider); saving confirms the user and logs them in. An admin can replace a pending invitation's link or revoke it (which deletes the invited user and the membership). Inviting an email that already has an account into another organization (`:multi`) comes with the hosted edition.
 
@@ -2231,11 +2231,12 @@ Every page begins with `<Layouts.app>`, receives `current_scope`, and updates li
 /:org/members                                     admin
 /:org/settings                                    admin: name and slug
 /runs/:id                                         redirects to /:org/runs/:id (links sent before organizations)
+/organizations                                    the user's organizations
 /users/settings                                   personal, no organization
 /users/log-in, /users/invitations/:token, /setup
 ```
 
-`/` opens the user's organization: the only one in `:single` mode; in `:multi` mode the one used last, or a list to choose from. Links TestFleet generates (notifications, API responses) contain the organization's slug. A changed slug breaks links that were sent with the old one; the run redirect at `/runs/:id` keeps working, because run ids are global.
+`/` opens the user's organization when they belong to exactly one (always, in `:single` mode); otherwise `/organizations` lists them to choose from, or says that there is none yet. Links TestFleet generates (notifications, API responses) contain the organization's slug. A changed slug breaks links that were sent with the old one; the run redirect at `/runs/:id` keeps working, because run ids are global.
 
 ## Dashboard
 

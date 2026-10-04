@@ -41,7 +41,11 @@ defmodule TestFleetWeb.RegistryLive.Index do
           description={gettext("Credentials for pulling test images, matched by registry host.")}
         >
           <:actions>
-            <.button id="new-registry" variant="primary" navigate={~p"/registries/new"}>
+            <.button
+              id="new-registry"
+              variant="primary"
+              navigate={~p"/#{@organization}/registries/new"}
+            >
               <.icon name="hero-plus-mini" class="size-4" /> {gettext("New registry")}
             </.button>
           </:actions>
@@ -88,7 +92,7 @@ defmodule TestFleetWeb.RegistryLive.Index do
                       id={"edit-registry-#{registry.id}"}
                       variant="ghost"
                       size="sm"
-                      navigate={~p"/registries/#{registry.id}/edit"}
+                      navigate={~p"/#{@organization}/registries/#{registry.id}/edit"}
                       aria-label={gettext("Edit %{name}", name: registry.name)}
                     >
                       <.icon name="hero-pencil-square-mini" class="size-4" />

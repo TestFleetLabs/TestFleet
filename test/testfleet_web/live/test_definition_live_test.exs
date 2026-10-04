@@ -16,7 +16,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
   describe "project page" do
     test "shows an empty state", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
       assert has_element?(view, "#test-definitions-empty-state")
     end
 
@@ -26,7 +26,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
       disabled = test_definition_fixture(project: project, name: "Legacy", enabled: false)
 
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal")
 
       row = "#test_definitions-#{test_definition.id}"
       assert has_element?(view, row, "Checkout")
@@ -35,7 +35,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
       assert has_element?(
                view,
-               "#{row} a[href='/projects/customer-portal/test-definitions/#{test_definition.id}']"
+               "#{row} a[href='/#{org().slug}/projects/customer-portal/test-definitions/#{test_definition.id}']"
              )
 
       assert has_element?(view, "#test_definitions-#{disabled.id}", "disabled")
@@ -45,7 +45,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
   describe "form" do
     test "creates a test definition and returns to the project", %{conn: conn, project: project} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/test-definitions/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/new")
 
       {:ok, show, _html} =
         view
@@ -60,7 +60,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
           }
         )
         |> render_submit()
-        |> follow_redirect(conn, ~p"/projects/customer-portal")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert [test_definition] = TestDefinitions.list_test_definitions(project)
 
@@ -77,7 +77,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
     end
 
     test "the new form starts with the defaults", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/test-definitions/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/new")
 
       assert has_element?(view, "#test_definition_timeout_minutes[value='30']")
       assert has_element?(view, "#test_definition_shm_size_mib[value='2048']")
@@ -85,7 +85,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
     end
 
     test "shows validation errors next to the inputs", %{conn: conn, project: project} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/test-definitions/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/new")
 
       view
       |> form("#test-definition-form",
@@ -100,7 +100,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
     test "edits a test definition and returns to its page", %{conn: conn, project: project} do
       test_definition = test_definition_fixture(project: project, command: ["./run.sh"])
-      path = ~p"/projects/customer-portal/test-definitions/#{test_definition.id}"
+      path = ~p"/#{org()}/projects/customer-portal/test-definitions/#{test_definition.id}"
 
       {:ok, view, _html} = live(conn, "#{path}/edit")
 
@@ -122,13 +122,16 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
       test_definition = test_definition_fixture(project: project)
 
       {:ok, view, _html} =
-        live(conn, ~p"/projects/customer-portal/test-definitions/#{test_definition.id}/edit")
+        live(
+          conn,
+          ~p"/#{org()}/projects/customer-portal/test-definitions/#{test_definition.id}/edit"
+        )
 
       {:ok, _show, _html} =
         view
         |> element("#delete-test-definition")
         |> render_click()
-        |> follow_redirect(conn, ~p"/projects/customer-portal")
+        |> follow_redirect(conn, ~p"/#{org()}/projects/customer-portal")
 
       assert TestDefinitions.list_test_definitions(project) == []
     end
@@ -137,7 +140,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
       other = test_definition_fixture()
 
       assert_raise Ecto.NoResultsError, fn ->
-        live(conn, ~p"/projects/customer-portal/test-definitions/#{other.id}/edit")
+        live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/#{other.id}/edit")
       end
     end
   end
@@ -145,7 +148,7 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
   describe "image source" do
     test "names the registry whose credentials a pull uses", %{conn: conn} do
       registry = registry_fixture(name: "Company GitLab", host: "registry.company.com")
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/test-definitions/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/new")
 
       view
       |> form("#test-definition-form",
@@ -154,11 +157,15 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
       |> render_change()
 
       assert has_element?(view, "#image-source", "Company GitLab")
-      assert has_element?(view, "#image-source a[href='/registries/#{registry.id}/edit']")
+
+      assert has_element?(
+               view,
+               "#image-source a[href='/#{org().slug}/registries/#{registry.id}/edit']"
+             )
     end
 
     test "says when an image is pulled anonymously", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/test-definitions/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/new")
 
       view
       |> form("#test-definition-form",
@@ -167,11 +174,11 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
       |> render_change()
 
       assert has_element?(view, "#image-source", "mcr.microsoft.com")
-      assert has_element?(view, "#image-source a[href='/registries/new']")
+      assert has_element?(view, "#image-source a[href='/#{org().slug}/registries/new']")
     end
 
     test "says nothing for an empty or invalid image", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/projects/customer-portal/test-definitions/new")
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/projects/customer-portal/test-definitions/new")
       refute has_element?(view, "#image-source")
 
       view |> form("#test-definition-form", test_definition: %{image: "e2e:"}) |> render_change()

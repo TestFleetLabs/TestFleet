@@ -20,6 +20,8 @@ defmodule TestFleet.Accounts.User do
     field :deactivated_at, :utc_datetime
     field :last_login_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
+    # The first-run setup names the organization it creates.
+    field :organization_name, :string, virtual: true
     # Set for the Users page
     field :api_token_count, :integer, virtual: true, default: 0
 
@@ -46,6 +48,8 @@ defmodule TestFleet.Accounts.User do
   """
   def setup_changeset(user, attrs, opts \\ []) do
     user
+    |> cast(attrs, [:organization_name])
+    |> validate_length(:organization_name, max: 100)
     |> email_changeset(attrs)
     |> password_changeset(attrs, opts)
     |> put_change(:confirmed_at, DateTime.utc_now(:second))

@@ -308,7 +308,7 @@ defmodule TestFleetWeb.AppComponents do
   ## Examples
 
       <.breadcrumbs>
-        <:crumb navigate={~p"/projects"}>Projects</:crumb>
+        <:crumb navigate={@projects_path}>Projects</:crumb>
         <:crumb>{@project.name}</:crumb>
       </.breadcrumbs>
   """

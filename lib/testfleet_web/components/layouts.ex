@@ -6,6 +6,8 @@ defmodule TestFleetWeb.Layouts do
   use TestFleetWeb, :html
 
   alias TestFleet.Accounts.Scope
+  alias TestFleet.Organizations
+  alias TestFleet.Organizations.Organization
 
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
@@ -32,7 +34,7 @@ defmodule TestFleetWeb.Layouts do
 
   attr :active, :atom,
     default: nil,
-    values: [nil, :dashboard, :projects, :runs, :registries, :notifications, :users],
+    values: [nil, :dashboard, :projects, :runs, :registries, :notifications, :members, :settings],
     doc: "the navigation entry to highlight"
 
   slot :inner_block, required: true
@@ -45,6 +47,7 @@ defmodule TestFleetWeb.Layouts do
         class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-base-300 bg-base-100 lg:flex"
       >
         <.brand class="h-16 px-5" />
+        <.organization_name id="organization" current_scope={@current_scope} class="px-5 pb-1" />
         <.main_nav id="nav" active={@active} current_scope={@current_scope} class="flex-1 px-3 py-4" />
         <.user_menu id="user-menu" current_scope={@current_scope} class="border-t border-base-300" />
         <div class="flex items-center justify-between border-t border-base-300 px-5 py-4">
@@ -71,6 +74,11 @@ defmodule TestFleetWeb.Layouts do
           </button>
         </div>
         <div id="mobile-menu" class="hidden border-t border-base-300">
+          <.organization_name
+            id="mobile-organization"
+            current_scope={@current_scope}
+            class="px-5 pt-3"
+          />
           <.main_nav
             id="mobile-nav"
             active={@active}
@@ -210,7 +218,7 @@ defmodule TestFleetWeb.Layouts do
   attr :class, :any, default: nil
 
   defp main_nav(assigns) do
-    assigns = assign(assigns, :items, nav_items(Scope.admin?(assigns.current_scope)))
+    assigns = assign(assigns, :items, nav_items(assigns.current_scope))
 
     ~H"""
     <nav id={@id} aria-label={gettext("Main")} class={@class}>
@@ -246,20 +254,52 @@ defmodule TestFleetWeb.Layouts do
     """
   end
 
-  # Members do not see the admin pages.
-  defp nav_items(admin?) do
+  # The organization's pages; members do not see the admin pages. Outside an
+  # organization (personal settings in :multi mode), there is nothing to link.
+  defp nav_items(%Scope{organization: %Organization{} = org} = scope) do
     [
-      {:dashboard, gettext("Dashboard"), "hero-squares-2x2", ~p"/"},
-      {:projects, gettext("Projects"), "hero-folder", ~p"/projects"},
-      {:runs, gettext("Runs"), "hero-play-circle", ~p"/runs"}
+      {:dashboard, gettext("Dashboard"), "hero-squares-2x2", ~p"/#{org}"},
+      {:projects, gettext("Projects"), "hero-folder", ~p"/#{org}/projects"},
+      {:runs, gettext("Runs"), "hero-play-circle", ~p"/#{org}/runs"}
     ] ++
-      if admin?,
+      if Scope.admin?(scope),
         do: [
-          {:registries, gettext("Registries"), "hero-server-stack", ~p"/registries"},
-          {:notifications, gettext("Notifications"), "hero-bell", ~p"/notifications"},
-          {:users, gettext("Users"), "hero-users", ~p"/users"}
+          {:registries, gettext("Registries"), "hero-server-stack", ~p"/#{org}/registries"},
+          {:notifications, gettext("Notifications"), "hero-bell", ~p"/#{org}/notifications"},
+          {:members, gettext("Members"), "hero-users", ~p"/#{org}/members"},
+          {:settings, gettext("Organization"), "hero-building-office-2", ~p"/#{org}/settings"}
         ],
         else: []
+  end
+
+  defp nav_items(_scope), do: []
+
+  attr :id, :string, required: true
+  attr :current_scope, :map, default: nil
+  attr :class, :any, default: nil
+
+  # The organization's name; in :multi mode it opens the list to switch.
+  defp organization_name(assigns) do
+    ~H"""
+    <div :if={@current_scope && @current_scope.organization} id={@id} class={@class}>
+      <.link
+        :if={Organizations.multi?()}
+        navigate={~p"/organizations"}
+        id={"#{@id}-switch"}
+        title={gettext("Switch organization")}
+        class="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-base-content/80 transition-colors hover:bg-base-200"
+      >
+        <span class="truncate">{@current_scope.organization.name}</span>
+        <.icon name="hero-chevron-up-down" class="size-4 shrink-0 text-base-content/40" />
+      </.link>
+      <p
+        :if={!Organizations.multi?()}
+        class="truncate px-2 py-1.5 text-sm font-medium text-base-content/80"
+      >
+        {@current_scope.organization.name}
+      </p>
+    </div>
+    """
   end
 
   @doc """

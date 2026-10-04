@@ -1,6 +1,7 @@
 defmodule TestFleetWeb.UserLive.Setup do
   @moduledoc """
-  First-run setup: creates the first admin. Only with the
+  First-run setup: creates the first admin, and the organization unless an
+  installation from before organizations has one already. Only with the
   one-time token from the log, and only while there is no user; otherwise the page
   does not exist.
   """
@@ -15,7 +16,7 @@ defmodule TestFleetWeb.UserLive.Setup do
     <Layouts.auth
       flash={@flash}
       title={gettext("Set up TestFleet")}
-      subtitle={gettext("Create the first admin. Everyone else is invited from the Users page.")}
+      subtitle={gettext("Create the first admin. Everyone else is invited from the Members page.")}
     >
       <.sso_button
         :if={@oidc_enabled}
@@ -37,6 +38,14 @@ defmodule TestFleetWeb.UserLive.Setup do
         phx-trigger-action={@trigger_submit}
         class="space-y-4"
       >
+        <.input
+          :if={@creates_organization}
+          field={@form[:organization_name]}
+          type="text"
+          label={gettext("Organization")}
+          placeholder={gettext("e.g. ACME")}
+          hint={gettext("Your company or team. You can rename it later.")}
+        />
         <.input
           field={@form[:email]}
           type="email"
@@ -83,6 +92,7 @@ defmodule TestFleetWeb.UserLive.Setup do
      |> assign(:page_title, gettext("Set up TestFleet"))
      |> assign(:token, params["token"])
      |> assign(oidc_enabled: OIDC.enabled?(), password_login: Accounts.password_login_enabled?())
+     |> assign(:creates_organization, Accounts.setup_creates_organization?())
      |> assign(:form, to_form(Accounts.change_setup()))
      |> assign(:trigger_submit, false)}
   end

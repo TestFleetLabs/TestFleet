@@ -28,7 +28,7 @@ defmodule TestFleetWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import TestFleetWeb.ConnCase
-      import TestFleet.OrganizationsFixtures, only: [org_scope: 0, org_scope: 1]
+      import TestFleet.OrganizationsFixtures, only: [org: 0, org_scope: 0, org_scope: 1]
     end
   end
 

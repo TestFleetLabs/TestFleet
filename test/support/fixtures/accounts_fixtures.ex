@@ -55,7 +55,10 @@ defmodule TestFleet.AccountsFixtures do
   @doc "A user who has not accepted the invitation yet. Returns `{user, token}`."
   def invited_user_fixture(attrs \\ %{}) do
     attrs = Enum.into(attrs, %{email: unique_user_email(), role: :member})
-    {:ok, %{user: user, url: token}} = Accounts.invite_user(attrs, & &1)
+
+    {:ok, %{user: user, url: token}} =
+      Accounts.invite_user(TestFleet.OrganizationsFixtures.org_scope(), attrs, & &1)
+
     {user, token}
   end
 
@@ -65,10 +68,17 @@ defmodule TestFleet.AccountsFixtures do
     user
   end
 
-  @doc "An API token of `user`. Returns `{token, api_token}`."
+  @doc "An API token of `user`, in `:organization` (default: the installation's). Returns `{token, api_token}`."
   def api_token_fixture(user, attrs \\ %{}) do
+    {organization, attrs} = attrs |> Map.new() |> Map.pop(:organization)
     attrs = Enum.into(attrs, %{name: "CI #{System.unique_integer([:positive])}"})
-    {:ok, {token, api_token}} = Accounts.create_api_token(Scope.for_user(user), attrs)
+
+    scope =
+      if organization,
+        do: Scope.put_organization(%Scope{user: user}, organization),
+        else: Scope.for_user(user)
+
+    {:ok, {token, api_token}} = Accounts.create_api_token(scope, attrs)
     {token, api_token}
   end
 

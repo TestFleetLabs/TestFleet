@@ -1,13 +1,14 @@
-defmodule TestFleetWeb.UserLive.Index do
+defmodule TestFleetWeb.MemberLive.Index do
   @moduledoc """
-  The Users page (admin): invitations, roles, and
-  deactivation. An invitation link is shown once, to copy; with SMTP it is also
-  emailed.
+  The organization's Members page (admins): invitations, roles, and deactivation
+  (`:single` mode) or removal (`:multi`). An invitation link is shown once, to
+  copy; with SMTP it is also emailed.
   """
   use TestFleetWeb, :live_view
 
   alias TestFleet.Accounts
   alias TestFleet.Accounts.{OIDC, User}
+  alias TestFleet.Organizations
   alias TestFleet.Schedules.Timezones
   alias TestFleetWeb.UserAuth
 
@@ -15,12 +16,13 @@ defmodule TestFleetWeb.UserLive.Index do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, gettext("Users"))
+     |> assign(:page_title, gettext("Members"))
      |> assign(:invite_form, to_form(Accounts.change_invitation(%{role: :member})))
      |> assign(:invite_link, nil)
      |> assign(:timezone, Timezones.default())
      |> assign(:provider_name, OIDC.provider_name())
-     |> stream(:users, Accounts.list_users())}
+     |> assign(:multi?, Organizations.multi?())
+     |> stream(:users, Accounts.list_members(socket.assigns.current_scope))}
   end
 
   @impl true
@@ -30,7 +32,11 @@ defmodule TestFleetWeb.UserLive.Index do
   end
 
   def handle_event("invite", %{"user" => params}, socket) do
-    case Accounts.invite_user(params, &url(~p"/users/invitations/#{&1}")) do
+    case Accounts.invite_user(
+           socket.assigns.current_scope,
+           params,
+           &url(~p"/users/invitations/#{&1}")
+         ) do
       {:ok, invitation} ->
         {:noreply,
          socket
@@ -48,7 +54,7 @@ defmodule TestFleetWeb.UserLive.Index do
   end
 
   def handle_event("renew", %{"id" => id}, socket) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_member!(socket.assigns.current_scope, id)
 
     case Accounts.renew_invitation(user, &url(~p"/users/invitations/#{&1}")) do
       {:ok, invitation} -> {:noreply, assign(socket, :invite_link, invitation)}
@@ -57,7 +63,7 @@ defmodule TestFleetWeb.UserLive.Index do
   end
 
   def handle_event("revoke", %{"id" => id}, socket) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_member!(socket.assigns.current_scope, id)
 
     case Accounts.revoke_invitation(user) do
       {:ok, user} ->
@@ -73,17 +79,17 @@ defmodule TestFleetWeb.UserLive.Index do
   end
 
   def handle_event("set_role", %{"id" => id, "role" => role}, socket) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_member!(socket.assigns.current_scope, id)
     role = Enum.find(User.roles(), &(Atom.to_string(&1) == role))
 
-    case Accounts.update_user_role(user, role) do
+    case Accounts.update_user_role(socket.assigns.current_scope, user, role) do
       {:ok, user} -> {:noreply, put_user(socket, user)}
       {:error, :last_admin} -> {:noreply, last_admin_error(socket)}
     end
   end
 
   def handle_event("deactivate", %{"id" => id}, socket) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_member!(socket.assigns.current_scope, id)
 
     case Accounts.deactivate_user(user) do
       {:ok, {user, expired_tokens}} ->
@@ -100,15 +106,33 @@ defmodule TestFleetWeb.UserLive.Index do
   end
 
   def handle_event("reactivate", %{"id" => id}, socket) do
-    {:ok, user} = id |> Accounts.get_user!() |> Accounts.reactivate_user()
+    user = Accounts.get_member!(socket.assigns.current_scope, id)
+    {:ok, user} = Accounts.reactivate_user(user)
     {:noreply, put_user(socket, user)}
+  end
+
+  def handle_event("remove", %{"id" => id}, socket) do
+    user = Accounts.get_member!(socket.assigns.current_scope, id)
+
+    case Accounts.remove_member(socket.assigns.current_scope, user) do
+      {:ok, session_tokens} ->
+        UserAuth.disconnect_sessions(session_tokens)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("%{email} was removed.", email: user.email))
+         |> stream_delete(:users, user)}
+
+      {:error, :last_admin} ->
+        {:noreply, last_admin_error(socket)}
+    end
   end
 
   defp refresh(socket, user), do: put_user(socket, user)
 
   # Reloaded with the identities, for the login column
   defp put_user(socket, user),
-    do: stream_insert(socket, :users, Accounts.get_user_with_identities!(user.id))
+    do: stream_insert(socket, :users, Accounts.get_member!(socket.assigns.current_scope, user.id))
 
   defp clear_link_for(socket, user) do
     case socket.assigns.invite_link do
@@ -118,18 +142,20 @@ defmodule TestFleetWeb.UserLive.Index do
   end
 
   defp last_admin_error(socket) do
-    put_flash(socket, :error, gettext("TestFleet needs at least one active admin."))
+    put_flash(socket, :error, gettext("The organization needs at least one active admin."))
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} active={:users}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active={:members}>
       <div id="users" class="space-y-8">
         <.page_header
-          title={gettext("Users")}
+          title={gettext("Members")}
           description={
-            gettext("Admins manage users, registries, and notifications. Members do everything else.")
+            gettext(
+              "Admins manage members, registries, notifications, and the organization's settings. Members do everything else."
+            )
           }
         />
 
@@ -283,6 +309,20 @@ defmodule TestFleetWeb.UserLive.Index do
                           )}
                         </.button>
                         <.button
+                          :if={@multi?}
+                          id={"remove-#{user.id}"}
+                          variant="ghost"
+                          size="sm"
+                          phx-click="remove"
+                          phx-value-id={user.id}
+                          data-confirm={
+                            gettext("Remove %{email} from the organization?", email: user.email)
+                          }
+                        >
+                          {gettext("Remove")}
+                        </.button>
+                        <.button
+                          :if={!@multi?}
                           id={"deactivate-#{user.id}"}
                           variant="ghost"
                           size="sm"

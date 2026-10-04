@@ -128,7 +128,11 @@ defmodule TestFleetWeb.NotificationLive.Index do
           }
         >
           <:actions>
-            <.button id="new-channel" variant="primary" navigate={~p"/notifications/channels/new"}>
+            <.button
+              id="new-channel"
+              variant="primary"
+              navigate={~p"/#{@organization}/notifications/channels/new"}
+            >
               <.icon name="hero-plus-mini" class="size-4" /> {gettext("New channel")}
             </.button>
           </:actions>
@@ -181,7 +185,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
                     </.badge>
                     <.link
                       id={"channel-#{channel.id}-subscriptions"}
-                      navigate={~p"/notifications/channels/#{channel.id}/edit"}
+                      navigate={~p"/#{@organization}/notifications/channels/#{channel.id}/edit"}
                       class={[
                         "mt-0.5 block text-xs transition-colors hover:text-primary",
                         if(Map.get(@subscription_counts, channel.id, 0) == 0,
@@ -244,7 +248,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
                         id={"edit-channel-#{channel.id}"}
                         variant="ghost"
                         size="sm"
-                        navigate={~p"/notifications/channels/#{channel.id}/edit"}
+                        navigate={~p"/#{@organization}/notifications/channels/#{channel.id}/edit"}
                         aria-label={gettext("Edit %{name}", name: channel.name)}
                       >
                         <.icon name="hero-pencil-square-mini" class="size-4" />
@@ -297,7 +301,7 @@ defmodule TestFleetWeb.NotificationLive.Index do
                 <span class="text-base-content/60">→ {delivery.channel.name}</span>
                 <.link
                   :if={delivery.run_id}
-                  navigate={~p"/runs/#{delivery.run_id}"}
+                  navigate={~p"/#{@organization}/runs/#{delivery.run_id}"}
                   class="ml-1 font-mono text-xs text-base-content/60 hover:text-primary"
                 >
                   #{delivery.run_id}

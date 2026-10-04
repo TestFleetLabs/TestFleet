@@ -21,7 +21,7 @@ defmodule TestFleetWeb.ProjectLive.Index do
           description={gettext("One project per application under test.")}
         >
           <:actions>
-            <.button id="new-project" variant="primary" navigate={~p"/projects/new"}>
+            <.button id="new-project" variant="primary" navigate={~p"/#{@organization}/projects/new"}>
               <.icon name="hero-plus-mini" class="size-4" /> {gettext("New project")}
             </.button>
           </:actions>
@@ -46,7 +46,7 @@ defmodule TestFleetWeb.ProjectLive.Index do
           <.link
             :for={{id, project} <- @streams.projects}
             id={id}
-            navigate={~p"/projects/#{project.slug}"}
+            navigate={~p"/#{@organization}/projects/#{project.slug}"}
             class="group flex flex-col rounded-xl border border-base-300 bg-base-100 p-5 transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md hover:shadow-base-300/40"
           >
             <div class="flex items-start justify-between gap-3">
