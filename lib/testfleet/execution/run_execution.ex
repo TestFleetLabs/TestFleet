@@ -68,7 +68,9 @@ defmodule TestFleet.Execution.RunExecution do
   @network "TestFleet-runs"
   @artifacts_dir Collector.artifacts_dir()
   @default_stop_grace_seconds 30
-  # How long to wait for the rest of the logs after the container exited.
+  # How long the log stream may stay silent after the container exited. Silent, not
+  # in total: on a busy host the stream can lag seconds behind a suite that wrote a
+  # lot just before exiting, and the end of a log is the part people read.
   @drain_timeout 5_000
   # Extra time after the stop grace period before sending SIGKILL ourselves.
   @kill_margin 5_000
@@ -257,11 +259,14 @@ defmodule TestFleet.Execution.RunExecution do
     {:noreply, state}
   end
 
-  def handle_info(:drain_timeout, state) do
+  # A timer cancelled for new log data may already have fired.
+  def handle_info({:drain_timeout, timer}, %{drain_timer: {timer, _ref}} = state) do
     Logger.warning("run #{state.run_id}: log stream did not end after the container exited")
     cancel_stream(state.logs)
     stop(finalize(%{state | logs_done: true}))
   end
+
+  def handle_info({:drain_timeout, _stale}, state), do: {:noreply, state}
 
   def handle_info(:reinspect, %{reconnect: %{} = reconnect} = state) do
     elapsed = System.monotonic_time(:millisecond) - reconnect.since
@@ -291,7 +296,7 @@ defmodule TestFleet.Execution.RunExecution do
 
   def handle_info(message, state) do
     case parse_stream(state, message) do
-      {:logs, parsed} -> state |> handle_logs(parsed) |> maybe_complete()
+      {:logs, parsed} -> state |> handle_logs(parsed) |> cancel_drain_timer() |> maybe_complete()
       {:wait, parsed} -> state |> handle_wait(parsed) |> maybe_complete()
       :unknown -> {:noreply, state}
     end
@@ -746,16 +751,26 @@ defmodule TestFleet.Execution.RunExecution do
   defp maybe_complete(%{logs_done: true} = state), do: stop(finalize(state))
 
   defp maybe_complete(%{drain_timer: nil} = state) do
-    {:noreply, %{state | drain_timer: Process.send_after(self(), :drain_timeout, @drain_timeout)}}
+    timer = make_ref()
+    ref = Process.send_after(self(), {:drain_timeout, timer}, @drain_timeout)
+    {:noreply, %{state | drain_timer: {timer, ref}}}
   end
 
   defp maybe_complete(state), do: {:noreply, state}
+
+  # Log data arrived, so the drain timeout starts over.
+  defp cancel_drain_timer(%{drain_timer: {_timer, ref}} = state) do
+    Process.cancel_timer(ref)
+    %{state | drain_timer: nil}
+  end
+
+  defp cancel_drain_timer(state), do: state
 
   ## Finishing
 
   defp finalize(state) do
     if state.deadline_timer, do: Process.cancel_timer(state.deadline_timer)
-    if state.drain_timer, do: Process.cancel_timer(state.drain_timer)
+    with {_timer, ref} <- state.drain_timer, do: Process.cancel_timer(ref)
     # All output is reported before the result.
     state = state |> flush_lines() |> flush_batch()
 

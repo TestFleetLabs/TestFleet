@@ -36,6 +36,32 @@ defmodule TestFleet.Execution.Integration.StreamTest do
     assert length(batch_sizes) < 1_000
   end
 
+  # Under load, the log stream lags seconds behind a suite that writes a lot and
+  # exits; the drain timeout must not cut off the rest of it.
+  test "parallel chatty suites lose no lines after their containers exited" do
+    requests =
+      for _ <- 1..12 do
+        request = request(environment: %{"FIXTURE_MODE" => "chatty"})
+        cleanup_container(request.run_id)
+        request
+      end
+
+    counts =
+      requests
+      |> Task.async_stream(
+        fn request ->
+          {:ok, _pid} = Execution.start(request)
+          {%Result{status: :passed}, lines} = await_finished(request.run_id, 60_000)
+          length(lines)
+        end,
+        max_concurrency: 12,
+        timeout: :infinity
+      )
+      |> Enum.map(fn {:ok, count} -> count end)
+
+    assert counts == List.duplicate(100_001, 12)
+  end
+
   test "output without a trailing newline arrives as one line" do
     {%Result{status: :passed}, lines} = run!(environment: %{"FIXTURE_MODE" => "partial"})
     assert contents(lines) == ["no newline at all"]

@@ -1209,7 +1209,9 @@ A broadcast that announces a database change is sent after the commit; otherwise
 
 # 23. Waiting for Completion and the Final Status
 
-`RunExecution` waits for the container to exit (the `wait` stream), drains the remaining logs, inspects the container for its exit code, `OOMKilled`, and `FinishedAt`, collects artifacts, and parses JUnit.
+`RunExecution` waits for the container to exit (the `wait` stream) and drains the remaining logs. On a busy host, the log stream can lag seconds behind a suite that wrote a lot just before it exited. Draining therefore ends when the stream ends, or after it was silent for 5 s; the time since the exit does not count. A stream cut off by that timeout is logged as a warning.
+
+Then it inspects the container for its exit code, `OOMKilled`, and `FinishedAt`, collects artifacts, and parses JUnit.
 
 Exit code alone does not determine the final status. Infrastructure failures must remain distinguishable from test failures.
 
