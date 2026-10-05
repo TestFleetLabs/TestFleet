@@ -82,7 +82,7 @@ A webhook channel receives JSON:
     "id": 1234,
     "status": "failed",
     "trigger": "schedule",
-    "url": "https://testfleet.example.internal/runs/1234",
+    "url": "https://testfleet.example.internal/acme/runs/1234",
     "started_at": "2026-09-28T13:57:59Z",
     "finished_at": "2026-09-28T14:02:11Z",
     "duration_ms": 252000,

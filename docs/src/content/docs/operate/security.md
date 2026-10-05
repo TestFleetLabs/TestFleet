@@ -35,7 +35,7 @@ TestFleet passes registry credentials per pull. It never runs `docker login` and
 ## The application
 
 - **Every page requires a login.** There is no open registration; the first admin needs a one-time link from the server's log.
-- **Roles:** admins manage users, registries, and notification channels; members everything around testing. See [Users and access](/guides/users/).
+- **Roles:** admins manage the organization's members, registries, and notification channels; members everything around testing. See [Users and access](/guides/users/).
 - **API tokens** are stored as SHA-256 hashes, shown once, can expire, and die with their user's deactivation. They start with `tf_`, so secret scanners can recognize them; GitHub push protection accepts custom patterns such as `tf_[A-Za-z0-9_-]{43}`.
 - **Artifacts are untrusted.** HTML reports and SVGs from suites are served with a sandboxing Content Security Policy, so their scripts run in an isolated origin without access to TestFleet's session. Archive entries that are links or escape the artifacts directory are skipped. JUnit files are parsed without external entities.
 - **The TestFleet container** runs as `nobody`, read-only, with all capabilities dropped.

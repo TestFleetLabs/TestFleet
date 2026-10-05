@@ -60,7 +60,7 @@ Create an OpenID Connect client with **Client authentication** on, the redirect 
 
 | Setting                                       | Effect                                                                                                            |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `OIDC_USER_PROVISIONING=true` (default)       | Anyone the provider lets through gets a **member** account on first login. Admins promote them on the Users page. |
+| `OIDC_USER_PROVISIONING=true` (default)       | Anyone the provider lets through gets a **member** account on first login. Admins promote them on the Members page. |
 | `OIDC_ALLOWED_DOMAINS=example.com,example.at` | With provisioning: only these email domains get an account                                                        |
 | `OIDC_USER_PROVISIONING=false`                | Only invited users can log in with the provider                                                                   |
 

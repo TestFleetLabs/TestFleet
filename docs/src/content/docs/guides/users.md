@@ -1,6 +1,6 @@
 ---
 title: Users and access
-description: Log in, invite people, assign roles, and manage API tokens.
+description: Set up the organization, log in, invite people, assign roles, and manage API tokens.
 ---
 
 Every page of TestFleet requires a login. There is no open registration: the first admin is created with a one-time link, and everyone else is invited or comes in through [single sign-on](/operate/single-sign-on/).
@@ -14,7 +14,8 @@ Every page of TestFleet requires a login. There is no open registration: the fir
 | Their own API tokens                                                               |   ✓    |   ✓   |
 | Registries                                                                         |        |   ✓   |
 | Notification channels, subscriptions, and deliveries                               |        |   ✓   |
-| Users: invite, change role, deactivate                                             |        |   ✓   |
+| Members: invite, change role, deactivate                                           |        |   ✓   |
+| Organization: name and slug                                                        |        |   ✓   |
 
 Registries and notification channels are admin-only because they hold the most sensitive capabilities: credentials, and requests from TestFleet to arbitrary URLs.
 
@@ -29,9 +30,17 @@ docker compose logs testfleet | grep "No users yet"
 
 Only someone who can read the server's logs can set TestFleet up, so a fresh installation cannot be claimed by its first visitor. Once a user exists, `/setup` is gone.
 
+The setup page also asks for the name of your **organization**, such as your company or team. Left empty, or when the first admin is created through single sign-on, it is called "Default"; an admin can rename it later.
+
+## Your organization
+
+Everything in TestFleet (projects, runs, registries, notification channels, and API tokens) belongs to the organization, and its pages live under the organization's slug: `https://testfleet.example.internal/acme/projects`, `…/acme/runs/1842`. Opening `/` takes you there. An installation set up before organizations existed has one called "Default", at `/default/…`.
+
+Admins change the organization's name and slug under **Organization**. Links that contain the old slug stop working, except links to runs: `/runs/1842` always redirects to the run, so links in notifications that were already sent keep working.
+
 ## Inviting people
 
-On **Users**, an admin invites someone by email and role. TestFleet shows the invitation link to copy, and also emails it when [SMTP](/operate/configuration/#email-smtp) is configured. The link is valid for 7 days. Opening it lets the person set a password, or link their single sign-on account with **Continue with &lt;provider&gt;**.
+On **Members**, an admin invites someone by email and role. TestFleet shows the invitation link to copy, and also emails it when [SMTP](/operate/configuration/#email-smtp) is configured. The link is valid for 7 days. Opening it lets the person set a password, or link their single sign-on account with **Continue with &lt;provider&gt;**.
 
 A pending invitation can be revoked, or replaced with a new link.
 
@@ -60,7 +69,7 @@ Each user manages their own tokens under **Settings → API tokens**, for [CI pi
 - It acts as the user who created it, and stops working when that user is deactivated.
 - The token list shows its last four characters and when it was last used. **Revoke** deletes it.
 
-Admins cannot see or create other users' tokens; deactivating a user is how an admin cuts their tokens off. The Users page shows how many tokens each user has.
+Admins cannot see or create other users' tokens; deactivating a user is how an admin cuts their tokens off. The Members page shows how many tokens each user has.
 
 :::tip[A user for CI]
 A pipeline should not break when its author leaves. Invite a dedicated user such as `ci@example.com`, accept the invitation, and create the pipeline's token as that user.

@@ -7,7 +7,7 @@ The API is for pipelines and scripts. It lives under `/api/v1`; a later incompat
 
 ## Conventions
 
-- **Authentication:** every request sends an [API token](/guides/users/#api-tokens) as `Authorization: Bearer tf_…`. The API never uses a browser session.
+- **Authentication:** every request sends an [API token](/guides/users/#api-tokens) as `Authorization: Bearer tf_…`. The API never uses a browser session. A token works in its [organization](/guides/users/#your-organization), the one it was created in.
 - **Bodies** are JSON, sent with `Content-Type: application/json`. A body sent as a form (`curl -d` without that header) is refused with `400`.
 - **Unknown fields** in a body are refused with `422`, so a typo such as `"enviroment"` fails instead of being ignored.
 - **Names:** projects, test definitions, and environments by their slugs, as in the web UI's URLs; runs by their id.
@@ -83,7 +83,7 @@ GET /api/v1/runs/1842
 ```json
 {
   "id": 1842,
-  "url": "https://testfleet.example.internal/runs/1842",
+  "url": "https://testfleet.example.internal/acme/runs/1842",
   "project": "customer-portal",
   "test_definition": "e2e",
   "environment": "staging",

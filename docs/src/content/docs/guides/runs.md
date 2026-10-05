@@ -18,7 +18,7 @@ queued ──► preparing ──► running ──► passed | failed | timeout
 
 ## The run page
 
-`/runs/<id>` shows, live:
+`/<organization>/runs/<id>` shows, live:
 
 - the status, the duration, and what started the run: "Manual by ana@example.com", the schedule with its cron expression and the slot it was scheduled for, or "API by ci@example.com via deploy-pipeline" with the token's user and name
 - the image as configured, and the digest it resolved to

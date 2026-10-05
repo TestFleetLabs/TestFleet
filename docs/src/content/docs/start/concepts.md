@@ -1,16 +1,21 @@
 ---
 title: Concepts
-description: Projects, test definitions, environments, schedules, runs, and how they relate.
+description: The organization, projects, test definitions, environments, schedules, runs, and how they relate.
 ---
 
 ```text
-Project                    an application, such as "Customer Portal"
-  ├── Test definition      which image to run, with which command, timeout, and limits
-  ├── Environment          where to test: variables, secrets, a concurrency limit
-  └── Schedule             when: a test definition × an environment × a cron expression
+Organization                   your company or team: its people, registries, and channels
+  └── Project                  an application, such as "Customer Portal"
+        ├── Test definition    which image to run, with which command, timeout, and limits
+        ├── Environment        where to test: variables, secrets, a concurrency limit
+        └── Schedule           when: a test definition × an environment × a cron expression
 
-Run                        one execution of a test definition against an environment
+Run                            one execution of a test definition against an environment
 ```
+
+## Organization
+
+Everything belongs to one organization, named when TestFleet is set up. Its slug starts every page's URL: `/acme/projects/customer-portal`. See [Your organization](/guides/users/#your-organization).
 
 ## Project
 
@@ -59,4 +64,4 @@ The difference between `failed` and `error` matters: `failed` says something abo
 
 ## Users and roles
 
-Everyone logs in. **Members** can do everything around testing: projects, test definitions, environments, schedules, and runs. **Admins** also manage users, registry credentials, and notification channels. See [Users and access](/guides/users/).
+Everyone logs in. **Members** can do everything around testing: projects, test definitions, environments, schedules, and runs. **Admins** also manage the organization's members, registry credentials, and notification channels. See [Users and access](/guides/users/).

@@ -19,11 +19,14 @@ The full design lives in [.specs/tech-architecture-execution-spec.md](.specs/tec
 ## Core concepts
 
 ```text
-Project
-  ├── Test Definition   image, optional command, timeout, CPU/memory limits
-  ├── Environment       variables and secrets (encrypted at rest), concurrency limit
-  └── Schedule          cron expression + timezone, overlap policy
+Organization            members and roles, registries, notification channels, API tokens
+  └── Project
+        ├── Test Definition   image, optional command, timeout, CPU/memory limits
+        ├── Environment       variables and secrets (encrypted at rest), concurrency limit
+        └── Schedule          cron expression + timezone, overlap policy
 ```
+
+A self-hosted installation has exactly one organization; its slug starts every page's URL (`/acme/projects/customer-portal`).
 
 Every execution creates an immutable **run** with one of these statuses: `queued`, `preparing`, `running`, `passed`, `failed`, `cancelled`, `timeout`, `error`. `failed` means the tests failed; `error` means TestFleet or the infrastructure could not run them.
 
@@ -100,7 +103,7 @@ mix setup            # install deps, create and migrate the database, build asse
 mix phx.server       # or: iex -S mix phx.server
 ```
 
-Visit [`localhost:4000`](http://localhost:4000). Every page needs a login: on a fresh database, the log shows a one-time link (`No users yet. Create the first admin at …/setup?token=…`) that creates the first admin.
+Visit [`localhost:4000`](http://localhost:4000). Every page needs a login: on a fresh database, the log shows a one-time link (`No users yet. Create the first admin at …/setup?token=…`) that creates the first admin and names the organization.
 
 To try single sign-on, start the Keycloak development realm (users `alice`/`alice` with a verified email, `bob`/`bob` without) and run TestFleet against it:
 
