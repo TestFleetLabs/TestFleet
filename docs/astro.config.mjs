@@ -33,6 +33,21 @@ export default defineConfig({
       editLink: { baseUrl: `${repository}/edit/main/docs/` },
       lastUpdated: true,
       customCss: ["./src/styles/theme.css"],
+      // Privacy-friendly analytics by Plausible.
+      head: [
+        {
+          tag: "script",
+          attrs: {
+            async: true,
+            src: "https://analytics.danielhoeflehner.tech/js/pa-LfPxKllWL7EewWvlKKESr.js",
+          },
+        },
+        {
+          tag: "script",
+          content:
+            "window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()",
+        },
+      ],
       components: {
         Hero: "./src/components/Hero.astro",
       },
