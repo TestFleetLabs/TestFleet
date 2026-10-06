@@ -1,11 +1,15 @@
 name: CI
 
+# Changes to the docs site alone are the Docs workflow's. Tag pushes ignore
+# paths-ignore, so a release always runs.
 on:
   push:
     branches: [main]
     # Releases: v1.2.3 publishes the image as 1.2.3, 1.2, and latest
     tags: ["v*"]
+    paths-ignore: ["docs/**", ".github/workflows/docs.yml"]
   pull_request:
+    paths-ignore: ["docs/**", ".github/workflows/docs.yml"]
 
 concurrency:
   group: ci-${{ github.ref }}
