@@ -4,7 +4,7 @@ defmodule TestFleet.MixProject do
   def project do
     [
       app: :testfleet,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -46,12 +46,12 @@ defmodule TestFleet.MixProject do
       {:crontab, "~> 1.2.0"},
       {:daisyui,
        github: "saadeghi/daisyui",
-       tag: "v5.7.46",
+       tag: "v5.7.47",
        sparse: "packages/bundle",
        app: false,
        compile: false,
        depth: 1},
-      {:dns_cluster, "~> 0.3.0"},
+      {:dns_cluster, "~> 0.3.1"},
       {:gen_smtp, "~> 1.3"},
       {:gettext, "~> 1.0.2"},
       {:ecto_sql, "~> 3.14.0"},
@@ -77,7 +77,7 @@ defmodule TestFleet.MixProject do
       # Password hashing without a C compiler
       {:pbkdf2_elixir, "~> 2.0"},
       {:postgrex, "~> 0.22.4"},
-      {:req, "~> 0.7.4"},
+      {:req, "~> 0.7.5"},
       {:swoosh, "~> 1.28.1"},
       {:tailwind, "~> 0.5.1", runtime: Mix.env() == :dev},
       {:telemetry_metrics, "~> 1.2.0"},

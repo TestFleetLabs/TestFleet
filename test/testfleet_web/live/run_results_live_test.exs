@@ -103,6 +103,20 @@ defmodule TestFleetWeb.RunResultsLiveTest do
       refute has_element?(view, "#show-all-tests")
     end
 
+    test "hides the other tests again", %{conn: conn} do
+      run = junit_run()
+      {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{run.id}")
+
+      refute has_element?(view, "#hide-tests")
+      view |> element("#show-all-tests") |> render_click()
+      view |> element("#hide-tests") |> render_click()
+
+      refute has_element?(view, "#test-others")
+      refute has_element?(view, "#hide-tests")
+      assert has_element?(view, "#test-failures li[data-status='failed']")
+      assert has_element?(view, "#show-all-tests", "Show all 6 tests")
+    end
+
     test "a passing run says that nothing failed", %{conn: conn} do
       run =
         finish(run_fixture(status: :running),

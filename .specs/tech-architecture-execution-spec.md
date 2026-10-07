@@ -2295,7 +2295,7 @@ Artifacts: junit.xml, screenshots/, playwright-report/
 
 **Log download:** `GET /runs/:id/log`: `text/plain; charset=utf-8`, `attachment; filename="run-<id>.log"`, in sequence order as stored, streamed from PostgreSQL in chunks of 1,000 lines (`Runs.reduce_log/3`), so a 50 MB log never sits in memory; a truncated log ends with the truncation line; `410` once expired.
 
-**Tests panel** (with JUnit): the counts and total test time; failed and errored tests first with suite, class, name, duration, and message, the stack trace in a `<details>`; the other tests behind "Show all N tests", loaded on demand. `failed` and `error` differ in colour and icon.
+**Tests panel** (with JUnit): the counts and total test time; failed and errored tests first with suite, class, name, duration, and message, the stack trace in a `<details>`; the other tests behind "Show all N tests", loaded on demand and collapsible again. `failed` and `error` differ in colour and icon.
 
 **Artifacts panel:** the files as a tree with sizes and the total; images and videos previewed in a grid (at most 24) above the list, videos playing on click; an HTML file, or a directory with an `index.html`, gets "Open report". "Artifacts expired on …" after retention; nothing at all for a run without artifacts. Results and artifacts load once the run is final.
 

@@ -142,6 +142,13 @@ defmodule TestFleetWeb.RunLive.Show do
      |> stream(:test_others, others, reset: true)}
   end
 
+  def handle_event("hide_tests", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_all_tests, false)
+     |> stream(:test_others, [], reset: true)}
+  end
+
   def handle_event("cancel", _params, socket) do
     :ok = Runs.cancel_run(socket.assigns.run)
     # A queued run is cancelled now. An active one records the request (shown as
@@ -368,6 +375,13 @@ defmodule TestFleetWeb.RunLive.Show do
                 "Show all %{count} tests",
                 @run.tests_passed + @run.tests_failed + @run.tests_skipped
               )}
+            </.button>
+          </div>
+
+          <div :if={@show_all_tests} class="border-t border-base-300 px-3 py-2">
+            <.button id="hide-tests" variant="ghost" size="sm" phx-click="hide_tests">
+              <.icon name="hero-chevron-up-mini" class="size-4" />
+              {gettext("Hide passed and skipped tests")}
             </.button>
           </div>
         </.panel>
