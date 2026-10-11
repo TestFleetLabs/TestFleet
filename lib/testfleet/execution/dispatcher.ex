@@ -113,7 +113,8 @@ defmodule TestFleet.Execution.Dispatcher do
     {:noreply, dispatch_pass(state)}
   end
 
-  def handle_info({:run_updated, _run}, state), do: {:noreply, state}
+  def handle_info({event, _run}, state) when event in [:run_updated, :run_deleted],
+    do: {:noreply, state}
 
   def handle_info(:poll, state) do
     state = dispatch_pass(state)

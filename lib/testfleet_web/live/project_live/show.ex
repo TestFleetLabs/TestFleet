@@ -27,7 +27,7 @@ defmodule TestFleetWeb.ProjectLive.Show do
 
   @impl true
   def handle_info({event, run} = message, socket)
-      when event in [:run_created, :run_updated, :run_finished] do
+      when event in [:run_created, :run_updated, :run_finished, :run_deleted] do
     if run.test_definition.project_id == socket.assigns.project.id do
       {:noreply,
        socket

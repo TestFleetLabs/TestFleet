@@ -25,7 +25,6 @@ defmodule TestFleet.Retention do
   alias TestFleet.Runs.{LogLine, Run}
 
   @batch_size 100
-  @log_chunk 10_000
   @failures [:failed, :timeout, :error]
 
   @doc "Days after which artifacts expire (`ARTIFACT_RETENTION_DAYS`, default 30)."
@@ -98,18 +97,9 @@ defmodule TestFleet.Retention do
   end
 
   defp expire_logs(%Run{id: id}, now) do
-    delete_log_chunks(id)
+    Runs.delete_log(id)
     mark(id, :logs_expired_at, now)
     Runs.broadcast_updated(id)
-  end
-
-  defp delete_log_chunks(run_id) do
-    chunk = from l in LogLine, where: l.run_id == ^run_id, select: l.id, limit: @log_chunk
-
-    case Repo.delete_all(from l in LogLine, where: l.id in subquery(chunk)) do
-      {@log_chunk, _} -> delete_log_chunks(run_id)
-      {_count, _} -> :ok
-    end
   end
 
   defp mark(run_id, field, now) do

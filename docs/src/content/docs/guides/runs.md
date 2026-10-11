@@ -92,6 +92,10 @@ No run is ever retried automatically. A flaky suite should be visible as flaky, 
 
 **Pin** a finished run to exempt it from retention: its artifacts and log stay until you unpin it. Useful for runs you link from a bug report.
 
+## Deleting
+
+An admin can **Delete** a finished run from its page. The run disappears together with its log, test results, artifacts, and notification history; this cannot be undone. Cancel a queued or running run first.
+
 ## After a TestFleet restart
 
 Suites run in their own containers, independent of the TestFleet process. When TestFleet restarts (an upgrade, a crash), it finds its containers again: a still-running suite is reattached and its log continues without gaps or duplicates; a suite that finished meanwhile is collected and finalized as usual. Runs that were still `queued` simply wait for the dispatcher.

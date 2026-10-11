@@ -525,12 +525,15 @@ create_scheduled(schedule, scheduled_for)        # called by the tick, inside it
 get_run!(id)
 list_runs(opts)                                  # newest first; :limit, :project, :test_definition, :statuses
 cancel_run(run)                                  # idempotent
+delete_run(run)                                  # final runs only; see below
 build_request(run)                               # the Execution.Request, section 14
 append_log(run_id, lines)                        # section 21
 finish(run, result)                              # section 23
 ```
 
 `create_run` reads the test definition again, so a definition disabled after the page loaded is rejected, and rejects an environment of another project.
+
+**Deleting a run.** An admin can delete a final run from its page; a queued or active run must be cancelled first (`{:error, :not_final}`). `delete_run` removes the run's artifact directory first, as retention does (section 40), then its `run_logs` in chunks of 10,000, then the row; its artifacts, test results, and notification deliveries go with it (`on_delete: :delete_all`), and a schedule's `last_run_id` is nilified. It broadcasts `{:run_deleted, run}`: lists drop the run, and an open run page returns to the runs list. A pending notification evaluation of a deleted run is cancelled.
 
 ## Image reproducibility
 
@@ -1757,6 +1760,7 @@ Roles belong to the membership: a user can be an admin of one organization and a
 |------|--------|-------|
 | Dashboard, projects, test definitions, environments and their variables, schedules | ✓ | ✓ |
 | Runs: run now, cancel, pin, logs, artifacts | ✓ | ✓ |
+| Runs: delete | – | ✓ |
 | Own settings and API tokens | ✓ | ✓ |
 | Registries | – | ✓ |
 | Notification channels, subscriptions, delivery log | – | ✓ |
@@ -2212,6 +2216,7 @@ deliveries     90 days
 - Only runs that still have artifacts (or log lines) are considered, so the page never claims something expired that never existed.
 - Each expired run is broadcast as `{:run_updated, run}`, so an open run page clears its artifacts and log. The run page says when they expired; `GET /runs/:id/log` and the API answer `410 Gone`.
 - Unpinning a run past its age lets the next job expire it. Active runs are never touched.
+- To free space at once, an admin can delete a run with everything it left (section 7).
 
 ---
 
@@ -2247,7 +2252,7 @@ Every page begins with `<Layouts.app>`, receives `current_scope`, and updates li
 - **Upcoming schedules:** the next six enabled schedules ordered by `next_run_at` (no cron parsing in the UI), leaving out those of disabled test definitions. A schedule more than 2 minutes overdue is marked **overdue**: scheduling is stuck. Reloaded every minute and when a scheduled run is created.
 - A **Docker banner** while Docker is unreachable (section 31).
 
-`TestFleetWeb.RunFeed` keeps the "newest runs" lists (runs list, dashboard, project and test definition pages) current: new runs go on top within the limit, and updates only touch runs that are shown.
+`TestFleetWeb.RunFeed` keeps the "newest runs" lists (runs list, dashboard, project and test definition pages) current: new runs go on top within the limit, updates only touch runs that are shown, and deleted runs leave.
 
 ## Project page
 
@@ -2282,6 +2287,7 @@ Artifacts: junit.xml, screenshots/, playwright-report/
 - Image, digest, command, exit code, "memory limit exceeded" when OOM-killed, the error message, and the warnings.
 - **Cancel** while the run is not final; "Cancelling…" from `cancel_requested_at`.
 - **Pin** on finished runs.
+- **Delete** on finished runs, for admins, after a confirmation (section 7).
 - **Notifications:** "Sent to #e2e-alerts, QA email", or the failure.
 - **Reconnect:** the page reloads its state from PostgreSQL and resumes receiving events. If the browser disconnects, execution continues normally.
 

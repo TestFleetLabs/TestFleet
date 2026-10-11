@@ -6,11 +6,12 @@ defmodule TestFleetWeb.RunFeed do
       socket = RunFeed.init(socket, :runs, Runs.list_runs(socket.assigns.current_scope, limit: 20))
 
       def handle_info({event, %Run{}} = message, socket)
-          when event in [:run_created, :run_updated, :run_finished] do
+          when event in [:run_created, :run_updated, :run_finished, :run_deleted] do
         {:noreply, RunFeed.apply_event(socket, :runs, message, 20)}
       end
 
-  New runs go on top, and the list keeps at most `limit` entries. Updates only touch
+  New runs go on top, and the list keeps at most `limit` entries; deleted runs
+  leave it. Updates only touch
   runs that are shown: a stream insert of any other run would append it at the
   bottom. The ids shown are kept per stream in the `:run_feed_ids` assign.
 
@@ -18,7 +19,7 @@ defmodule TestFleetWeb.RunFeed do
   messages whose run belongs in the list.
   """
   import Phoenix.Component, only: [assign: 3, update: 3]
-  import Phoenix.LiveView, only: [stream: 3, stream_insert: 3, stream_insert: 4]
+  import Phoenix.LiveView, only: [stream: 3, stream_delete: 3, stream_insert: 3, stream_insert: 4]
 
   def init(socket, name, runs) do
     ids = Map.get(socket.assigns, :run_feed_ids, %{})
@@ -35,6 +36,16 @@ defmodule TestFleetWeb.RunFeed do
       &Map.update!(&1, name, fn ids -> Enum.take([run.id | ids], limit) end)
     )
     |> stream_insert(name, run, at: 0, limit: limit)
+  end
+
+  def apply_event(socket, name, {:run_deleted, run}, _limit) do
+    if run.id in socket.assigns.run_feed_ids[name] do
+      socket
+      |> update(:run_feed_ids, &Map.update!(&1, name, fn ids -> List.delete(ids, run.id) end))
+      |> stream_delete(name, run)
+    else
+      socket
+    end
   end
 
   def apply_event(socket, name, {_event, run}, _limit) do

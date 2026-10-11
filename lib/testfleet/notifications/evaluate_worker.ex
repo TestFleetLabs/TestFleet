@@ -11,7 +11,12 @@ defmodule TestFleet.Notifications.EvaluateWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"run_id" => run_id}}) do
-    {:ok, _deliveries} = TestFleet.Notifications.evaluate_run(run_id)
-    :ok
+    # A run can be deleted right after it finished.
+    if TestFleet.Runs.get_run(run_id) do
+      {:ok, _deliveries} = TestFleet.Notifications.evaluate_run(run_id)
+      :ok
+    else
+      {:cancel, "the run no longer exists"}
+    end
   end
 end

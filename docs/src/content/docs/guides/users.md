@@ -11,6 +11,7 @@ Every page of TestFleet requires a login. There is no open registration: the fir
 | ---------------------------------------------------------------------------------- | :----: | :---: |
 | Dashboard, projects, test definitions, environments and their variables, schedules |   ✓    |   ✓   |
 | Runs: run now, cancel, pin, logs, artifacts                                        |   ✓    |   ✓   |
+| Runs: delete                                                                       |        |   ✓   |
 | Their own API tokens                                                               |   ✓    |   ✓   |
 | Registries                                                                         |        |   ✓   |
 | Notification channels, subscriptions, and deliveries                               |        |   ✓   |

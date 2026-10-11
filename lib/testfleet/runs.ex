@@ -12,6 +12,7 @@ defmodule TestFleet.Runs do
       {:run_created, run}
       {:run_updated, run}
       {:run_finished, run}
+      {:run_deleted, run}
 
   Output lines are broadcast on `run:<id>` only, as `{:run_output, lines}`.
   """
@@ -37,6 +38,7 @@ defmodule TestFleet.Runs do
   @default_limit 50
   @stop_grace_seconds 30
   @max_log_bytes 50 * 1024 * 1024
+  @log_chunk 10_000
 
   ## PubSub
 
@@ -652,6 +654,45 @@ defmodule TestFleet.Runs do
       )
 
     {:ok, broadcast_updated(id)}
+  end
+
+  @doc """
+  Deletes a final run with everything it left: its artifact files and rows, its
+  log, its test results, and its notification deliveries. A queued or active run
+  must be cancelled first: `{:error, :not_final}`.
+
+  The files go first, as in retention: a crash in between leaves a run without
+  files, which can be deleted again, never files nobody can find. The log goes in
+  chunks, so a long one does not hold one long transaction.
+
+  Broadcasts `{:run_deleted, run}`.
+  """
+  def delete_run(%Run{id: id}) do
+    case get_run(id) do
+      nil ->
+        {:error, :not_found}
+
+      run ->
+        if Run.final?(run) do
+          File.rm_rf!(Storage.run_dir(id))
+          delete_log(id)
+          Repo.delete_all(from r in Run, where: r.id == ^id)
+          broadcast(run, :run_deleted)
+          {:ok, run}
+        else
+          {:error, :not_final}
+        end
+    end
+  end
+
+  @doc "Deletes a run's stored log in chunks of 10,000 lines (retention and `delete_run/1`)."
+  def delete_log(run_id) do
+    chunk = from l in LogLine, where: l.run_id == ^run_id, select: l.id, limit: @log_chunk
+
+    case Repo.delete_all(from l in LogLine, where: l.id in subquery(chunk)) do
+      {@log_chunk, _} -> delete_log(run_id)
+      {_count, _} -> :ok
+    end
   end
 
   @doc "Broadcasts `{:run_updated, run}` with the run as stored, e.g. after retention."

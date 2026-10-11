@@ -8,6 +8,7 @@ defmodule TestFleetWeb.RunLive.Show do
   import TestFleetWeb.NotificationComponents, only: [delivery_status: 1]
 
   alias TestFleet.{Artifacts, Notifications, Results, Runs, Schedules}
+  alias TestFleet.Accounts.Scope
   alias TestFleet.Runs.Run
   alias TestFleet.Schedules.Timezones
 
@@ -149,6 +150,26 @@ defmodule TestFleetWeb.RunLive.Show do
      |> stream(:test_others, [], reset: true)}
   end
 
+  def handle_event("delete", _params, socket) do
+    if Scope.admin?(socket.assigns.current_scope) do
+      case Runs.delete_run(socket.assigns.run) do
+        {:error, :not_final} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             gettext("Only a finished run can be deleted. Cancel it first.")
+           )}
+
+        # Deleted meanwhile, too.
+        _deleted ->
+          {:noreply, leave_deleted(socket)}
+      end
+    else
+      {:noreply, put_flash(socket, :error, gettext("Only admins can delete runs."))}
+    end
+  end
+
   def handle_event("cancel", _params, socket) do
     :ok = Runs.cancel_run(socket.assigns.run)
     # A queued run is cancelled now. An active one records the request (shown as
@@ -156,6 +177,12 @@ defmodule TestFleetWeb.RunLive.Show do
     # grace period; the final status arrives through `run:<id>`.
     {:noreply,
      assign_run(socket, Runs.get_run!(socket.assigns.current_scope, socket.assigns.run.id))}
+  end
+
+  defp leave_deleted(socket) do
+    socket
+    |> put_flash(:info, gettext("Run #%{id} deleted.", id: socket.assigns.run.id))
+    |> push_navigate(to: ~p"/#{socket.assigns.organization}/runs")
   end
 
   @impl true
@@ -171,6 +198,9 @@ defmodule TestFleetWeb.RunLive.Show do
      |> clear_expired(socket.assigns.run, run)
      |> assign_run(run)}
   end
+
+  def handle_info({:run_deleted, %Run{id: id}}, %{assigns: %{run: %Run{id: id}}} = socket),
+    do: {:noreply, leave_deleted(socket)}
 
   def handle_info(
         {:delivery, %{run_id: run_id} = delivery},
@@ -261,25 +291,40 @@ defmodule TestFleetWeb.RunLive.Show do
             >
               <.icon name="hero-stop-mini" class="size-4" /> {gettext("Cancel run")}
             </.button>
-            <.button
-              :if={Run.final?(@run)}
-              id="pin-run"
-              variant={if(@run.pinned, do: "primary", else: "secondary")}
-              phx-click="toggle_pin"
-              aria-pressed={to_string(@run.pinned)}
-              title={
-                if(@run.pinned,
-                  do: gettext("Pinned: kept by retention. Click to unpin."),
-                  else: gettext("Pin to keep the artifacts and log beyond retention")
-                )
-              }
-            >
-              <.icon
-                name={if(@run.pinned, do: "hero-bookmark-solid", else: "hero-bookmark")}
-                class="size-4"
-              />
-              {if(@run.pinned, do: gettext("Pinned"), else: gettext("Pin"))}
-            </.button>
+            <div :if={Run.final?(@run)} class="flex flex-wrap items-center gap-2">
+              <.button
+                :if={Scope.admin?(@current_scope)}
+                id="delete-run"
+                variant="danger"
+                phx-click="delete"
+                data-confirm={
+                  gettext(
+                    "Delete run #%{id} with its log, test results, and artifacts? This cannot be undone.",
+                    id: @run.id
+                  )
+                }
+              >
+                <.icon name="hero-trash-mini" class="size-4" /> {gettext("Delete")}
+              </.button>
+              <.button
+                id="pin-run"
+                variant={if(@run.pinned, do: "primary", else: "secondary")}
+                phx-click="toggle_pin"
+                aria-pressed={to_string(@run.pinned)}
+                title={
+                  if(@run.pinned,
+                    do: gettext("Pinned: kept by retention. Click to unpin."),
+                    else: gettext("Pin to keep the artifacts and log beyond retention")
+                  )
+                }
+              >
+                <.icon
+                  name={if(@run.pinned, do: "hero-bookmark-solid", else: "hero-bookmark")}
+                  class="size-4"
+                />
+                {if(@run.pinned, do: gettext("Pinned"), else: gettext("Pin"))}
+              </.button>
+            </div>
           </div>
         </div>
 

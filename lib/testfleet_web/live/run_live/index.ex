@@ -21,7 +21,7 @@ defmodule TestFleetWeb.RunLive.Index do
 
   @impl true
   def handle_info({event, _run} = message, socket)
-      when event in [:run_created, :run_updated, :run_finished] do
+      when event in [:run_created, :run_updated, :run_finished, :run_deleted] do
     {:noreply, RunFeed.apply_event(socket, :runs, message, @limit)}
   end
 

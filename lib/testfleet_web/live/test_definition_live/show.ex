@@ -52,7 +52,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
 
   @impl true
   def handle_info({event, run} = message, socket)
-      when event in [:run_created, :run_updated, :run_finished] do
+      when event in [:run_created, :run_updated, :run_finished, :run_deleted] do
     if run.test_definition_id == socket.assigns.test_definition.id,
       do: {:noreply, RunFeed.apply_event(socket, :runs, message, @recent_runs)},
       else: {:noreply, socket}

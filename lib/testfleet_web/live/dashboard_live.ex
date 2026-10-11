@@ -71,7 +71,7 @@ defmodule TestFleetWeb.DashboardLive do
 
   @impl true
   def handle_info({event, run} = message, socket)
-      when event in [:run_created, :run_updated, :run_finished] do
+      when event in [:run_created, :run_updated, :run_finished, :run_deleted] do
     socket =
       if run.status == :queued or run.id in socket.assigns.queued_ids,
         do: assign_queue(socket),

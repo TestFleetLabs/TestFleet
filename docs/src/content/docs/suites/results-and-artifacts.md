@@ -66,7 +66,7 @@ The archive from a container is untrusted. Symbolic links, hard links, devices, 
 
 ## Retention
 
-TestFleet removes old artifacts and logs every hour, so the disk does not fill up. Runs and their test results are kept forever.
+TestFleet removes old artifacts and logs every hour, so the disk does not fill up. Runs and their test results are kept until an admin [deletes the run](/guides/runs/#deleting).
 
 | What      | Kept for                       | Setting                   |
 | --------- | ------------------------------ | ------------------------- |
