@@ -107,8 +107,10 @@ defmodule TestFleet.MixProject do
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
-      # The dependencies that ship in the release, without dev and test tooling
-      sbom: ["sbom.cyclonedx --only prod"]
+      # The dependencies that ship in the release, without dev and test tooling.
+      # sbom's hex_core starts :ssh, which Mix prunes from the code path: this
+      # project does not use it.
+      sbom: [fn _args -> Mix.ensure_application!(:ssh) end, "sbom.cyclonedx --only prod"]
     ]
   end
 end
