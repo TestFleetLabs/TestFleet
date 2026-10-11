@@ -43,7 +43,7 @@ defmodule TestFleet.MixProject do
     [
       {:bandit, "~> 1.12.5"},
       {:cloak_ecto, "~> 1.3.0"},
-      {:crontab, "~> 1.2.0"},
+      {:crontab, "~> 1.2.1"},
       {:daisyui,
        github: "saadeghi/daisyui",
        tag: "v5.7.47",
@@ -78,7 +78,8 @@ defmodule TestFleet.MixProject do
       {:pbkdf2_elixir, "~> 2.0"},
       {:postgrex, "~> 0.22.4"},
       {:req, "~> 0.7.5"},
-      {:swoosh, "~> 1.28.1"},
+      {:sbom, "~> 0.11.0", only: :dev, runtime: false},
+      {:swoosh, "~> 1.29.0"},
       {:tailwind, "~> 0.5.1", runtime: Mix.env() == :dev},
       {:telemetry_metrics, "~> 1.2.0"},
       {:telemetry_poller, "~> 1.3.0"},
@@ -105,7 +106,9 @@ defmodule TestFleet.MixProject do
         "esbuild testfleet --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
+      # The dependencies that ship in the release, without dev and test tooling
+      sbom: ["sbom.cyclonedx --only prod"]
     ]
   end
 end
