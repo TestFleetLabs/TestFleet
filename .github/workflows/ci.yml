@@ -214,12 +214,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Check the tag against mix.exs
+      # Before anything is published: the release notes come from CHANGELOG.md.
+      - name: Check the tag against mix.exs and CHANGELOG.md
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           version=$(sed -nE 's/^\s*version: "([^"]+)".*/\1/p' mix.exs)
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match the version in mix.exs ($version)"
+            exit 1
+          fi
+          if ! grep -q "^## $version " CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $version (\"## $version (YYYY-MM-DD)\")"
             exit 1
           fi
 
@@ -304,10 +309,11 @@ jobs:
       - name: Inspect
         run: docker buildx imagetools inspect "ghcr.io/testfleetlabs/testfleet:${{ steps.meta.outputs.version }}"
 
-  # Attaches a CycloneDX SBOM of the production dependencies to the GitHub
-  # release for a v1.2.3 tag, creating the release if it does not exist yet.
-  sbom:
-    name: Attach SBOM to the release
+  # Creates the GitHub release for a v1.2.3 tag once its image is published: the
+  # image to pull, the version's section of CHANGELOG.md, a link to the commits
+  # since the previous tag, and a CycloneDX SBOM of the production dependencies.
+  release:
+    name: Create the release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: manifest
     runs-on: ubuntu-latest
@@ -318,7 +324,10 @@ jobs:
       MIX_ENV: dev
 
     steps:
+      # The whole history and its tags, for the previous tag
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: erlef/setup-beam@v1
         with:
@@ -329,11 +338,39 @@ jobs:
       - run: mix local.rebar --force
       - run: mix deps.get
 
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Generate the SBOM
-        run: mix sbom --output "testfleet-${GITHUB_REF_NAME#v}.cdx.json"
+        run: mix sbom --output "testfleet-${{ steps.version.outputs.version }}.cdx.json"
+
+      - name: Write the release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
+
+          {
+            echo '```sh'
+            echo "docker pull ghcr.io/testfleetlabs/testfleet:$VERSION"
+            echo '```'
+            echo
+            # The version's section, without its heading: up to the next "## "
+            awk -v heading="## $VERSION " '
+              /^## / { inside = index($0, heading) == 1; next }
+              inside
+            ' CHANGELOG.md
+
+            if [ -n "$previous" ]; then
+              echo
+              echo "**Commits:** https://github.com/$GITHUB_REPOSITORY/compare/$previous...$GITHUB_REF_NAME"
+            fi
+          } > "$RUNNER_TEMP/notes.md"
 
       - uses: softprops/action-gh-release@v2
         with:
+          name: TestFleet ${{ steps.version.outputs.version }}
+          body_path: ${{ runner.temp }}/notes.md
           files: testfleet-*.cdx.json
           fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-') }}
