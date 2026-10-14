@@ -21,6 +21,31 @@ E2E_USER        e2e-bot@example.com
 E2E_PASSWORD    ••••••••              secret
 ```
 
+### Several suites, one environment
+
+Every test definition of a project can run against every one of its environments, and all of them get the environment's variables. Keep **one environment per target system**, not one per suite: the concurrency limit, the run history, and failure notifications all follow the environment.
+
+When two suites expect the same variable with different values, for example an API suite and a frontend suite that both read `E2E_BASE_URL`, give the environment a distinct key for each:
+
+```text
+API_BASE_URL    https://api.staging.example.com
+WEB_BASE_URL    https://staging.portal.example.com
+```
+
+Then map the key in each test definition's [command](/guides/test-definitions/), one argument per line, so the images stay unchanged:
+
+```text
+sh
+-c
+E2E_BASE_URL="$WEB_BASE_URL" exec npx playwright test
+```
+
+The command replaces the image's default command, so it contains the suite's full command. If you build the images yourself, reading a distinct key directly in the suite works just as well.
+
+:::caution[Not a separate environment per suite]
+Splitting one system into two environments, such as `staging-api` and `staging-web`, works but gives each its own concurrency limit, so both suites can hit staging at once even with a limit of 1. It also offers runs that make no sense, such as the frontend suite against the API environment.
+:::
+
 ### Secrets
 
 Mark a variable as **secret** for passwords, tokens, and keys. A secret value:

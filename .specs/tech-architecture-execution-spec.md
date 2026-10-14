@@ -2594,6 +2594,7 @@ TestFleet may also be offered as a hosted service, from the same repository: the
 
 - **Amazon ECR**, whose tokens are fetched from AWS before each pull.
 - **An image per run**, overriding the test definition's image for one API run, which removes the race between concurrent pipelines.
+- **Variables scoped to a test definition**, if users ask for it: an environment variable that applies to all test definitions or only to some, the more specific value winning. Today suites that expect the same key with different values (an API and a frontend suite both reading `BASE_URL`) need distinct keys mapped in the test definition's command; splitting the environment instead would break its concurrency limit and series.
 - **Visible retries**, if ever wanted: each attempt its own record (section 33).
 
 **Storage and data**
@@ -2601,7 +2602,6 @@ TestFleet may also be offered as a hosted service, from the same repository: the
 - **Object storage** (S3, MinIO) for artifacts and very large logs, as a second `Artifacts.Storage` backend.
 - **Partitioning** `run_logs` by month.
 - **Per-test history and flakiness views**, on the existing `test_results` index.
-- **Downloading all artifacts** of a run as one archive.
 - **A separate artifacts origin** (`ARTIFACTS_ORIGIN`), so HTML reports that need `localStorage` work.
 - **Key rotation** for `CLOAK_KEY`.
 
