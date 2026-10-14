@@ -8,7 +8,7 @@ defmodule TestFleet.Artifacts do
 
   import Ecto.Query, warn: false
 
-  alias TestFleet.Artifacts.{Artifact, Storage}
+  alias TestFleet.Artifacts.{Artifact, Storage, Zip}
   alias TestFleet.Repo
   alias TestFleet.Runs.Run
 
@@ -35,6 +35,34 @@ defmodule TestFleet.Artifacts do
 
   @doc "The file of an artifact."
   def path(%Artifact{storage_key: key}), do: Storage.path(key)
+
+  @doc """
+  Writes a run's artifacts as one ZIP archive, under their names, handing each
+  piece to `fun` as `TestFleet.Artifacts.Zip.reduce/3` does. Artifacts whose file
+  is gone (a crash during retention) are left out.
+
+  Returns `{:error, :empty}` without artifacts and `{:error, :too_large}` when they
+  do not fit into an archive without ZIP64; otherwise what `Zip.reduce/3` returns.
+  """
+  def reduce_zip(%Run{} = run, acc, fun) do
+    entries =
+      for artifact <- list_artifacts(run),
+          path = path(artifact),
+          File.regular?(path) do
+        %{
+          name: artifact.name,
+          path: path,
+          size_bytes: artifact.size_bytes,
+          modified_at: artifact.inserted_at
+        }
+      end
+
+    cond do
+      entries == [] -> {:error, :empty}
+      not Zip.fits?(entries) -> {:error, :too_large}
+      true -> Zip.reduce(entries, acc, fun)
+    end
+  end
 
   @doc """
   Inserts the rows of collected artifacts (`%{path, size_bytes}`, as in

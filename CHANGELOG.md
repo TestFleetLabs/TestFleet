@@ -10,6 +10,12 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.2.3 (2026-10-14)
+
+### Enhancements
+
+- Download all of a run's artifacts as one ZIP archive from the artifacts panel
+
 ## 0.2.2 (2026-10-11)
 
 ### Enhancements

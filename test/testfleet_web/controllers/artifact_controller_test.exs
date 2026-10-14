@@ -109,6 +109,46 @@ defmodule TestFleetWeb.ArtifactControllerTest do
     assert conn |> get(artifact_path(run, "trace.zip")) |> response(404)
   end
 
+  describe "all artifacts as a ZIP archive" do
+    defp archive_path(run), do: "/#{org().slug}/runs/#{run.id}/artifacts.zip"
+
+    test "contains every stored artifact under its name, and nothing else", %{
+      conn: conn,
+      run: run
+    } do
+      conn = get(conn, archive_path(run))
+
+      body = response(conn, 200)
+      assert get_resp_header(conn, "content-type") == ["application/zip"]
+
+      assert get_resp_header(conn, "content-disposition") == [
+               ~s(attachment; filename="run-#{run.id}-artifacts.zip")
+             ]
+
+      {:ok, entries} = :zip.unzip(body, [:memory])
+      assert Map.new(entries, fn {name, content} -> {List.to_string(name), content} end) == @files
+    end
+
+    test "leaves out artifacts whose file is gone", %{conn: conn, run: run} do
+      File.rm!(Path.join(Storage.run_dir(run.id), "trace.zip"))
+
+      {:ok, entries} = conn |> get(archive_path(run)) |> response(200) |> :zip.unzip([:memory])
+      refute Enum.any?(entries, fn {name, _} -> name == ~c"trace.zip" end)
+      assert length(entries) == map_size(@files) - 1
+    end
+
+    test "is not found for a run without artifacts or without files", %{
+      conn: conn,
+      run: run
+    } do
+      assert conn |> get(archive_path(run_fixture())) |> response(404)
+      assert conn |> get("/#{org().slug}/runs/not-a-number/artifacts.zip") |> response(404)
+
+      File.rm_rf!(Storage.run_dir(run.id))
+      assert conn |> get(archive_path(run)) |> response(404)
+    end
+  end
+
   describe "range requests" do
     defp get_range(conn, run, range),
       do: conn |> put_req_header("range", range) |> get(artifact_path(run, "video.webm"))

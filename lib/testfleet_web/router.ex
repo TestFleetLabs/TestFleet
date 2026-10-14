@@ -163,6 +163,7 @@ defmodule TestFleetWeb.Router do
   scope "/:org", TestFleetWeb do
     pipe_through [:artifacts, :fetch_organization]
 
+    get "/runs/:id/artifacts.zip", ArtifactController, :archive
     get "/runs/:id/artifacts/*name", ArtifactController, :show
   end
 end

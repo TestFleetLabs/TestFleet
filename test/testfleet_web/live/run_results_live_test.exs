@@ -176,6 +176,11 @@ defmodule TestFleetWeb.RunResultsLiveTest do
       assert has_element?(view, "#run-artifacts-summary", "6 files")
       assert has_element?(view, "#run-artifacts-summary", "3.0 MiB")
 
+      assert has_element?(
+               view,
+               "#download-artifacts[href='/#{org().slug}/runs/#{run.id}/artifacts.zip']"
+             )
+
       rows =
         view
         |> render()
@@ -321,6 +326,7 @@ defmodule TestFleetWeb.RunResultsLiveTest do
       TestFleet.Retention.run(~U[2027-01-01 00:00:00Z])
 
       assert has_element?(view, "#run-artifacts-expired")
+      refute has_element?(view, "#download-artifacts")
       refute has_element?(view, "#artifact-tree li")
       refute has_element?(view, "#artifact-media")
       refute has_element?(view, "#log-lines li[data-stream]")

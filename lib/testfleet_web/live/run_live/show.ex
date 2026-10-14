@@ -580,6 +580,16 @@ defmodule TestFleetWeb.RunLive.Show do
             >
               {ngettext("1 file", "%{count} files", @artifact_count)} · {format_size(@artifact_bytes)}
             </span>
+            <.button
+              :if={@artifact_count > 0}
+              id="download-artifacts"
+              variant="ghost"
+              size="sm"
+              href={~p"/#{@organization}/runs/#{@run.id}/artifacts.zip"}
+              download
+            >
+              <.icon name="hero-arrow-down-tray-mini" class="size-4" /> {gettext("Download")}
+            </.button>
           </:actions>
 
           <p

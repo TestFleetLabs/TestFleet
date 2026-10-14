@@ -51,8 +51,9 @@ On the run page:
 - images (`png`, `jpg`, `gif`, `webp`) are shown as thumbnails, videos (`webm`, `mp4`) play inline
 - an HTML file opens in a new tab; a directory with an `index.html`, such as `playwright-report/`, gets an **Open report** link
 - everything else downloads
+- **Download**, next to the number of files, downloads all artifacts as one ZIP archive, `run-<id>-artifacts.zip`
 
-HTML reports run in a **sandbox**: their scripts run, but in an isolated origin without access to TestFleet's pages or cookies. Reports that need `localStorage` may not work fully.
+HTML reports run in a **sandbox**: their scripts run, but in an isolated origin without access to TestFleet's pages or cookies. Reports that need `localStorage`, such as Playwright's HTML report, may not work fully. Download the artifacts and open the report locally instead, for Playwright with `npx playwright show-report playwright-report`.
 
 ### Size limit
 

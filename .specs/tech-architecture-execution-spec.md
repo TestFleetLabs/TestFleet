@@ -2303,7 +2303,7 @@ Artifacts: junit.xml, screenshots/, playwright-report/
 
 **Tests panel** (with JUnit): the counts and total test time; failed and errored tests first with suite, class, name, duration, and message, the stack trace in a `<details>`; the other tests behind "Show all N tests", loaded on demand and collapsible again. `failed` and `error` differ in colour and icon.
 
-**Artifacts panel:** the files as a tree with sizes and the total; images and videos previewed in a grid (at most 24) above the list, videos playing on click; an HTML file, or a directory with an `index.html`, gets "Open report". "Artifacts expired on …" after retention; nothing at all for a run without artifacts. Results and artifacts load once the run is final.
+**Artifacts panel:** the files as a tree with sizes and the total, with "Download" for all of them as one ZIP archive; images and videos previewed in a grid (at most 24) above the list, videos playing on click; an HTML file, or a directory with an `index.html`, gets "Open report". "Artifacts expired on …" after retention; nothing at all for a run without artifacts. Results and artifacts load once the run is final.
 
 **Artifact downloads:** `GET /runs/:id/artifacts/*name`.
 
@@ -2312,6 +2312,8 @@ Artifacts: junit.xml, screenshots/, playwright-report/
 - **`Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms`** (no `allow-same-origin`) on every artifact except PDF. A report is someone else's HTML: sandboxed, it runs in an opaque origin and cannot reach TestFleet's cookies or pages, but scripts still run. SVG and XHTML run scripts too; images and videos are unaffected; browsers refuse to show a PDF in a sandboxed document. Relative links in a report work, because the route keeps the directory structure (each segment encoded on its own, `RunComponents.artifact_url/2`).
 - **Known limit:** a report that needs `localStorage` fails in an opaque origin. A separate artifacts origin would be the complete fix (section 45).
 - Single range requests are supported, so videos can seek; several ranges or a malformed header get the whole file.
+
+**Artifacts archive:** `GET /runs/:id/artifacts.zip`: all of a run's artifacts as `run-<id>-artifacts.zip` (`attachment`), entries named as stored, artifacts whose file is gone left out; 404 without artifacts. `Artifacts.reduce_zip/3` writes it with `Artifacts.Zip` while it is sent (chunked), each entry deflated as it is read with a data descriptor after it, so neither memory nor a temporary file holds the archive. No ZIP64: artifacts beyond 4 GiB or 65,535 files get `422` (only possible with `ARTIFACT_LIMIT_MB` above about 4,000).
 
 ## Runs list
 
