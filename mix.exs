@@ -4,7 +4,7 @@ defmodule TestFleet.MixProject do
   def project do
     [
       app: :testfleet,
-      version: "0.2.2",
+      version: "0.2.3",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -108,9 +108,9 @@ defmodule TestFleet.MixProject do
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
       # The dependencies that ship in the release, without dev and test tooling.
-      # sbom's hex_core starts :ssh, which Mix prunes from the code path: this
-      # project does not use it.
-      sbom: [fn _args -> Mix.ensure_application!(:ssh) end, "sbom.cyclonedx --only prod"]
+      # Run it on a compiled project: on a fresh build, Mix prunes :ssh, which
+      # sbom's hex_core starts.
+      sbom: ["sbom.cyclonedx --only prod"]
     ]
   end
 end
