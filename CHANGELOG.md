@@ -10,6 +10,12 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.2.4 (2026-10-17)
+
+### Enhancements
+
+- Update dependencies, among them the web server (Bandit 1.13)
+
 ## 0.2.3 (2026-10-14)
 
 ### Enhancements
