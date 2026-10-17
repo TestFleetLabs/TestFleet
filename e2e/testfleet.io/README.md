@@ -44,4 +44,6 @@ The Playwright base image's version must match `@playwright/test` in [package.js
 
 ## Run in TestFleet
 
-Push the image to a registry, then create a test definition with that image and no command: the image's entrypoint runs the suite. Give it the default 2048 MiB of shared memory, which Chromium needs. Add `BASE_URL` to the environment only to test a site other than testfleet.io.
+The [E2E suite workflow](../../.github/workflows/e2e.yml) publishes the image as `ghcr.io/testfleetlabs/testfleet-e2e`, tagged `main` and `sha-<short>`, for `linux/amd64` and `linux/arm64`. The package is private: add a registry for `ghcr.io` in TestFleet with a GitHub user and a personal access token (classic) with only `read:packages`.
+
+Create a test definition with that image and no command: the image's entrypoint runs the suite. Give it the default 2048 MiB of shared memory, which Chromium needs. Add `BASE_URL` to the environment only to test a site other than testfleet.io.

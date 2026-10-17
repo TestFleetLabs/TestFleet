@@ -1,15 +1,15 @@
 name: CI
 
-# Changes to the docs site alone are the Docs workflow's. Tag pushes ignore
-# paths-ignore, so a release always runs.
+# Changes to the docs site or the E2E suite alone are the Docs and E2E suite
+# workflows'. Tag pushes ignore paths-ignore, so a release always runs.
 on:
   push:
     branches: [main]
     # Releases: v1.2.3 publishes the image as 1.2.3, 1.2, and latest
     tags: ["v*"]
-    paths-ignore: ["docs/**", ".github/workflows/docs.yml"]
+    paths-ignore: ["docs/**", ".github/workflows/docs.yml", "e2e/**", ".github/workflows/e2e.yml"]
   pull_request:
-    paths-ignore: ["docs/**", ".github/workflows/docs.yml"]
+    paths-ignore: ["docs/**", ".github/workflows/docs.yml", "e2e/**", ".github/workflows/e2e.yml"]
 
 concurrency:
   group: ci-${{ github.ref }}
