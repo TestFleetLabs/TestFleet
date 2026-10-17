@@ -1,0 +1,57 @@
+---
+// Replaces Starlight's search to put a "Docs" link to its right in the header. The link
+// is highlighted on docs pages, so it reads as where you are; the landing page is the
+// only splash page.
+import Default from '@astrojs/starlight/components/Search.astro';
+import { Icon } from '@astrojs/starlight/components';
+import { withBase } from '../lib/links';
+
+const inDocs = Astro.locals.starlightRoute.entry.data.template !== 'splash';
+---
+
+<div class="tf-search">
+	<Default {...Astro.props} />
+	<a href={withBase('/start/introduction/')} class:list={['docs-link', { active: inDocs }]}>
+		<Icon name="open-book" />
+		<span>Docs</span>
+	</a>
+</div>
+
+<style>
+	.tf-search {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: 100%;
+	}
+
+	.docs-link {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.75rem;
+		border: 1px solid transparent;
+		border-radius: 999px;
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		text-decoration: none;
+		transition:
+			color 160ms ease,
+			background-color 160ms ease,
+			border-color 160ms ease;
+	}
+
+	.docs-link:hover,
+	.docs-link:focus-visible {
+		color: var(--sl-color-white);
+		background: var(--tf-surface);
+		border-color: var(--tf-border);
+	}
+
+	.docs-link.active {
+		color: var(--sl-color-accent-high);
+		background: var(--sl-color-accent-low);
+	}
+</style>

@@ -50,6 +50,7 @@ export default defineConfig({
       ],
       components: {
         Hero: "./src/components/Hero.astro",
+        Search: "./src/components/Search.astro",
       },
       sidebar: [
         {

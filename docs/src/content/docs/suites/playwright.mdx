@@ -7,6 +7,8 @@ import { FileTree, Steps } from "@astrojs/starlight/components"
 
 This example packages an existing Playwright suite. The same pattern works for Cypress, WebdriverIO, or pytest: start from an image with the browsers installed, copy the suite in, and point its reporters at `TestFleet_ARTIFACTS_DIR`.
 
+For a complete, working suite, see [`e2e/testfleet.io`](https://github.com/TestFleetLabs/TestFleet/tree/main/e2e/testfleet.io) in the TestFleet repository: Playwright tests against this website, with a Dockerfile, a target URL read from `BASE_URL` (by default `https://testfleet.io`), and its reports in the artifacts directory.
+
 <FileTree>
 
 - customer-portal/
@@ -56,7 +58,7 @@ Use Microsoft's Playwright image with the same version as `@playwright/test` in 
 
 ```dockerfile title="e2e/Dockerfile"
 # Keep the version in step with @playwright/test in package.json
-FROM mcr.microsoft.com/playwright:v1.56.0-noble
+FROM mcr.microsoft.com/playwright:v1.64.1-noble
 
 WORKDIR /suite
 COPY package.json package-lock.json ./

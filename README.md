@@ -137,6 +137,8 @@ To watch a single container go through the execution engine:
 mix testfleet.try --image testfleet/fixture-suite:dev --env FIXTURE_MODE=chatty
 ```
 
+[e2e/testfleet.io](e2e/testfleet.io) is a Playwright suite against the website and docs, and a complete example of a suite image. Its README shows how to run it locally, in Docker, and in TestFleet.
+
 ## What's next
 
 Planned directions include a CLI on top of the API, remote runners and other execution backends (ECS, Kubernetes), object storage for artifacts, and finer permissions. The roadmap is section 45 of the spec.
