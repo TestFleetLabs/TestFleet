@@ -41,7 +41,7 @@ defmodule TestFleet.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:bandit, "~> 1.12.5"},
+      {:bandit, "~> 1.13.1"},
       {:cloak_ecto, "~> 1.3.0"},
       {:crontab, "~> 1.2.1"},
       {:daisyui,
@@ -52,10 +52,10 @@ defmodule TestFleet.MixProject do
        compile: false,
        depth: 1},
       {:dns_cluster, "~> 0.3.1"},
-      {:gen_smtp, "~> 1.3"},
-      {:gettext, "~> 1.0.2"},
       {:ecto_sql, "~> 3.14.0"},
       {:esbuild, "~> 0.10.0", runtime: Mix.env() == :dev},
+      {:gen_smtp, "~> 1.3"},
+      {:gettext, "~> 1.0.2"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",
@@ -65,7 +65,7 @@ defmodule TestFleet.MixProject do
        depth: 1},
       {:jason, "~> 1.4.5"},
       {:lazy_html, ">= 0.1.13", only: :test},
-      {:oban, "~> 2.24.1"},
+      {:oban, "~> 2.24.2"},
       # OIDC login
       {:oidcc, "~> 3.9.0"},
       {:phoenix, "~> 1.8.15"},
@@ -78,7 +78,7 @@ defmodule TestFleet.MixProject do
       {:pbkdf2_elixir, "~> 2.0"},
       {:postgrex, "~> 0.22.4"},
       {:req, "~> 0.7.5"},
-      {:sbom, "~> 0.11.0", only: :dev, runtime: false},
+      {:sbom, "~> 0.12.0", only: :dev, runtime: false},
       {:swoosh, "~> 1.29.0"},
       {:tailwind, "~> 0.5.1", runtime: Mix.env() == :dev},
       {:telemetry_metrics, "~> 1.2.0"},
