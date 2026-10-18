@@ -10,6 +10,17 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.3.0 (2026-10-18)
+
+### Enhancements
+
+- A test definition can keep its runs' artifacts and logs for its own number of days, shorter or longer than the instance defaults (`ARTIFACT_RETENTION_DAYS`, `LOG_RETENTION_DAYS`)
+- Admins have a Statistics page: runs, configuration, and stored artifacts and logs, the suites holding the most artifacts, and, with a single organization, the free space of the artifacts disk, the database's largest tables, and the Docker images TestFleet pulled
+
+### Bug fixes
+
+- The icons of the "New token" and "Invite" buttons disappeared after a click
+
 ## 0.2.4 (2026-10-17)
 
 ### Enhancements
