@@ -40,6 +40,12 @@ defmodule TestFleetWeb.MultiOrganizationLiveTest do
     assert {:error, {:redirect, _}} = live(conn, ~p"/#{other}/members")
   end
 
+  test "statistics leave out the installation", %{conn: conn, ours: ours} do
+    {:ok, lv, _html} = live(conn, ~p"/#{ours}/statistics")
+    assert has_element?(lv, "#statistics-runs")
+    refute has_element?(lv, "#statistics-installation")
+  end
+
   test "members are removed, not deactivated", %{conn: conn, ours: ours} do
     member = user_fixture(organization: ours)
     api_token_fixture(member, organization: ours)

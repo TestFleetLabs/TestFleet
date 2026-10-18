@@ -17,7 +17,7 @@ TestFleet is a self-hosted Phoenix application that schedules, executes, and mon
 
 ## Architecture rules to keep in mind
 
-- **Contexts:** `TestFleet.Projects`, `Environments`, `TestDefinitions`, `Registries`, `Schedules`, `Runs`, `Results`, `Artifacts`, `Execution`, `Notifications`, `Accounts`. Keep `TestFleet.Execution` isolated from the UI and from test configuration.
+- **Contexts:** `TestFleet.Projects`, `Environments`, `TestDefinitions`, `Registries`, `Schedules`, `Runs`, `Results`, `Artifacts`, `Execution`, `Notifications`, `Accounts`, `Statistics` (read-only). Keep `TestFleet.Execution` isolated from the UI and from test configuration.
 - **Execution is not an Oban job.** Oban creates runs (schedule tick) and does fire-and-forget work (cleanup, notifications). `Execution.Dispatcher` admits queued runs under the global and per-environment limits; one `RunExecution` process (`restart: :temporary`) per run owns the container lifecycle.
 - **One pipeline.** Manual, scheduled, and API runs all create a `queued` run and go through the dispatcher. They differ only in `runs.trigger`.
 - **Docker Engine HTTP API, not the CLI.** All Docker calls go through `TestFleet.Execution.Docker.Command`. Registry auth is per pull via `X-Registry-Auth`; never `docker login`. Containers use `Tty: false`, no `AutoRemove`, the deterministic name `TestFleet-run-<id>`, `TestFleet=*` labels, the `TestFleet-runs` network, `no-new-privileges`, and all capabilities dropped.

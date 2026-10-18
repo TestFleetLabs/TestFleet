@@ -17,6 +17,7 @@ Every page of TestFleet requires a login. There is no open registration: the fir
 | Notification channels, subscriptions, and deliveries                               |        |   ✓   |
 | Members: invite, change role, deactivate                                           |        |   ✓   |
 | Organization: name and slug                                                        |        |   ✓   |
+| Statistics: usage and storage                                                      |        |   ✓   |
 
 Registries and notification channels are admin-only because they hold the most sensitive capabilities: credentials, and requests from TestFleet to arbitrary URLs.
 

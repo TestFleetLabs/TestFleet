@@ -148,6 +148,17 @@ defmodule TestFleet.Execution do
     end
   end
 
+  @doc """
+  The local images as `%{size: bytes, digest_references: [...]}`. The size is
+  Docker's, which counts layers shared with other images once per image.
+  """
+  def local_images do
+    with {:ok, images} <- Command.list_images() do
+      {:ok,
+       Enum.map(images, &%{size: &1["Size"] || 0, digest_references: &1["RepoDigests"] || []})}
+    end
+  end
+
   @doc "Removes a digest reference, see `Command.remove_image/1`."
   def remove_image(reference), do: Command.remove_image(reference)
 

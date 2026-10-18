@@ -154,6 +154,7 @@ defmodule TestFleetWeb.Router do
       live "/notifications/channels/new", NotificationLive.ChannelForm, :new
       live "/notifications/channels/:id/edit", NotificationLive.ChannelForm, :edit
       live "/members", MemberLive.Index, :index
+      live "/statistics", StatisticsLive, :index
       live "/settings", OrganizationLive.Settings, :edit
     end
 

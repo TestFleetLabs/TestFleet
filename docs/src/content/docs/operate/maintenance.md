@@ -66,6 +66,10 @@ docker compose up -d
 
 TestFleet only touches containers and images it created itself. It never prunes Docker.
 
+### Watching disk usage
+
+**Statistics** (admins) shows how much space TestFleet takes: artifacts and logs stored, the suites holding the most artifacts (set a shorter [retention](/suites/results-and-artifacts/#retention) on those), the database's size and largest tables, and the Docker images TestFleet pulled next to all images on the host. Row counts of the tables are PostgreSQL's estimates. With several organizations (the hosted edition), the page shows only the organization's own figures.
+
 ## Artifacts on a host directory
 
 Artifacts are kept in a named volume. To keep them in a host directory instead, for example on a larger disk, give it to UID 65534 (`nobody`, which TestFleet runs as) and mount it at `/app/artifacts`:

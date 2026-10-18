@@ -205,6 +205,7 @@ TestFleet.Artifacts
 TestFleet.Execution
 TestFleet.Notifications
 TestFleet.Accounts
+TestFleet.Statistics         read-only figures for the statistics page (section 41)
 ```
 
 **Execution stays isolated.** `TestFleet.Execution` (`RunExecution`, `Execution.Docker.*`, `Status`, `Masker`, `PullCoordinator`) never touches the `Repo` or the configuration contexts. Everything a run needs arrives in its `Request` (section 14), and everything it produces leaves as events to a handler. The dispatcher and the reconciler are the bridges: they read runs through `TestFleet.Runs`, and `Runs.build_request/1` builds the request. `TestFleet.Results.JUnit` is pure (no database, no configuration), so `RunExecution` can call it.
@@ -1770,6 +1771,7 @@ Roles belong to the membership: a user can be an admin of one organization and a
 | Notification channels, subscriptions, delivery log | – | ✓ |
 | Members: invite, change role, deactivate (`:single`) or remove (`:multi`) | – | ✓ |
 | Organization settings: name and slug | – | ✓ |
+| Statistics: usage and storage (section 41) | – | ✓ |
 
 Registries and notification channels hold the most dangerous capabilities (credentials, and outgoing requests to arbitrary URLs), so only admins manage them. Roles are enforced at the edge: `TestFleet.Accounts.Scope.admin?/1`, the `:require_admin` `live_session` (a member is redirected to the dashboard with a flash), and controllers. The navigation hides what the user cannot open.
 
@@ -2340,6 +2342,13 @@ Organization settings (`/:org/settings`): the name and the slug, with a warning 
 Personal settings (`/users/settings`): password, email (with SMTP), linked provider, and the API tokens panel (name, organization, hint `tf_…a1B2`, created, expires, last used; "New token" shows the token once with a copy button; "Revoke").
 
 The navigation shows the organization's name; in `:multi` mode it opens a switcher listing the user's organizations.
+
+## Statistics page (admin)
+
+`/:org/statistics`, in the `:require_admin` `live_session`; `TestFleetWeb.StatisticsLive` reads `TestFleet.Statistics`. Nothing is stored: the figures are read on mount and on "Refresh".
+
+- **Organization** (`Statistics.organization/1`, scoped): projects, runs, artifacts stored, and logs stored as tiles; runs in total, in the last 30 days, pinned, and by status; storage: artifacts (bytes, files, runs; from `artifacts.size_bytes`), logs (the `log_bytes` of runs whose log has not expired), test results, runs whose artifacts expired, and the retention defaults; the five test definitions holding the most artifact bytes, with their retention period, linking to them (where per-suite retention, section 40, is set); configuration: projects, test definitions and environments, schedules (total and enabled), members.
+- **Installation**, in `:single` mode only (in `:multi` mode, an organization's admins do not see across organizations): the database's size, the artifacts across all organizations, active users, and the ten largest tables with their size including indexes and PostgreSQL's row estimate (`pg_stat_user_tables.n_live_tup`; counting `run_logs` exactly would scan millions of rows); the Docker images TestFleet's runs pulled (matched by the digest references runs recorded, as image cleanup does) and all images on the host, with count and size as Docker reports them (shared layers count once per image), and the image retention. Both load with `assign_async`, so an unreachable Docker shows its error in its panel without holding up the page. The images come from `GET /images/json` (`Execution.local_images/0`); `/system/df` is avoided because the socket proxy would need `SYSTEM` access.
 
 ---
 
