@@ -106,15 +106,49 @@ defmodule TestFleetWeb.TestDefinitionLiveTest do
 
       assert has_element?(view, "#test_definition_command_text", "./run.sh")
 
-      {:ok, _show, _html} =
+      {:ok, show, _html} =
         view
         |> form("#test-definition-form",
-          test_definition: %{image: "alpine:3", command_text: "", enabled: "false"}
+          test_definition: %{
+            image: "alpine:3",
+            command_text: "",
+            enabled: "false",
+            artifact_retention_days: "7"
+          }
         )
         |> render_submit()
         |> follow_redirect(conn, path)
 
-      assert %{image: "alpine:3", command: [], enabled: false, timeout_seconds: 1800} =
+      assert %{
+               image: "alpine:3",
+               command: [],
+               enabled: false,
+               timeout_seconds: 1800,
+               artifact_retention_days: 7,
+               log_retention_days: nil
+             } = TestDefinitions.get_test_definition!(project, test_definition.id)
+
+      assert has_element?(show, "#test-definition-settings", "7 days")
+      assert has_element?(show, "#test-definition-settings", "90 days")
+      assert has_element?(show, "#test-definition-settings", "(default)")
+    end
+
+    test "an emptied retention period falls back to the default", %{conn: conn, project: project} do
+      test_definition = test_definition_fixture(project: project, artifact_retention_days: 7)
+
+      {:ok, view, _html} =
+        live(
+          conn,
+          ~p"/#{org()}/projects/customer-portal/test-definitions/#{test_definition.id}/edit"
+        )
+
+      assert has_element?(view, "#test_definition_artifact_retention_days[value='7']")
+
+      view
+      |> form("#test-definition-form", test_definition: %{artifact_retention_days: ""})
+      |> render_submit()
+
+      assert %{artifact_retention_days: nil} =
                TestDefinitions.get_test_definition!(project, test_definition.id)
     end
 

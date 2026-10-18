@@ -8,7 +8,9 @@ defmodule TestFleet.Retention do
         logs_days: 90         # LOG_RETENTION_DAYS
 
   A run's artifacts expire `artifacts_days` after `finished_at`, its logs
-  `logs_days` after. Exempt are pinned runs, and the latest run per test
+  `logs_days` after. A test definition can set its own periods
+  (`artifact_retention_days`, `log_retention_days`), shorter or longer; empty
+  means the instance default. Exempt are pinned runs, and the latest run per test
   definition and environment that ended `failed`, `timeout`, or `error`.
 
   Each call handles at most 100 runs for artifacts and 100 for logs, oldest
@@ -45,27 +47,34 @@ defmodule TestFleet.Retention do
 
     artifacts =
       now
-      |> due(artifacts_days(), :artifacts_expired_at, Artifact)
+      |> due(:artifact_retention_days, artifacts_days(), :artifacts_expired_at, Artifact)
       |> Enum.map(&expire_artifacts(&1, now))
 
     logs =
       now
-      |> due(logs_days(), :logs_expired_at, LogLine)
+      |> due(:log_retention_days, logs_days(), :logs_expired_at, LogLine)
       |> Enum.map(&expire_logs(&1, now))
 
     %{artifacts: length(artifacts), logs: length(logs)}
   end
 
-  # Runs whose `expired_field` is due, that still have rows in `schema`.
-  defp due(now, days, expired_field, schema) do
-    cutoff = DateTime.add(now, -days, :day)
-
+  # Runs whose `expired_field` is due, that still have rows in `schema`. The test
+  # definition's `days_field` overrides the instance default `days`.
+  defp due(now, days_field, days, expired_field, schema) do
     Repo.all(
       from r in Run,
         as: :run,
+        join: t in assoc(r, :test_definition),
         where:
-          r.status in ^Run.final_statuses() and r.finished_at <= ^cutoff and not r.pinned and
+          r.status in ^Run.final_statuses() and not r.pinned and
             is_nil(field(r, ^expired_field)),
+        where:
+          datetime_add(
+            r.finished_at,
+            coalesce(field(t, ^days_field), type(^days, :integer)),
+            "day"
+          ) <=
+            ^now,
         where: exists(from x in schema, where: x.run_id == parent_as(:run).id, select: 1),
         where: not (r.status in ^@failures and not exists(later_failure())),
         order_by: r.id,

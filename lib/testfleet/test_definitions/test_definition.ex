@@ -20,6 +20,7 @@ defmodule TestFleet.TestDefinitions.TestDefinition do
   @min_memory_mib 6
   @max_arguments 100
   @max_argument_length 4096
+  @max_retention_days 3650
 
   schema "test_definitions" do
     field :name, :string
@@ -35,6 +36,10 @@ defmodule TestFleet.TestDefinitions.TestDefinition do
     field :shm_size_bytes, :integer, default: 2048 * @mib
 
     field :enabled, :boolean, default: true
+
+    # Empty means the instance default, see `TestFleet.Retention`
+    field :artifact_retention_days, :integer
+    field :log_retention_days, :integer
 
     # Form fields, see the moduledoc
     field :timeout_minutes, :integer, virtual: true
@@ -61,6 +66,8 @@ defmodule TestFleet.TestDefinitions.TestDefinition do
       :memory_limit,
       :shm_size_bytes,
       :enabled,
+      :artifact_retention_days,
+      :log_retention_days,
       :timeout_minutes,
       :memory_limit_mib,
       :shm_size_mib,
@@ -91,6 +98,14 @@ defmodule TestFleet.TestDefinitions.TestDefinition do
     |> validate_number(:cpu_limit, greater_than: 0, less_than_or_equal_to: 256)
     |> validate_number(:memory_limit, greater_than_or_equal_to: @min_memory_mib * @mib)
     |> validate_number(:shm_size_bytes, greater_than_or_equal_to: @mib)
+    |> validate_number(:artifact_retention_days,
+      greater_than_or_equal_to: 1,
+      less_than_or_equal_to: @max_retention_days
+    )
+    |> validate_number(:log_retention_days,
+      greater_than_or_equal_to: 1,
+      less_than_or_equal_to: @max_retention_days
+    )
     |> validate_image()
     |> validate_command()
     |> Slug.put_and_validate()

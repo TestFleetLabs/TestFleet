@@ -6,7 +6,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
   """
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Projects, Registries, TestDefinitions}
+  alias TestFleet.{Projects, Registries, Retention, TestDefinitions}
   alias TestFleet.Execution.Docker.ImageRef
   alias TestFleet.TestDefinitions.TestDefinition
 
@@ -252,6 +252,31 @@ defmodule TestFleetWeb.TestDefinitionLive.Form do
                   min="1"
                   label={gettext("Shared memory (MiB)")}
                   hint={gettext("/dev/shm. Browsers crash with Docker's default of 64 MiB.")}
+                />
+              </div>
+            </.form_section>
+
+            <.form_section title={gettext("Retention")}>
+              <div class="grid gap-5 sm:grid-cols-2">
+                <.input
+                  field={@form[:artifact_retention_days]}
+                  type="number"
+                  min="1"
+                  max="3650"
+                  label={gettext("Keep artifacts (days)")}
+                  placeholder={gettext("%{days} (default)", days: Retention.artifacts_days())}
+                  hint={
+                    gettext("Traces, videos, and reports. Pinned runs and the latest failure stay.")
+                  }
+                />
+                <.input
+                  field={@form[:log_retention_days]}
+                  type="number"
+                  min="1"
+                  max="3650"
+                  label={gettext("Keep logs (days)")}
+                  placeholder={gettext("%{days} (default)", days: Retention.logs_days())}
+                  hint={gettext("Results and run history are always kept.")}
                 />
               </div>
             </.form_section>

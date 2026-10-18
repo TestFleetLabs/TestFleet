@@ -4,7 +4,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
   """
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Environments, Projects, Runs, TestDefinitions}
+  alias TestFleet.{Environments, Projects, Retention, Runs, TestDefinitions}
   alias TestFleetWeb.RunFeed
 
   @recent_runs 20
@@ -209,6 +209,20 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                 {format_bytes(@test_definition.shm_size_bytes)}
               </.setting>
 
+              <.setting label={gettext("Artifacts")}>
+                <.retention
+                  days={@test_definition.artifact_retention_days}
+                  default={Retention.artifacts_days()}
+                />
+              </.setting>
+
+              <.setting label={gettext("Logs")}>
+                <.retention
+                  days={@test_definition.log_retention_days}
+                  default={Retention.logs_days()}
+                />
+              </.setting>
+
               <.setting label={gettext("Slug")}>
                 <span class="font-mono text-xs">{@test_definition.slug}</span>
               </.setting>
@@ -217,6 +231,17 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
         </div>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :days, :integer, required: true
+  attr :default, :integer, required: true
+
+  # How long a suite keeps its artifacts or logs; empty is the instance default.
+  defp retention(assigns) do
+    ~H"""
+    {ngettext("%{count} day", "%{count} days", @days || @default)}
+    <span :if={is_nil(@days)} class="text-base-content/60">{gettext("(default)")}</span>
     """
   end
 

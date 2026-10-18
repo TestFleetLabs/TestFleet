@@ -92,6 +92,30 @@ defmodule TestFleet.RetentionTest do
     assert Retention.run(days_later(365)) == %{artifacts: 0, logs: 0}
   end
 
+  test "a test definition's own periods override the defaults", context do
+    short = test_definition_fixture(project: context.project, artifact_retention_days: 3)
+    long = test_definition_fixture(project: context.project, log_retention_days: 365)
+
+    short_run = finished_run(%{context | test_definition: short})
+    long_run = finished_run(%{context | test_definition: long})
+    default_run = finished_run(context)
+
+    assert Retention.run(days_later(2)) == %{artifacts: 0, logs: 0}
+
+    assert Retention.run(days_later(3)) == %{artifacts: 1, logs: 0}
+    refute artifacts?(short_run)
+    assert artifacts?(long_run) and artifacts?(default_run)
+
+    # Artifacts of the other two at the default 30 days; logs at the default 90,
+    # except the one that keeps them a year.
+    assert Retention.run(days_later(90)) == %{artifacts: 2, logs: 2}
+    refute logs?(short_run) or logs?(default_run)
+    assert logs?(long_run)
+
+    assert Retention.run(days_later(365)) == %{artifacts: 0, logs: 1}
+    refute logs?(long_run)
+  end
+
   test "keeps pinned runs until they are unpinned", context do
     run = finished_run(context)
     {:ok, _} = Runs.set_pinned(run, true)

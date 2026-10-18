@@ -57,6 +57,10 @@ Leave the command empty when the image's `CMD` already runs the suite. That keep
 
 Together with the [concurrency limits](/guides/environments/#concurrency), these keep one suite from overloading the host or the system it tests.
 
+## Retention
+
+How many days this suite's runs keep their artifacts and logs. Empty uses the instance defaults (30 and 90 days). Set a short period for a suite that runs often and records traces or videos, a long one for a suite whose history you want to look back on. Pinned runs and the latest failure are kept regardless; see [Retention](/suites/results-and-artifacts/#retention).
+
 ## Disabling
 
 Disable a test definition to pause it without deleting anything: **Run now** is unavailable, schedules record a skipped run instead of starting one, and the API answers `409`. Enable it again, and schedules continue at their next slot.

@@ -39,7 +39,7 @@ TestFleet is configured through environment variables in `.env`, next to `compos
 | `LOG_RETENTION_DAYS`      | `90`    | The same for its log                                      |
 | `IMAGE_RETENTION_DAYS`    | `7`     | Days an unused suite image stays on the host              |
 
-Pinned runs, and the latest failed, timed-out, or errored run of each test definition and environment, keep their artifacts and log regardless. Runs and test results are never removed. See [Retention](/suites/results-and-artifacts/#retention).
+Pinned runs, and the latest failed, timed-out, or errored run of each test definition and environment, keep their artifacts and log regardless. Runs and test results are never removed. A test definition can override the artifact and log periods for its own runs. See [Retention](/suites/results-and-artifacts/#retention).
 
 Image cleanup removes only images that TestFleet's own runs pulled, by digest, and never the image an enabled test definition currently uses.
 

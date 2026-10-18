@@ -253,6 +253,9 @@ shm_size_bytes
 
 enabled
 
+artifact_retention_days
+log_retention_days
+
 inserted_at
 updated_at
 ```
@@ -276,6 +279,7 @@ shm_size_bytes = 2147483648
 - `memory_limit`: optional, in bytes, at least 6 MiB (Docker's minimum).
 - `shm_size_bytes`: required, at least 1 MiB, default 2 GiB. Chromium-based browsers (Playwright, Cypress, Puppeteer) crash under Docker's default 64 MB `/dev/shm`.
 - `enabled`: default true. A disabled test definition cannot be run, and its schedules skip (section 27).
+- `artifact_retention_days`, `log_retention_days`: optional, 1..3650. They override the instance defaults for this suite's runs, shorter or longer (section 40); empty means the default.
 - The form's units are virtual fields (`timeout_minutes`, `memory_limit_mib`, `shm_size_mib`, `command_text`); they set the stored fields only when submitted, so the API uses seconds and bytes directly.
 
 ---
@@ -2203,12 +2207,16 @@ test_results   kept indefinitely (needed for per-test history)
 deliveries     90 days
 ```
 
+**Per test definition:** `artifact_retention_days` and `log_retention_days` on the test definition replace the two defaults for its runs, in either direction: a suite recording Playwright traces every 15 minutes keeps them a week, a nightly smoke suite a year. Empty means the default. The period that applies is the one set when retention runs, not when the run finished, so shortening it expires older runs on the next job. The form shows the default as the placeholder; the test definition page shows the period that applies.
+
 **Exceptions:**
 
 - **Pinned** runs (a toggle on finished runs).
 - The **latest run per test definition and environment whose status is `failed`, `timeout`, or `error`**, so the latest failure can always be investigated. "Latest" is by run id: a later passing run does not end the exception; a later failure does.
 
 `TestFleet.Retention.run/1` (it takes `now`, for tests), called by the cleanup worker:
+
+- **Due:** `finished_at + coalesce(test definition's days, default days) <= now`, per run.
 
 - **Expiring artifacts:** delete the run's directory, then its rows, then set `artifacts_expired_at`. The directory goes first: a crash in between leaves rows without files, which the page shows as missing, never files nobody can find.
 - **Expiring logs:** delete the run's `run_logs` in batches of 10,000, then set `logs_expired_at`.

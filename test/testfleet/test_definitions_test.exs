@@ -60,7 +60,10 @@ defmodule TestFleet.TestDefinitionsTest do
             cpu_limit: 0,
             cpu_limit: -1,
             memory_limit: 5 * @mib,
-            shm_size_bytes: 0
+            shm_size_bytes: 0,
+            artifact_retention_days: 0,
+            artifact_retention_days: 3651,
+            log_retention_days: 0
           ] do
         assert {:error, changeset} =
                  TestDefinitions.create_test_definition(project, Map.put(attrs, field, value))

@@ -74,6 +74,8 @@ TestFleet removes old artifacts and logs every hour, so the disk does not fill u
 | Artifacts | 30 days after the run finished | `ARTIFACT_RETENTION_DAYS` |
 | Logs      | 90 days after the run finished | `LOG_RETENTION_DAYS`      |
 
+These are the defaults for the instance. A test definition can keep its runs shorter or longer under **Retention** in its form, for example a week of Playwright traces for a suite that runs every 15 minutes, and a year for a nightly smoke suite. Leave the fields empty to use the defaults. A shortened period applies to older runs too, at the next hourly cleanup.
+
 Exceptions, kept regardless of age:
 
 - **Pinned runs.** Use **Pin** on a finished run to keep its artifacts and log, for example as evidence for a bug report. Unpin it, and the next cleanup applies the normal rules.
