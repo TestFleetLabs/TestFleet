@@ -246,6 +246,10 @@ defmodule TestFleetWeb.StatisticsLive do
             </p>
           </div>
 
+          <.async_result :let={installation} assign={@installation}>
+            <.disk_usage disk={installation.disk} />
+          </.async_result>
+
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <.panel id="installation-database" title={gettext("Database")}>
               <.async_result :let={installation} assign={@installation}>
@@ -384,6 +388,74 @@ defmodule TestFleetWeb.StatisticsLive do
           {render_slot(@detail)}
         </span>
       </dd>
+    </div>
+    """
+  end
+
+  # Below this share of free space, the bar turns red.
+  @low_free_percent 10
+
+  attr :disk, :map, required: true
+
+  defp disk_usage(%{disk: nil} = assigns) do
+    ~H"""
+    <p id="artifacts-disk-unknown" class="text-sm text-base-content/60">
+      {gettext("The free space of the artifacts disk is not known yet.")}
+    </p>
+    """
+  end
+
+  defp disk_usage(assigns) do
+    used = assigns.disk.total_bytes - assigns.disk.available_bytes
+
+    assigns =
+      assigns
+      |> assign(:used_percent, share(used, assigns.disk.total_bytes))
+      |> assign(:low_free_percent, @low_free_percent)
+      |> assign(
+        :low?,
+        assigns.disk.available_bytes * 100 < assigns.disk.total_bytes * @low_free_percent
+      )
+
+    ~H"""
+    <div id="artifacts-disk" class="rounded-xl border border-base-300 bg-base-100 px-5 py-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p class="text-sm font-semibold">
+          {gettext("Artifacts disk")}
+          <span class="ml-1 font-mono text-xs font-normal text-base-content/50">{@disk.mount}</span>
+        </p>
+        <p class={[
+          "text-sm tabular-nums",
+          if(@low?, do: "font-semibold text-error", else: "text-base-content/70")
+        ]}>
+          {gettext("%{available} free of %{total}",
+            available: format_size(@disk.available_bytes),
+            total: format_size(@disk.total_bytes)
+          )}
+        </p>
+      </div>
+      <div
+        class="mt-3 h-2 overflow-hidden rounded-full bg-base-200"
+        role="meter"
+        aria-label={gettext("Artifacts disk used")}
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={@used_percent}
+      >
+        <div
+          class={[
+            "h-full rounded-full transition-[width] duration-500",
+            if(@low?, do: "bg-error", else: "bg-primary")
+          ]}
+          style={"width: #{@used_percent}%"}
+        />
+      </div>
+      <p :if={@low?} id="artifacts-disk-low" class="mt-2 text-xs text-error">
+        {gettext(
+          "Less than %{percent}% free. Shorten the retention of the largest suites, or unpin old runs.",
+          percent: @low_free_percent
+        )}
+      </p>
     </div>
     """
   end

@@ -120,6 +120,34 @@ defmodule TestFleet.StatisticsTest do
     assert Enum.all?(tables, &(is_binary(&1.name) and &1.bytes >= 0 and &1.rows >= 0))
   end
 
+  describe "disk_for/2" do
+    test "picks the longest mount point holding the path" do
+      disks = [
+        {~c"/", 100, 40, 60},
+        {~c"/var/lib/testfleet", 1_000, 900, 10},
+        {~c"/var/lib/testfleet-old", 10, 1, 90}
+      ]
+
+      assert %{mount: "/var/lib/testfleet", total_bytes: 1_024_000, available_bytes: 921_600} =
+               Statistics.disk_for("/var/lib/testfleet/artifacts", disks)
+
+      assert %{mount: "/"} = Statistics.disk_for("/srv/artifacts", disks)
+      assert Statistics.disk_for("/srv", []) == nil
+    end
+
+    test "matches Windows drives in either case" do
+      assert %{mount: "C:\\"} =
+               Statistics.disk_for("c:/data/artifacts", [{~c"C:\\", 100, 50, 50}])
+    end
+  end
+
+  test "artifacts_disk/0 reports the disk holding the artifacts, once disksup has checked" do
+    case Statistics.artifacts_disk() do
+      nil -> :ok
+      disk -> assert disk.total_bytes >= disk.available_bytes
+    end
+  end
+
   test "image_usage/2 sums the images runs recorded, and all of them" do
     images = [
       %{size: 100, digest_references: ["registry.example.com/suite@sha256:aaa"]},

@@ -22,6 +22,7 @@ defmodule TestFleetWeb.StatisticsLiveTest do
       # Docker may be there or not; either answer takes longer than the default 100 ms.
       render_async(lv, 5_000)
       assert has_element?(lv, "#database-tables")
+      assert has_element?(lv, "#artifacts-disk") or has_element?(lv, "#artifacts-disk-unknown")
       # Reachable or not, the Docker panel says which.
       assert has_element?(lv, "#images-usage") or has_element?(lv, "#images-unreachable")
     end

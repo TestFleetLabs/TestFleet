@@ -12,7 +12,7 @@ defmodule TestFleet.Statistics do
   import Ecto.Query, warn: false
 
   alias TestFleet.Accounts.{Scope, User}
-  alias TestFleet.Artifacts.Artifact
+  alias TestFleet.Artifacts.{Artifact, Storage}
   alias TestFleet.Environments.Environment
   alias TestFleet.Execution
   alias TestFleet.Organizations.{Membership, Organization}
@@ -170,7 +170,8 @@ defmodule TestFleet.Statistics do
   @doc """
   The installation's figures, across all organizations: `organizations`, active
   `users`, `database_bytes`, the largest `tables` (`name`, estimated `rows`,
-  `bytes` with indexes), and the artifacts and logs stored.
+  `bytes` with indexes), the artifacts and logs stored, and the `disk` holding the
+  artifacts (`artifacts_disk/0`).
   """
   def installation do
     %{rows: [[database_bytes]]} =
@@ -208,8 +209,49 @@ defmodule TestFleet.Statistics do
       tables:
         Enum.map(tables, fn [name, rows, bytes] -> %{name: name, rows: rows, bytes: bytes} end),
       artifacts: artifacts,
-      log_bytes: log_bytes
+      log_bytes: log_bytes,
+      disk: artifacts_disk()
     }
+  end
+
+  @doc """
+  The disk holding the artifacts directory, from `:disksup`:
+  `%{mount, total_bytes, available_bytes}`, or nil before its first check, or when
+  no disk matches.
+  """
+  def artifacts_disk do
+    if Process.whereis(:disksup),
+      do: disk_for(Storage.root(), :disksup.get_disk_info()),
+      else: nil
+  end
+
+  @doc """
+  The entry of `disks` (as `:disksup.get_disk_info/0` returns them) whose mount
+  point holds `path`: the longest matching one, so `/var/lib/testfleet` wins over `/`.
+  """
+  def disk_for(path, disks) do
+    path = normalize(path)
+
+    disks
+    |> Enum.map(fn {id, total_kib, available_kib, _capacity} ->
+      %{
+        mount: to_string(id),
+        total_bytes: total_kib * 1024,
+        available_bytes: available_kib * 1024
+      }
+    end)
+    |> Enum.filter(&(&1.total_bytes > 0 and holds?(normalize(&1.mount), path)))
+    |> Enum.max_by(&String.length(&1.mount), fn -> nil end)
+  end
+
+  defp holds?(mount, path),
+    do: path == mount or String.starts_with?(path, String.trim_trailing(mount, "/") <> "/")
+
+  # Windows reports drives as `C:\`; paths compare with forward slashes, and drive
+  # letters in either case.
+  defp normalize(path) do
+    path = String.replace(path, "\\", "/")
+    if path =~ ~r/\A[A-Za-z]:/, do: String.downcase(path), else: path
   end
 
   @doc """

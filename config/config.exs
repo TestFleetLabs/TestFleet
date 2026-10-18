@@ -114,6 +114,13 @@ config :testfleet, TestFleet.Retention,
   artifacts_days: 30,
   logs_days: 90
 
+# Only disksup, for the free space on the statistics page; it checks every minute
+# instead of every 30. No CPU or memory supervision.
+config :os_mon,
+  start_cpu_sup: false,
+  start_memsup: false,
+  disk_space_check_interval: {:second, 60}
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.

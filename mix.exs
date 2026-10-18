@@ -21,8 +21,9 @@ defmodule TestFleet.MixProject do
   def application do
     [
       mod: {TestFleet.Application, []},
-      # :xmerl parses JUnit XML (TestFleet.Results.JUnit)
-      extra_applications: [:logger, :runtime_tools, :xmerl]
+      # :xmerl parses JUnit XML (TestFleet.Results.JUnit); :os_mon's disksup reports
+      # the free space of the artifacts disk (TestFleet.Statistics)
+      extra_applications: [:logger, :runtime_tools, :xmerl, :os_mon]
     ]
   end
 

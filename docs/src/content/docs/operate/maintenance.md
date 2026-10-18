@@ -68,7 +68,7 @@ TestFleet only touches containers and images it created itself. It never prunes 
 
 ### Watching disk usage
 
-**Statistics** (admins) shows how much space TestFleet takes: artifacts and logs stored, the suites holding the most artifacts (set a shorter [retention](/suites/results-and-artifacts/#retention) on those), the database's size and largest tables, and the Docker images TestFleet pulled next to all images on the host. Row counts of the tables are PostgreSQL's estimates. With several organizations (the hosted edition), the page shows only the organization's own figures.
+**Statistics** (admins) shows how much space TestFleet takes: the free space of the disk holding the artifacts (red below 10 %), artifacts and logs stored, the suites holding the most artifacts (set a shorter [retention](/suites/results-and-artifacts/#retention) on those), the database's size and largest tables, and the Docker images TestFleet pulled next to all images on the host. Row counts of the tables are PostgreSQL's estimates. With several organizations (the hosted edition), the page shows only the organization's own figures.
 
 ## Artifacts on a host directory
 
