@@ -185,8 +185,14 @@ defmodule TestFleetWeb.MemberLive.Index do
                 options={Enum.map(User.roles(), &{Layouts.role_label(&1), &1})}
               />
             </div>
-            <.button id="invite-submit" variant="primary" phx-disable-with={gettext("Inviting…")}>
-              <.icon name="hero-envelope-mini" class="size-4" /> {gettext("Invite")}
+            <%!-- No phx-disable-with: it restores the label as text and drops the icon. --%>
+            <.button id="invite-submit" variant="primary">
+              <.icon name="hero-envelope-mini" class="size-4 phx-submit-loading:hidden" />
+              <.icon
+                name="hero-arrow-path-mini"
+                class="hidden size-4 animate-spin phx-submit-loading:inline-block"
+              />
+              {gettext("Invite")}
             </.button>
           </.form>
 

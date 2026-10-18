@@ -139,12 +139,14 @@ defmodule TestFleetWeb.UserLive.Settings do
                   options={Enum.map(APIToken.expiries(), &{expiry_label(&1), &1})}
                 />
               </div>
-              <.button
-                id="api-token-submit"
-                variant="primary"
-                phx-disable-with={gettext("Creating…")}
-              >
-                <.icon name="hero-key-mini" class="size-4" /> {gettext("New token")}
+              <%!-- No phx-disable-with: it restores the label as text and drops the icon. --%>
+              <.button id="api-token-submit" variant="primary">
+                <.icon name="hero-key-mini" class="size-4 phx-submit-loading:hidden" />
+                <.icon
+                  name="hero-arrow-path-mini"
+                  class="hidden size-4 animate-spin phx-submit-loading:inline-block"
+                />
+                {gettext("New token")}
               </.button>
             </.form>
 

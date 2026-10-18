@@ -55,12 +55,14 @@ defmodule TestFleetWeb.StatisticsLive do
           }
         >
           <:actions>
+            <%!-- No phx-disable-with: it restores the label as text and drops the icon. --%>
             <.button
               id="refresh-statistics"
               phx-click="refresh"
-              phx-disable-with={gettext("Refreshing...")}
+              class="phx-click-loading:pointer-events-none phx-click-loading:opacity-70"
             >
-              <.icon name="hero-arrow-path-mini" class="size-4" /> {gettext("Refresh")}
+              <.icon name="hero-arrow-path-mini" class="size-4 phx-click-loading:animate-spin" />
+              {gettext("Refresh")}
             </.button>
           </:actions>
         </.page_header>
