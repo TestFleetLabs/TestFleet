@@ -56,7 +56,9 @@ config :testfleet, Oban,
       {"0 * * * *", TestFleet.Artifacts.CleanupWorker}
     ]
   ],
-  pruner: [max_age: 7 * 24 * 60 * 60],
+  # Finished job rows are only kept for debugging; run history and
+  # notification deliveries live in their own tables.
+  pruner: [max_age: {2, :days}],
   # Rescues TestFleet's own jobs; runs are recovered by the reconciler, never by Oban.
   lifeline: [rescue_after: :timer.minutes(30)]
 
