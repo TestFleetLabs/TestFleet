@@ -10,6 +10,13 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.3.1 (2026-10-20)
+
+### Enhancements
+
+- Finished background jobs are deleted after 2 days instead of 7, which keeps the jobs table small. Run history and notification deliveries are not affected
+- Update dependencies, among them Phoenix 1.8.16 and Phoenix LiveView 1.2.13
+
 ## 0.3.0 (2026-10-18)
 
 ### Enhancements
