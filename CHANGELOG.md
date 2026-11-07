@@ -10,6 +10,13 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.3.2 (2026-11-07)
+
+### Enhancements
+
+- The image is built with Elixir 1.20.5 and Erlang/OTP 29.1.2 on a newer Debian trixie base
+- Update dependencies, among them Bandit 1.14.1 and Phoenix HTML 4.4.0
+
 ## 0.3.1 (2026-10-20)
 
 ### Enhancements
