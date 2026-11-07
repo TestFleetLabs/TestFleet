@@ -510,7 +510,7 @@ Runs are shown as `#<id>`. Run ids are global, not per organization.
 - `pinned`, `artifacts_expired_at`, `logs_expired_at`: retention (section 40).
 - `cancel_requested_at`: a persisted cancel request (section 25).
 
-**Indexes.** Unique on `(schedule_id, scheduled_for)`, so a schedule never creates two runs for the same slot; on `status` where the status is active; on `(test_definition_id, id)`, `(environment_id, status)`, and `(image, image_digest)` where a digest exists.
+**Indexes.** Unique on `(schedule_id, scheduled_for)`, so a schedule never creates two runs for the same slot; on `status` where the status is active; on `(organization_id, id)`, `(test_definition_id, id)`, `(environment_id, id)`, `(environment_id, status)`, and `(image, image_digest)` where a digest exists; on `deployment->>'version'` and `deployment->>'commit'` (`text_pattern_ops`, for prefixes) where a deployment exists.
 
 **Status transitions.** Every transition is a conditional update (`WHERE status IN (...)`), so a late or repeated event can never reopen a finished run:
 
@@ -530,7 +530,9 @@ A final status is set together with `finished_at`, `exit_code`, `oom_killed`, an
 create_run(test_definition, environment, opts)   # trigger, user, api_token; manual and API runs
 create_scheduled(schedule, scheduled_for)        # called by the tick, inside its transaction
 get_run!(id)
-list_runs(opts)                                  # newest first; :limit, :project, :test_definition, :statuses
+list_runs(scope, opts)                           # newest first; :limit, :oldest_first, filters (section 41), :before/:after
+matches?(run, opts)                              # whether a run passes list_runs' filters
+day_start(date, timezone)                        # the UTC start of a local day, for the dashboard and date filters
 cancel_run(run)                                  # idempotent
 delete_run(run)                                  # final runs only; see below
 build_request(run)                               # the Execution.Request, section 14
@@ -2426,7 +2428,24 @@ Image unchanged · Duration +0:42 · 42 → 40 passed · 0 → 2 failed
 
 ## Runs list
 
-The latest 50 runs, newest first, live: status, number, test definition, project and environment, trigger and who started it, the deployment's label ("1.4.2 (9fceb02)") when there is one, start time, duration, and the test counts ("42 ✓ 2 ✗"). Every run row (`RunComponents.run_row/1`) shows the deployment the same way.
+The organization's runs, newest first, 50 per page, live: status, number, test definition, project and environment, trigger and who started it, the deployment's label ("1.4.2 (9fceb02)") when there is one, start time, duration, and the test counts ("42 ✓ 2 ✗"). Every run row (`RunComponents.run_row/1`) shows the deployment the same way.
+
+**Filters**, in the URL so a list can be shared (`/:org/runs?project=portal&status=failed`), changed with `push_patch` from one form:
+
+| Parameter | Values | `list_runs` option |
+|-----------|--------|--------------------|
+| `project` | a project's slug | `:project` |
+| `environment` | an environment's slug of that project (the select is disabled without a project; changing the project drops it) | `:environment` |
+| `status` | `queued`, `running` (`preparing` and `running`), `passed`, `failed`, `timeout`, `cancelled`, `error` | `:statuses` |
+| `trigger` | `manual`, `schedule`, `api` | `:trigger` |
+| `from`, `to` | ISO dates, the days of `queued_at` in `:default_timezone`, both included | `:queued_from`, `:queued_until` (the start of the day after `to`) |
+| `deployment` | the exact version, or a commit prefix of 4 or more hexadecimal characters | `:deployment` |
+
+Unknown or invalid values (a project of another organization, a bad date) are left out, as if not given, not answered with an error: a shared link outlives projects. With a filter, the empty state says "No runs match these filters", and **Clear filters** returns to `/:org/runs`.
+
+**Pages** are keyset pages by id: `?before=<id>` (older) and `?after=<id>` (newer, read oldest first and reversed), each fetching 51 runs to know whether another page exists. **Older** and **Newer** link from the ids shown at the moment, so runs created or deleted meanwhile neither shift nor skip a page.
+
+**Live:** only the first page receives new runs, and only those that pass the filters (`Runs.matches?/2`); a run pushed off the first page makes **Older** appear. Every page keeps its runs current, also when a run's new status no longer matches the status filter, and drops deleted ones (`RunFeed`).
 
 ## Notifications page (admin)
 
@@ -2710,7 +2729,8 @@ TestFleet may also be offered as a hosted service, from the same repository: the
 
 - **Amazon ECR**, whose tokens are fetched from AWS before each pull.
 - **An image per run**, overriding the test definition's image for one API run, which removes the race between concurrent pipelines.
-- **The deployment of scheduled and manual runs**: the environment's latest reported deployment, shown as "probably" since TestFleet cannot know about deploys it was not told of; and searching runs by version or commit.
+- **The deployment of scheduled and manual runs**: the environment's latest reported deployment, shown as "probably" since TestFleet cannot know about deploys it was not told of.
+- **Runs list:** several statuses or triggers at once, a filter by test definition, and the count of matching runs.
 - **Variables scoped to a test definition**, if users ask for it: an environment variable that applies to all test definitions or only to some, the more specific value winning. Today suites that expect the same key with different values (an API and a frontend suite both reading `BASE_URL`) need distinct keys mapped in the test definition's command; splitting the environment instead would break its concurrency limit and series.
 - **Visible retries**, if ever wanted: each attempt its own record (section 33).
 

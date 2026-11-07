@@ -16,6 +16,21 @@ queued ──► preparing ──► running ──► passed | failed | timeout
 3. **running:** the container executes the suite. Its output streams to the run page.
 4. When the container exits, TestFleet collects the artifacts, reads the JUnit reports, decides the final status, and removes the container.
 
+## The runs list
+
+**Runs** lists the organization's runs, newest first, 50 at a time, and updates live. Filters narrow it down:
+
+| Filter      |                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------- |
+| Project     | One project's runs                                                                    |
+| Environment | One environment of the chosen project                                                 |
+| Status      | Queued, running (including preparing), passed, failed, timeout, cancelled, or error |
+| Trigger     | Manual, schedule, or API                                                              |
+| From, To    | The days the run was queued, in TestFleet's default timezone; both days included      |
+| Deployment  | The exact version a pipeline [reported](/ci/api/#what-was-deployed), or the start of its commit |
+
+The filters and the page are part of the address (`/acme/runs?project=portal&status=failed`), so a filtered list can be bookmarked or shared. **Older** and **Newer** move a page at a time; runs created meanwhile do not shift a page. New runs appear on the first page as they are created, if they pass the filters; a run shown keeps updating even when its new status no longer matches.
+
 ## The run page
 
 `/<organization>/runs/<id>` shows, live:

@@ -19,14 +19,15 @@ defmodule TestFleetWeb.RunFeed do
   messages whose run belongs in the list.
   """
   import Phoenix.Component, only: [assign: 3, update: 3]
-  import Phoenix.LiveView, only: [stream: 3, stream_delete: 3, stream_insert: 3, stream_insert: 4]
+  import Phoenix.LiveView, only: [stream: 4, stream_delete: 3, stream_insert: 3, stream_insert: 4]
 
-  def init(socket, name, runs) do
+  @doc "Starts the feed with `runs`; `reset: true` replaces what a stream showed before."
+  def init(socket, name, runs, opts \\ []) do
     ids = Map.get(socket.assigns, :run_feed_ids, %{})
 
     socket
     |> assign(:run_feed_ids, Map.put(ids, name, Enum.map(runs, & &1.id)))
-    |> stream(name, runs)
+    |> stream(name, runs, reset: Keyword.get(opts, :reset, false))
   end
 
   def apply_event(socket, name, {:run_created, run}, limit) do

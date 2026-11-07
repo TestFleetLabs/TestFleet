@@ -82,8 +82,19 @@ defmodule TestFleet.Runs do
   @doc """
   The scope's organization's runs, newest first, preloaded like `get_run!/2`.
 
-  Options: `:limit` (default #{@default_limit}), `:project`, `:test_definition`,
-  `:statuses`, and `oldest_first: true`.
+  Options: `:limit` (default #{@default_limit}), `oldest_first: true`, and the
+  filters:
+
+    * `:project`, `:test_definition`, `:environment` - structs found through the scope
+    * `:statuses` - a list of statuses
+    * `:trigger` - `:manual`, `:schedule`, or `:api`
+    * `:queued_from`, `:queued_until` - `queued_at` from (inclusive) and until
+      (exclusive), as `DateTime`s
+    * `:deployment` - the exact version, or the start of the commit (at least 4
+      hexadecimal characters)
+    * `:before`, `:after` - only runs with a smaller, or larger, id: keyset pages
+
+  `matches?/2` tells whether a run belongs in a list with the same filters.
   """
   def list_runs(%Scope{} = scope, opts \\ []) do
     direction = if opts[:oldest_first], do: :asc, else: :desc
@@ -109,8 +120,74 @@ defmodule TestFleet.Runs do
   defp filter({:test_definition, %TestDefinition{id: id}}, query),
     do: from(r in query, where: r.test_definition_id == ^id)
 
+  defp filter({:environment, %Environment{id: id}}, query),
+    do: from(r in query, where: r.environment_id == ^id)
+
   defp filter({:statuses, statuses}, query), do: from(r in query, where: r.status in ^statuses)
+  defp filter({:trigger, trigger}, query), do: from(r in query, where: r.trigger == ^trigger)
+
+  defp filter({:queued_from, %DateTime{} = from}, query),
+    do: from(r in query, where: r.queued_at >= ^usec(from))
+
+  defp filter({:queued_until, %DateTime{} = until}, query),
+    do: from(r in query, where: r.queued_at < ^usec(until))
+
+  defp filter({:deployment, text}, query) when is_binary(text) do
+    text = String.trim(text)
+
+    if commit_prefix?(text) do
+      from r in query,
+        where:
+          fragment("?->>'version'", r.deployment) == ^text or
+            like(fragment("?->>'commit'", r.deployment), ^"#{String.downcase(text)}%")
+    else
+      from r in query, where: fragment("?->>'version'", r.deployment) == ^text
+    end
+  end
+
+  defp filter({:before, id}, query) when is_integer(id), do: from(r in query, where: r.id < ^id)
+  defp filter({:after, id}, query) when is_integer(id), do: from(r in query, where: r.id > ^id)
   defp filter(_option, query), do: query
+
+  defp commit_prefix?(text), do: String.match?(text, ~r/\A[0-9a-fA-F]{4,64}\z/)
+
+  @doc """
+  Whether a run (preloaded like `get_run!/2`) passes the filters of `list_runs/2`,
+  so a live list can tell whether a new run belongs in it. Paging options and
+  `:limit` are ignored.
+  """
+  def matches?(%Run{} = run, opts), do: Enum.all?(opts, &match_option?(run, &1))
+
+  defp match_option?(run, {:project, %Project{id: id}}), do: run.test_definition.project_id == id
+
+  defp match_option?(run, {:test_definition, %TestDefinition{id: id}}),
+    do: run.test_definition_id == id
+
+  defp match_option?(run, {:environment, %Environment{id: id}}), do: run.environment_id == id
+  defp match_option?(run, {:statuses, statuses}), do: run.status in statuses
+  defp match_option?(run, {:trigger, trigger}), do: run.trigger == trigger
+
+  defp match_option?(run, {:queued_from, %DateTime{} = from}),
+    do: DateTime.compare(run.queued_at, from) != :lt
+
+  defp match_option?(run, {:queued_until, %DateTime{} = until}),
+    do: DateTime.compare(run.queued_at, until) == :lt
+
+  defp match_option?(run, {:deployment, text}) when is_binary(text) do
+    text = String.trim(text)
+
+    case run.deployment do
+      nil ->
+        false
+
+      deployment ->
+        deployment.version == text or
+          (commit_prefix?(text) and is_binary(deployment.commit) and
+             String.starts_with?(deployment.commit, String.downcase(text)))
+    end
+  end
+
+  defp match_option?(_run, _option), do: true
 
   @doc "Whether a project, test definition, or environment has runs."
   def has_runs?(%Project{id: id}) do
@@ -152,10 +229,14 @@ defmodule TestFleet.Runs do
     }
   end
 
-  # Midnight may not exist, or exist twice, on a daylight saving change.
-  defp start_of_day(now, timezone) do
-    date = now |> DateTime.shift_zone!(timezone) |> DateTime.to_date()
+  defp start_of_day(now, timezone),
+    do: now |> DateTime.shift_zone!(timezone) |> DateTime.to_date() |> day_start(timezone)
 
+  @doc """
+  When `date` begins in `timezone`, in UTC. On a daylight saving change, midnight
+  may not exist (the day starts when the clock jumps) or exist twice (the first).
+  """
+  def day_start(%Date{} = date, timezone) do
     midnight =
       case DateTime.new(date, ~T[00:00:00], timezone) do
         {:ok, midnight} -> midnight
