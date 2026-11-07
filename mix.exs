@@ -4,7 +4,7 @@ defmodule TestFleet.MixProject do
   def project do
     [
       app: :testfleet,
-      version: "0.3.1",
+      version: "0.3.2",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -42,7 +42,7 @@ defmodule TestFleet.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:bandit, "~> 1.13.1"},
+      {:bandit, "~> 1.14.1"},
       {:cloak_ecto, "~> 1.3.0"},
       {:crontab, "~> 1.2.1"},
       {:daisyui,
@@ -65,13 +65,13 @@ defmodule TestFleet.MixProject do
        compile: false,
        depth: 1},
       {:jason, "~> 1.4.5"},
-      {:lazy_html, ">= 0.1.13", only: :test},
+      {:lazy_html, ">= 0.1.14", only: :test},
       {:oban, "~> 2.24.2"},
       # OIDC login
-      {:oidcc, "~> 3.9.0"},
+      {:oidcc, "~> 3.9.2"},
       {:phoenix, "~> 1.8.16"},
       {:phoenix_ecto, "~> 4.7.0"},
-      {:phoenix_html, "~> 4.3.0"},
+      {:phoenix_html, "~> 4.4.0"},
       {:phoenix_live_dashboard, "~> 0.9.1"},
       {:phoenix_live_reload, "~> 1.7.0", only: :dev},
       {:phoenix_live_view, "~> 1.2.13"},
@@ -79,9 +79,9 @@ defmodule TestFleet.MixProject do
       {:pbkdf2_elixir, "~> 2.0"},
       {:postgrex, "~> 0.22.4"},
       {:req, "~> 0.7.5"},
-      {:sbom, "~> 0.12.0", only: :dev, runtime: false},
-      {:swoosh, "~> 1.29.0"},
-      {:tailwind, "~> 0.5.1", runtime: Mix.env() == :dev},
+      {:sbom, "~> 0.12.1", only: :dev, runtime: false},
+      {:swoosh, "~> 1.29.3"},
+      {:tailwind, "~> 0.5.2", runtime: Mix.env() == :dev},
       {:telemetry_metrics, "~> 1.2.0"},
       {:telemetry_poller, "~> 1.3.0"},
       {:tz, "~> 0.28.4"}
