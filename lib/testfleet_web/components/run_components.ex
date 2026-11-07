@@ -10,7 +10,7 @@ defmodule TestFleetWeb.RunComponents do
     router: TestFleetWeb.Router,
     statics: TestFleetWeb.static_paths()
 
-  import TestFleetWeb.AppComponents, only: [local_time: 1]
+  import TestFleetWeb.AppComponents, only: [badge: 1, local_time: 1]
   import TestFleetWeb.CoreComponents, only: [icon: 1]
 
   alias TestFleet.Runs.Run
@@ -197,15 +197,68 @@ defmodule TestFleetWeb.RunComponents do
   end
 
   @doc """
+  The path of a test's page. `test` is any map with `suite`, `classname`, and
+  `name`: a test result, a history entry, or a `Results.test_of/1` identity.
+  """
+  def test_path(organization, project_slug, test_definition_id, test) do
+    query = [suite: test.suite, classname: test.classname, name: test.name]
+
+    ~p"/#{organization}/projects/#{project_slug}/test-definitions/#{test_definition_id}/tests?#{query}"
+  end
+
+  @doc "A test's suite and classname, as `checkout › Cart`; empty parts left out."
+  def test_location(test),
+    do: [test.suite, test.classname] |> Enum.reject(&(&1 == "")) |> Enum.join(" › ")
+
+  @doc """
+  Renders a test's outcome in a run (`passed`, `failed`, `error`, `skipped`) with
+  its icon; `mixed` adds "passed on retry".
+  """
+  attr :outcome, :atom, required: true
+  attr :mixed, :boolean, default: false
+  attr :id, :string, default: nil
+
+  def test_outcome(assigns) do
+    ~H"""
+    <span
+      id={@id}
+      data-outcome={@outcome}
+      class={[
+        "inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap",
+        test_status_class(@outcome)
+      ]}
+    >
+      <.icon name={test_status_icon(@outcome)} class="size-4" />
+      {test_outcome_label(@outcome)}
+      <span :if={@mixed} class="font-normal text-base-content/60">
+        · {gettext("passed on retry")}
+      </span>
+    </span>
+    """
+  end
+
+  @doc "The display name of a test outcome."
+  def test_outcome_label(:passed), do: gettext("Passed")
+  def test_outcome_label(:failed), do: gettext("Failed")
+  def test_outcome_label(:error), do: gettext("Error")
+  def test_outcome_label(:skipped), do: gettext("Skipped")
+
+  @doc """
   Renders one test result. Failed and errored tests show their message, and the
   details (stack trace) in a `<details>` element.
+
+  With `href`, the name links to the test's page. A red test can carry its failure
+  `streak` (`:new`, `{:since, run_id}`, or `:first_seen`) and the `flaky` badge.
   """
   attr :id, :string, required: true
   attr :result, TestFleet.Results.TestResult, required: true
+  attr :href, :string, default: nil
+  attr :streak, :any, default: nil
+  attr :flaky, :boolean, default: false
 
   def test_result_row(assigns) do
     ~H"""
-    <li id={@id} data-status={@result.status} class="px-5 py-3">
+    <li id={@id} data-status={@result.status} data-test={@result.name} class="px-5 py-3">
       <div class="flex items-start gap-3">
         <.icon
           name={test_status_icon(@result.status)}
@@ -213,7 +266,26 @@ defmodule TestFleetWeb.RunComponents do
         />
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <p class="min-w-0 text-sm font-medium break-words">{@result.name}</p>
+            <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <.link
+                :if={@href}
+                navigate={@href}
+                data-test-link
+                class="min-w-0 text-sm font-medium break-words transition-colors hover:text-primary hover:underline hover:underline-offset-2"
+              >
+                {@result.name}
+              </.link>
+              <p :if={!@href} class="min-w-0 text-sm font-medium break-words">{@result.name}</p>
+              <.failure_streak :if={@streak} streak={@streak} />
+              <.badge
+                :if={@flaky}
+                tone={:warning}
+                data-flaky
+                title={gettext("Its outcome keeps changing on the same image in this environment")}
+              >
+                <.icon name="hero-arrows-right-left-mini" class="size-3.5" /> {gettext("Flaky")}
+              </.badge>
+            </div>
             <span
               :if={@result.duration_ms}
               class="shrink-0 text-xs text-base-content/50 tabular-nums"
@@ -256,6 +328,35 @@ defmodule TestFleetWeb.RunComponents do
         </div>
       </div>
     </li>
+    """
+  end
+
+  attr :streak, :any, required: true
+
+  # How long a red test has been red in this environment (`Results.failure_streaks/1`).
+  defp failure_streak(%{streak: :new} = assigns) do
+    ~H"""
+    <.badge tone={:error} data-streak="new" title={gettext("It passed in the previous run")}>
+      {gettext("new")}
+    </.badge>
+    """
+  end
+
+  defp failure_streak(%{streak: {:since, run_id}} = assigns) do
+    assigns = assign(assigns, :run_id, run_id)
+
+    ~H"""
+    <.badge data-streak="since" title={gettext("Red in every run since then")}>
+      {gettext("failing since #%{id}", id: @run_id)}
+    </.badge>
+    """
+  end
+
+  defp failure_streak(%{streak: :first_seen} = assigns) do
+    ~H"""
+    <.badge data-streak="first-seen" title={gettext("No earlier run reported this test")}>
+      {gettext("first seen")}
+    </.badge>
     """
   end
 

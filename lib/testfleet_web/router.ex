@@ -130,6 +130,7 @@ defmodule TestFleetWeb.Router do
       live "/projects/:slug/test-definitions/new", TestDefinitionLive.Form, :new
       live "/projects/:slug/test-definitions/:id", TestDefinitionLive.Show, :show
       live "/projects/:slug/test-definitions/:id/edit", TestDefinitionLive.Form, :edit
+      live "/projects/:slug/test-definitions/:id/tests", TestLive.Show, :show
       live "/projects/:slug/schedules/new", ScheduleLive.Form, :new
       live "/projects/:slug/schedules/:id/edit", ScheduleLive.Form, :edit
       live "/projects/:slug/environments/new", EnvironmentLive.Form, :new

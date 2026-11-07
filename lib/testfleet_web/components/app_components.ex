@@ -233,9 +233,10 @@ defmodule TestFleetWeb.AppComponents do
   Renders a small label, e.g. for a slug or a limit.
   """
   attr :id, :string, default: nil
-  attr :tone, :atom, default: :neutral, values: [:neutral, :primary, :warning]
+  attr :tone, :atom, default: :neutral, values: [:neutral, :primary, :warning, :error]
   attr :class, :any, default: nil
   attr :title, :string, default: nil
+  attr :rest, :global
   slot :inner_block, required: true
 
   def badge(assigns) do
@@ -247,9 +248,11 @@ defmodule TestFleetWeb.AppComponents do
         @tone == :neutral && "bg-base-200 text-base-content/70",
         @tone == :primary && "bg-primary/10 text-primary",
         @tone == :warning && "bg-warning/15 text-warning",
+        @tone == :error && "bg-error/10 text-error",
         @class
       ]}
       title={@title}
+      {@rest}
     >
       {render_slot(@inner_block)}
     </span>

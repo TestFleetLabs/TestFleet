@@ -9,6 +9,7 @@ defmodule TestFleetWeb.RunLive.Show do
 
   alias TestFleet.{Artifacts, Notifications, Results, Runs, Schedules}
   alias TestFleet.Accounts.Scope
+  alias TestFleet.Results.Comparison
   alias TestFleet.Runs.Run
   alias TestFleet.Schedules.Timezones
 
@@ -17,9 +18,11 @@ defmodule TestFleetWeb.RunLive.Show do
   @max_lines 2_000
   # Images and videos previewed above the artifact list; all are in the list.
   @max_media 24
+  # Failure streaks and flaky tests, loaded after the failures.
+  @no_notes %{streaks: %{}, flaky: MapSet.new()}
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
+  def mount(%{"id" => id} = params, _session, socket) do
     run = Runs.get_run!(socket.assigns.current_scope, id)
 
     # Subscribed before the history is loaded: a batch that overlaps it updates
@@ -51,7 +54,11 @@ defmodule TestFleetWeb.RunLive.Show do
        artifact_count: 0,
        artifact_bytes: 0,
        media_count: 0,
-       max_media: @max_media
+       max_media: @max_media,
+       # The Changes panel's baseline: "previous", "last_passed", or a run id.
+       compare: params["compare"] || "previous",
+       compare_form: to_form(%{"run" => ""}),
+       comparison: nil
      )
      |> stream(:test_failures, [])
      |> stream(:test_others, [])
@@ -99,17 +106,108 @@ defmodule TestFleetWeb.RunLive.Show do
       )
       |> stream(
         :test_failures,
-        if(junit?, do: Results.list_test_results(run, only: :failures), else: []),
+        if(junit?,
+          do: run |> Results.list_test_results(only: :failures) |> annotate(@no_notes),
+          else: []
+        ),
         reset: true
       )
       |> stream(:media, Enum.take(media, @max_media), reset: true)
       |> stream(:artifact_rows, artifact_tree(artifacts), reset: true)
+      |> load_failure_notes()
+      |> load_comparison()
     else
       socket
     end
   end
 
   defp maybe_load_results(socket), do: socket
+
+  # The failures with their streak and flaky flag, as the stream's items.
+  defp annotate(failures, notes) do
+    Enum.map(failures, fn result ->
+      test = Results.test_of(result)
+
+      %{
+        id: result.id,
+        result: result,
+        streak: notes.streaks[test],
+        flaky: MapSet.member?(notes.flaky, test)
+      }
+    end)
+  end
+
+  # Loaded after the failures, so the panel never waits for them (spec section 41).
+  defp load_failure_notes(socket) do
+    run = socket.assigns.run
+
+    if connected?(socket) and is_integer(run.tests_failed) and run.tests_failed > 0 do
+      start_async(socket, :failure_notes, fn ->
+        flaky =
+          run.test_definition
+          |> Results.flaky_tests(run.environment, up_to: run.id, limit: nil)
+          |> MapSet.new(& &1.test)
+
+        %{streaks: Results.failure_streaks(run), flaky: flaky}
+      end)
+    else
+      socket
+    end
+  end
+
+  defp load_comparison(socket) do
+    %{run: run, compare: compare, current_scope: scope} = socket.assigns
+
+    if connected?(socket) and Run.final?(run) and run.tests_passed != nil do
+      assign_async(socket, :comparison, fn ->
+        {:ok, %{comparison: build_comparison(scope, run, compare)}}
+      end)
+    else
+      socket
+    end
+  end
+
+  defp build_comparison(scope, run, compare) do
+    {baseline, mode, problem} = resolve_baseline(scope, run, compare)
+    %{mode: mode, problem: problem, comparison: baseline && Results.compare(run, baseline)}
+  end
+
+  # A run that cannot be compared falls back to the previous run, with the reason.
+  defp resolve_baseline(_scope, run, "previous"),
+    do: {Runs.baseline(run, :previous), :previous, nil}
+
+  defp resolve_baseline(_scope, run, "last_passed"),
+    do: {Runs.baseline(run, :last_passed), :last_passed, nil}
+
+  defp resolve_baseline(scope, run, compare) do
+    with {id, ""} <- Integer.parse(compare),
+         %Run{} = candidate <- Runs.get_run(scope, id),
+         :ok <- Runs.comparable(run, candidate) do
+      {candidate, :run, nil}
+    else
+      {:error, reason} -> {Runs.baseline(run, :previous), :previous, {compare, reason}}
+      _not_found -> {Runs.baseline(run, :previous), :previous, {compare, :not_found}}
+    end
+  end
+
+  @impl true
+  def handle_async(:failure_notes, {:ok, notes}, socket) do
+    failures = Results.list_test_results(socket.assigns.run, only: :failures)
+
+    {:noreply, stream(socket, :test_failures, annotate(failures, notes), reset: true)}
+  end
+
+  # The badges are extras: without them, the failures stay as they are.
+  def handle_async(:failure_notes, {:exit, _reason}, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    compare = params["compare"] || "previous"
+
+    if compare == socket.assigns.compare,
+      do: {:noreply, socket},
+      else: {:noreply, socket |> assign(:compare, compare) |> load_comparison()}
+  end
 
   # Retention expired the artifacts or the log while the page is open.
   defp clear_expired(socket, %Run{} = old, %Run{} = new) do
@@ -148,6 +246,17 @@ defmodule TestFleetWeb.RunLive.Show do
      socket
      |> assign(:show_all_tests, false)
      |> stream(:test_others, [], reset: true)}
+  end
+
+  def handle_event("compare", %{"run" => number}, socket) do
+    compare =
+      case number |> String.trim() |> String.trim_leading("#") do
+        "" -> "previous"
+        number -> number
+      end
+
+    path = ~p"/#{socket.assigns.organization}/runs/#{socket.assigns.run.id}?#{[compare: compare]}"
+    {:noreply, push_patch(socket, to: path)}
   end
 
   def handle_event("delete", _params, socket) do
@@ -361,6 +470,96 @@ defmodule TestFleetWeb.RunLive.Show do
           </.fact>
         </div>
 
+        <.panel :if={@comparison} id="run-changes" title={gettext("Changes")}>
+          <:actions>
+            <nav
+              id="compare-modes"
+              aria-label={gettext("Compare with")}
+              class="flex items-center rounded-lg bg-base-200 p-0.5 text-xs font-medium"
+            >
+              <.compare_mode
+                id="compare-previous"
+                active={@compare == "previous"}
+                patch={~p"/#{@organization}/runs/#{@run.id}?compare=previous"}
+              >
+                {gettext("Previous run")}
+              </.compare_mode>
+              <.compare_mode
+                id="compare-last-passed"
+                active={@compare == "last_passed"}
+                patch={~p"/#{@organization}/runs/#{@run.id}?compare=last_passed"}
+              >
+                {gettext("Last passed")}
+              </.compare_mode>
+            </nav>
+            <.form
+              for={@compare_form}
+              id="compare-form"
+              phx-submit="compare"
+              class="hidden items-center sm:flex"
+            >
+              <label for="compare-run" class="sr-only">{gettext("Compare with run number")}</label>
+              <input
+                id="compare-run"
+                name={@compare_form[:run].name}
+                value={@compare_form[:run].value}
+                type="text"
+                inputmode="numeric"
+                placeholder={gettext("Run #")}
+                class="w-20 rounded-lg border border-base-300 bg-base-100 px-2 py-1 text-xs tabular-nums transition-colors placeholder:text-base-content/40 focus:border-primary focus:outline-none"
+              />
+            </.form>
+          </:actions>
+
+          <.async_result :let={result} assign={@comparison}>
+            <:loading>
+              <p
+                id="run-changes-loading"
+                class="flex items-center gap-2 px-5 py-4 text-sm text-base-content/60"
+              >
+                <.icon name="hero-arrow-path-mini" class="size-4 animate-spin" />
+                {gettext("Comparing…")}
+              </p>
+            </:loading>
+            <:failed :let={_reason}>
+              <p id="run-changes-failed" class="px-5 py-4 text-sm text-base-content/60">
+                {gettext("The comparison could not be loaded. Reload the page to try again.")}
+              </p>
+            </:failed>
+
+            <p
+              :if={result.problem}
+              id="run-changes-problem"
+              class="flex items-center gap-2 border-b border-base-300 bg-warning/5 px-5 py-3 text-sm text-base-content/70"
+            >
+              <.icon name="hero-exclamation-triangle-mini" class="size-4 shrink-0 text-warning" />
+              {cannot_compare(result.problem)}
+            </p>
+
+            <.empty_state
+              :if={!result.comparison}
+              id="run-changes-none"
+              icon="hero-arrows-right-left"
+              title={
+                if(result.mode == :last_passed,
+                  do: gettext("No earlier run passed"),
+                  else: gettext("No earlier run to compare with")
+                )
+              }
+              compact
+            >
+              {gettext("Runs of this test definition in this environment with JUnit appear here.")}
+            </.empty_state>
+
+            <.changes
+              :if={result.comparison}
+              comparison={result.comparison}
+              organization={@organization}
+              timezone={@timezone}
+            />
+          </.async_result>
+        </.panel>
+
         <.panel :if={@run.tests_passed != nil} id="run-tests" title={gettext("Tests")}>
           <:actions>
             <p id="run-tests-summary" class="flex flex-wrap items-center gap-x-2 text-xs tabular-nums">
@@ -394,9 +593,12 @@ defmodule TestFleetWeb.RunLive.Show do
               {gettext("No test failed.")}
             </li>
             <.test_result_row
-              :for={{id, result} <- @streams.test_failures}
+              :for={{id, failure} <- @streams.test_failures}
               id={id}
-              result={result}
+              result={failure.result}
+              href={run_test_path(@organization, @run, failure.result)}
+              streak={failure.streak}
+              flaky={failure.flaky}
             />
           </ul>
 
@@ -406,7 +608,12 @@ defmodule TestFleetWeb.RunLive.Show do
             phx-update="stream"
             class="divide-y divide-base-300 border-t border-base-300"
           >
-            <.test_result_row :for={{id, result} <- @streams.test_others} id={id} result={result} />
+            <.test_result_row
+              :for={{id, result} <- @streams.test_others}
+              id={id}
+              result={result}
+              href={run_test_path(@organization, @run, result)}
+            />
           </ul>
 
           <div
@@ -806,6 +1013,244 @@ defmodule TestFleetWeb.RunLive.Show do
     </div>
     """
   end
+
+  attr :id, :string, required: true
+  attr :active, :boolean, required: true
+  attr :patch, :string, required: true
+  slot :inner_block, required: true
+
+  defp compare_mode(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      patch={@patch}
+      aria-current={@active && "true"}
+      class={[
+        "rounded-md px-2.5 py-1 transition-colors",
+        if(@active,
+          do: "bg-base-100 text-base-content shadow-sm",
+          else: "text-base-content/60 hover:text-base-content"
+        )
+      ]}
+    >
+      {render_slot(@inner_block)}
+    </.link>
+    """
+  end
+
+  attr :comparison, Comparison, required: true
+  attr :organization, :any, required: true
+  attr :timezone, :string, required: true
+
+  # The baseline, what differs between the two runs, and the tests by group.
+  defp changes(assigns) do
+    %{run: run, baseline: baseline} = assigns.comparison
+
+    assigns =
+      assign(assigns,
+        run: run,
+        baseline: baseline,
+        image: image_change(run, baseline),
+        duration: duration_change(run, baseline)
+      )
+
+    ~H"""
+    <div class="space-y-2 border-b border-base-300 px-5 py-4">
+      <p id="run-changes-baseline" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <span class="text-base-content/60">{gettext("Compared with")}</span>
+        <.link
+          id="run-changes-baseline-link"
+          navigate={~p"/#{@organization}/runs/#{@baseline.id}"}
+          class="font-semibold tabular-nums transition-colors hover:text-primary"
+        >
+          #{@baseline.id}
+        </.link>
+        <.run_status status={@baseline.status} />
+        <span class="text-xs text-base-content/60">
+          <.local_time at={@baseline.finished_at} timezone={@timezone} />
+        </span>
+        <.badge
+          :if={@baseline.environment_id != @run.environment_id}
+          id="run-changes-environment"
+          tone={:primary}
+        >
+          <.icon name="hero-globe-alt-mini" class="size-3.5" /> {@baseline.environment.name}
+        </.badge>
+      </p>
+
+      <ul id="run-changes-facts" class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-base-content/70">
+        <li
+          id="run-changes-image"
+          data-changed={to_string(@image != :unchanged)}
+          class="inline-flex items-center gap-1.5"
+        >
+          <%= case @image do %>
+            <% :unchanged -> %>
+              <.icon name="hero-check-mini" class="size-4 text-success" />
+              {gettext("Image unchanged")}
+            <% {:changed, from, to} -> %>
+              <.icon name="hero-arrow-path-rounded-square-mini" class="size-4 text-info" />
+              {gettext("Image changed")}
+              <span class="font-mono text-[0.7rem] text-base-content/60">{from} → {to}</span>
+          <% end %>
+        </li>
+        <li
+          :if={@run.command != @baseline.command}
+          id="run-changes-command"
+          class="inline-flex items-center gap-1.5"
+        >
+          <.icon name="hero-command-line-mini" class="size-4 text-info" />
+          {gettext("Command changed")}
+        </li>
+        <li :if={@duration} id="run-changes-duration" class="tabular-nums">
+          {gettext("Duration")} {@duration}
+        </li>
+        <li id="run-changes-counts" class="tabular-nums">
+          {gettext("%{from} → %{to} passed", from: @baseline.tests_passed, to: @run.tests_passed)}
+          <span class="text-base-content/30">·</span>
+          {gettext("%{from} → %{to} failed", from: @baseline.tests_failed, to: @run.tests_failed)}
+        </li>
+      </ul>
+    </div>
+
+    <ul id="run-changes-summary" class="flex flex-wrap gap-2 border-b border-base-300 px-5 py-3">
+      <li
+        :for={group <- Comparison.groups()}
+        data-group={group}
+        class={[
+          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums",
+          group_tone(group, Map.fetch!(@comparison, group).total)
+        ]}
+      >
+        <span class="font-semibold">{Map.fetch!(@comparison, group).total}</span>
+        {group_label(group)}
+      </li>
+    </ul>
+
+    <div id="run-changes-groups">
+      <.change_group
+        :for={group <- Comparison.groups()}
+        id={"run-changes-#{group}"}
+        title={group_label(group)}
+        group={Map.fetch!(@comparison, group)}
+        open={group in [:new_failures, :fixed]}
+        messages={group in [:new_failures, :still_failing]}
+        organization={@organization}
+        run={@run}
+      />
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :group, :map, required: true
+  attr :open, :boolean, required: true
+  attr :messages, :boolean, required: true
+  attr :organization, :any, required: true
+  attr :run, Run, required: true
+
+  defp change_group(assigns) do
+    ~H"""
+    <section :if={@group.total > 0} id={@id} class="border-b border-base-300 last:border-b-0">
+      <details open={@open} class="group/changes">
+        <summary class="flex cursor-pointer list-none items-center gap-2 px-5 py-2.5 text-xs font-semibold transition-colors hover:bg-base-200/40">
+          <.icon
+            name="hero-chevron-right-mini"
+            class="size-4 text-base-content/50 transition-transform group-open/changes:rotate-90"
+          />
+          {@title}
+          <span class="font-medium text-base-content/50 tabular-nums">{@group.total}</span>
+        </summary>
+        <ul class="pb-2">
+          <li
+            :for={test <- @group.tests}
+            data-test={test.name}
+            class="py-1.5 pr-5 pl-11 transition-colors hover:bg-base-200/30"
+          >
+            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+              <.test_outcome outcome={test.outcome} />
+              <.link
+                navigate={run_test_path(@organization, @run, test)}
+                class="min-w-0 text-sm font-medium break-words transition-colors hover:text-primary"
+              >
+                {test.name}
+              </.link>
+              <span :if={test_location(test) != ""} class="truncate text-xs text-base-content/50">
+                {test_location(test)}
+              </span>
+            </div>
+            <p
+              :if={@messages && test.failure_message}
+              class="mt-0.5 line-clamp-2 font-mono text-xs text-error/90"
+            >
+              {test.failure_message}
+            </p>
+          </li>
+        </ul>
+        <p
+          :if={@group.total > length(@group.tests)}
+          class="px-5 pb-3 pl-11 text-xs text-base-content/60"
+        >
+          {gettext("and %{count} more", count: @group.total - length(@group.tests))}
+        </p>
+      </details>
+    </section>
+    """
+  end
+
+  defp group_label(:new_failures), do: gettext("New failures")
+  defp group_label(:fixed), do: gettext("Fixed")
+  defp group_label(:still_failing), do: gettext("Still failing")
+  defp group_label(:added), do: gettext("Added")
+  defp group_label(:removed), do: gettext("Removed")
+
+  defp group_tone(_group, 0), do: "bg-base-200/60 text-base-content/50"
+  defp group_tone(:new_failures, _total), do: "bg-error/10 text-error"
+  defp group_tone(:fixed, _total), do: "bg-success/15 text-success"
+  defp group_tone(:still_failing, _total), do: "bg-error/5 text-error/80"
+  defp group_tone(_group, _total), do: "bg-base-200 text-base-content/70"
+
+  defp cannot_compare({compare, reason}) do
+    gettext("Run #%{id} cannot be compared: %{reason}. Showing the previous run instead.",
+      id: compare,
+      reason: not_comparable_reason(reason)
+    )
+  end
+
+  defp not_comparable_reason(:not_found), do: gettext("there is no such run")
+  defp not_comparable_reason(:same_run), do: gettext("it is this run")
+
+  defp not_comparable_reason(:other_test_definition),
+    do: gettext("it belongs to another test definition")
+
+  defp not_comparable_reason(:not_final), do: gettext("it has not finished")
+  defp not_comparable_reason(:no_junit), do: gettext("it has no JUnit results")
+
+  # The image a run executed, by digest when it was recorded.
+  defp image_change(run, baseline) do
+    if run.image == baseline.image and run.image_digest == baseline.image_digest,
+      do: :unchanged,
+      else: {:changed, image_label(baseline), image_label(run)}
+  end
+
+  defp image_label(%Run{image_digest: "sha256:" <> hex}),
+    do: "sha256:" <> String.slice(hex, 0, 12)
+
+  defp image_label(%Run{image_digest: nil, image: image}), do: image
+  defp image_label(%Run{image_digest: digest}), do: digest
+
+  defp duration_change(run, baseline) do
+    with now when is_integer(now) <- run_duration(run, run.finished_at),
+         before when is_integer(before) <- run_duration(baseline, baseline.finished_at) do
+      delta = now - before
+      sign = if delta < 0, do: "−", else: "+"
+      sign <> format_duration(abs(delta))
+    end
+  end
+
+  defp run_test_path(organization, run, test),
+    do: test_path(organization, run.test_definition.project.slug, run.test_definition_id, test)
 
   attr :href, :string, required: true
 

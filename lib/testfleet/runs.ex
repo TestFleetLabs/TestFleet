@@ -396,6 +396,41 @@ defmodule TestFleet.Runs do
     )
   end
 
+  @doc """
+  The run to compare `run` with (spec section 10), preloaded, or nil: the latest
+  final run of its test definition and environment before it with JUnit
+  (`:previous`), or the latest such run that passed (`:last_passed`).
+  """
+  def baseline(%Run{} = run, mode) when mode in [:previous, :last_passed] do
+    query =
+      from r in Run,
+        where:
+          r.test_definition_id == ^run.test_definition_id and
+            r.environment_id == ^run.environment_id and r.id < ^run.id and
+            not is_nil(r.tests_passed),
+        order_by: [desc: r.id],
+        limit: 1
+
+    query = if mode == :last_passed, do: where(query, [r], r.status == :passed), else: query
+
+    if baseline = Repo.one(query), do: preload(baseline)
+  end
+
+  @doc """
+  Whether `other` can be compared with `run`: `:ok`, or `{:error, reason}` with
+  `:same_run`, `:other_test_definition`, `:not_final`, or `:no_junit`. Another
+  environment is fine.
+  """
+  def comparable(%Run{} = run, %Run{} = other) do
+    cond do
+      other.id == run.id -> {:error, :same_run}
+      other.test_definition_id != run.test_definition_id -> {:error, :other_test_definition}
+      not Run.final?(other) -> {:error, :not_final}
+      is_nil(other.tests_passed) -> {:error, :no_junit}
+      true -> :ok
+    end
+  end
+
   @doc "The ids among `ids` that belong to finished runs."
   def final_run_ids(ids) do
     Repo.all(

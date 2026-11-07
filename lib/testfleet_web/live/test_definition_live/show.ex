@@ -1,10 +1,11 @@
 defmodule TestFleetWeb.TestDefinitionLive.Show do
   @moduledoc """
-  A test definition: its settings, "Run now" per environment, and its recent runs.
+  A test definition: its settings, "Run now" per environment, its recent runs,
+  and its flaky tests per environment.
   """
   use TestFleetWeb, :live_view
 
-  alias TestFleet.{Environments, Projects, Retention, Runs, TestDefinitions}
+  alias TestFleet.{Environments, Projects, Results, Retention, Runs, TestDefinitions}
   alias TestFleetWeb.RunFeed
 
   @recent_runs 20
@@ -13,6 +14,7 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
   def mount(%{"slug" => slug, "id" => id}, _session, socket) do
     project = Projects.get_project_by_slug!(socket.assigns.current_scope, slug)
     test_definition = TestDefinitions.get_test_definition!(project, id)
+    environments = Environments.list_environments(project)
 
     if connected?(socket), do: Runs.subscribe(socket.assigns.current_scope)
 
@@ -21,7 +23,10 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
      |> assign(:page_title, test_definition.name)
      |> assign(:project, project)
      |> assign(:test_definition, test_definition)
-     |> assign(:environments, Environments.list_environments(project))
+     |> assign(:environments, environments)
+     |> assign(:window_size, Results.window_size())
+     |> assign(:flaky_environment, List.first(environments))
+     |> load_flaky()
      |> RunFeed.init(
        :runs,
        Runs.list_runs(socket.assigns.current_scope,
@@ -29,6 +34,16 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
          limit: @recent_runs
        )
      )}
+  end
+
+  defp load_flaky(%{assigns: %{flaky_environment: nil}} = socket), do: socket
+
+  defp load_flaky(socket) do
+    %{test_definition: test_definition, flaky_environment: environment} = socket.assigns
+
+    assign_async(socket, :flaky, fn ->
+      {:ok, %{flaky: Results.flaky_tests(test_definition, environment)}}
+    end)
   end
 
   @impl true
@@ -50,13 +65,39 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
     end
   end
 
+  def handle_event("flaky_environment", %{"id" => environment_id}, socket) do
+    case Enum.find(socket.assigns.environments, &(to_string(&1.id) == environment_id)) do
+      nil ->
+        {:noreply, socket}
+
+      environment ->
+        {:noreply, socket |> assign(:flaky_environment, environment) |> load_flaky()}
+    end
+  end
+
   @impl true
   def handle_info({event, run} = message, socket)
       when event in [:run_created, :run_updated, :run_finished, :run_deleted] do
-    if run.test_definition_id == socket.assigns.test_definition.id,
-      do: {:noreply, RunFeed.apply_event(socket, :runs, message, @recent_runs)},
-      else: {:noreply, socket}
+    if run.test_definition_id == socket.assigns.test_definition.id do
+      {:noreply,
+       socket
+       |> RunFeed.apply_event(:runs, message, @recent_runs)
+       |> maybe_reload_flaky(message)}
+    else
+      {:noreply, socket}
+    end
   end
+
+  # A finished run with JUnit in the chosen environment moves its window.
+  defp maybe_reload_flaky(socket, {:run_finished, %{environment_id: id, tests_passed: passed}})
+       when passed != nil do
+    case socket.assigns.flaky_environment do
+      %{id: ^id} -> load_flaky(socket)
+      _other -> socket
+    end
+  end
+
+  defp maybe_reload_flaky(socket, _message), do: socket
 
   @impl true
   def render(assigns) do
@@ -172,6 +213,102 @@ defmodule TestFleetWeb.TestDefinitionLive.Show do
                   context={:test_definition}
                 />
               </ul>
+            </.panel>
+
+            <.panel :if={@flaky_environment} id="flaky-tests" title={gettext("Flaky tests")}>
+              <:actions :if={length(@environments) > 1}>
+                <nav
+                  id="flaky-environments"
+                  aria-label={gettext("Environment")}
+                  class="flex flex-wrap items-center rounded-lg bg-base-200 p-0.5 text-xs font-medium"
+                >
+                  <button
+                    :for={environment <- @environments}
+                    id={"flaky-environment-#{environment.id}"}
+                    type="button"
+                    phx-click="flaky_environment"
+                    phx-value-id={environment.id}
+                    aria-pressed={to_string(environment.id == @flaky_environment.id)}
+                    class={[
+                      "cursor-pointer rounded-md px-2.5 py-1 transition-colors",
+                      if(environment.id == @flaky_environment.id,
+                        do: "bg-base-100 text-base-content shadow-sm",
+                        else: "text-base-content/60 hover:text-base-content"
+                      )
+                    ]}
+                  >
+                    {environment.name}
+                  </button>
+                </nav>
+              </:actions>
+
+              <.async_result :let={tests} assign={@flaky}>
+                <:loading>
+                  <p
+                    id="flaky-tests-loading"
+                    class="flex items-center gap-2 px-5 py-4 text-sm text-base-content/60"
+                  >
+                    <.icon name="hero-arrow-path-mini" class="size-4 animate-spin" />
+                    {gettext("Looking for flaky tests…")}
+                  </p>
+                </:loading>
+                <:failed :let={_reason}>
+                  <p id="flaky-tests-failed" class="px-5 py-4 text-sm text-base-content/60">
+                    {gettext("The flaky tests could not be loaded.")}
+                  </p>
+                </:failed>
+
+                <p
+                  :if={tests == []}
+                  id="flaky-tests-none"
+                  class="flex items-center gap-2 px-5 py-4 text-sm text-base-content/70"
+                >
+                  <.icon name="hero-check-circle" class="size-5 text-success" />
+                  {gettext("No flaky tests in the last %{count} runs.", count: @window_size)}
+                </p>
+
+                <ul :if={tests != []} id="flaky-test-list" class="divide-y divide-base-300">
+                  <li
+                    :for={{flaky, index} <- Enum.with_index(tests)}
+                    id={"flaky-test-#{index}"}
+                    class="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-base-200/40"
+                  >
+                    <.icon name="hero-arrows-right-left-mini" class="size-4 shrink-0 text-warning" />
+                    <div class="min-w-0 flex-1">
+                      <.link
+                        navigate={
+                          test_path(@organization, @project.slug, @test_definition.id, flaky.test)
+                        }
+                        data-test-link
+                        class="block truncate text-sm font-medium transition-colors hover:text-primary"
+                      >
+                        {flaky.test.name}
+                      </.link>
+                      <p
+                        :if={test_location(flaky.test) != ""}
+                        class="truncate text-xs text-base-content/60"
+                      >
+                        {test_location(flaky.test)}
+                      </p>
+                    </div>
+                    <div class="shrink-0 text-right text-xs">
+                      <p data-flips class="font-medium text-warning tabular-nums">
+                        {ngettext("1 flip", "%{count} flips", flaky.flips)}
+                        <span class="font-normal text-base-content/60">
+                          {ngettext("in 1 run", "in %{count} runs", flaky.runs)}
+                        </span>
+                      </p>
+                      <.link
+                        :if={flaky.last_flip_run_id}
+                        navigate={~p"/#{@organization}/runs/#{flaky.last_flip_run_id}"}
+                        class="text-base-content/60 tabular-nums transition-colors hover:text-primary"
+                      >
+                        {gettext("latest #%{id}", id: flaky.last_flip_run_id)}
+                      </.link>
+                    </div>
+                  </li>
+                </ul>
+              </.async_result>
             </.panel>
           </div>
 

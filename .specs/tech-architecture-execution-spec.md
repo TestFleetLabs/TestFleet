@@ -714,7 +714,7 @@ A test is flaky when its outcome keeps changing although its suite did not. The 
 - **Window:** per test definition and environment, the latest 30 final runs with JUnit (`tests_passed IS NOT NULL`), by id. With `:up_to`, the latest 30 up to and including that run, which is how the run page judges a run's failures as they stood then.
 - **Flip:** within the window, two consecutive outcomes of a test, one `passed` and the other red, in runs with the same `image_digest` (`IS NOT DISTINCT FROM`, so two runs of a locally built image without a digest count as the same). Runs where the test is absent or `skipped` are left out of the sequence. A change across an image change is not a flip: the suite changed. A mixed run counts as one flip on its own.
 - **Flaky:** 3 or more flips in the window. A regression and its fix are 2. A test that usually passes and fails now and then reaches 3 quickly.
-- `flaky_tests/3` computes this in one query, with `lag()` over the window's outcomes partitioned by identity. It returns at most 50 tests, most flips first, then the most recent flip. Each comes with its flips, the window's size, and the run of the latest flip.
+- `flaky_tests/3` computes this in one query, with `lag()` over the window's outcomes partitioned by identity. It returns at most 50 tests (`limit: nil` for all, which the run page uses), most flips first, then the most recent flip. Each comes with its flips, the number of the window's runs that reported it, and the run of the latest flip.
 
 Flakiness is shown, never acted on. It does not change a run's status (section 23), its counts, or its notifications, and TestFleet does not quarantine tests: deciding which tests count belongs to the test framework, not to TestFleet.
 
@@ -726,7 +726,7 @@ Flakiness is shown, never acted on. It does not change a run's status (section 2
 - **`{:since, run_id}`**: its previous outcome was red too. `run_id` is the first run of the unbroken red series, the first red run after its last pass.
 - **`:first_seen`**: no earlier outcome; the test is new.
 
-All red tests of the run are answered in one query (a lateral join per identity on the identity index), whatever their number.
+All red tests of the run are answered together, whatever their number: one query lists them, and one query finds each one's latest pass, latest red outcome, and the first run after the other colour (the same streak query the test page uses).
 
 ## Comparing runs
 
@@ -2335,7 +2335,7 @@ Test definitions (disabled ones dimmed with a badge), environments, schedules, a
 
 Image, command, timeout, CPU, memory, shared memory, and the enabled state, with "Edit". **Run now** has one row per environment of the project, each with its own button, which creates the run and opens its page (disabled for a disabled test definition; without environments, a link to create one). Recent runs (20).
 
-**Flaky tests** (section 10): per environment, with a tab for each when the project has several. Each test shows its name and classname, its flips in the window ("5 flips in the last 30 runs"), and a link to the run of its latest flip; the name links to the test page. Loaded with `assign_async`, and reloaded when a run of this test definition finishes. When nothing is flaky: "No flaky tests in the last 30 runs".
+**Flaky tests** (section 10): per environment, with a tab for each when the project has several (the first is chosen at first). Each test shows its name and classname, its flips and the window's runs that reported it ("5 flips in 28 runs"), and a link to the run of its latest flip; the name links to the test page. Loaded with `assign_async`, and reloaded when a run of this test definition finishes. When nothing is flaky: "No flaky tests in the last 30 runs".
 
 ## Test page
 
@@ -2344,7 +2344,7 @@ Image, command, timeout, CPU, memory, shared memory, and the enabled state, with
 - **Header:** the test's name, classname, and suite; the project and test definition as breadcrumbs.
 - **Per environment** (`test_summary/2`): the latest outcome, the current streak ("failing for 4 runs, since #1830", "passing for 12 runs"), the pass rate and flips in the window, and a **Flaky** badge at 3 flips or more.
 - **Outcome strip:** the latest 30 outcomes of the chosen environment, oldest on the left, one cell per run in its outcome's colour, hatched when mixed, each linking to its run, with the run number, date, and duration in a tooltip. `?env=<slug>` chooses the environment (with `patch`); the strip shows only with an environment chosen, because outcomes of different environments in one row would make flips meaningless.
-- **History** (section 10): the table of the 50 latest entries, for the chosen environment or all, with "Load more".
+- **History** (section 10): the 50 latest entries, for the chosen environment or all (tabs, the same `?env=`), with "Load more". Each entry links to its run and shows the outcome, the number of cases when more than one, the first failure message, the duration, the short digest, and when it finished.
 - **Live:** subscribes to `runs:<organization_id>`; a run of this test definition that finishes with JUnit reloads the summary and puts its entry on top, if it reported the test.
 
 ## Environment page
