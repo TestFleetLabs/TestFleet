@@ -10,6 +10,21 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.4.0 (2026-11-07)
+
+### Upgrade notes
+
+- To record what a pipeline deployed, copy the CI scripts again (`deploy/ci/testfleet-run.sh`, `deploy/ci/testfleet-run.ps1`). Older copies keep working; they just do not send it
+
+### Enhancements
+
+- Every test has its own page: its latest outcome, streak, pass rate, and flips per environment, a strip of its last 30 outcomes, and its history. Test names on the run page link to it
+- Flaky tests (3 or more flips between passed and failed on the same image in the last 30 runs) are listed on the test definition page and marked on the run page. Flakiness is only shown; it never changes a run's status
+- Failed tests on the run page say whether they are new, failing since an earlier run, or seen for the first time
+- The run page's Changes panel compares the run with the previous run, the last passed run, or any run: new failures, fixed, still failing, added, and removed tests, and whether the image, deployment, command, or duration changed
+- API runs can record what was deployed (`"deployment": {"version", "commit", "url"}`). The run page, the runs list, the API, and notifications show it. The CI scripts send the tag as the version and find the commit and the pipeline link in GitHub Actions, GitLab CI, Azure Pipelines, and Jenkins
+- The runs list filters by project, environment, status, trigger, days, and deployment (version or commit), pages through all runs, and keeps both in the URL, so a filtered list can be shared
+
 ## 0.3.2 (2026-11-07)
 
 ### Enhancements
