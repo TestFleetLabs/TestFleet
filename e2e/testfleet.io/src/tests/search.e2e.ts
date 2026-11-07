@@ -15,12 +15,16 @@ test('a visitor finds a docs page through the search', async ({ page }) => {
 
 test('the search opens with the keyboard shortcut', async ({ page }) => {
   await page.goto('/start/introduction/')
-  await expect(page.getByRole('button', { name: 'Search' })).toBeEnabled()
+  const input = page
+    .getByRole('dialog', { name: 'Search', includeHidden: true })
+    .getByRole('textbox', { name: 'Search', includeHidden: true })
+
+  // The search button is enabled before Pagefind renders its input (on idle, via a dynamic
+  // import), and opening the dialog focuses the input only if it already exists
+  await expect(input).toBeAttached()
 
   // Lowercase: Playwright sends "K" for Control+K, and the site listens for "k"
   await page.keyboard.press('ControlOrMeta+k')
 
-  await expect(
-    page.getByRole('dialog', { name: 'Search' }).getByRole('textbox', { name: 'Search' }),
-  ).toBeFocused()
+  await expect(input).toBeFocused()
 })
