@@ -59,11 +59,16 @@ TestFleet: run 1842 passed (41 passed, 0 failed, 3 skipped)
 | `staging`         | The environment's slug                                                                                       |
 | `1.4.2`           | Optional: the E2E image's new tag. The test definition is updated first. Without it, the current image runs. |
 
-| Environment variable     |                                         |
-| ------------------------ | --------------------------------------- |
-| `TESTFLEET_URL`          | TestFleet's address                     |
-| `TESTFLEET_TOKEN`        | The API token                           |
-| `TESTFLEET_POLL_SECONDS` | How often to check the run, default `5` |
+| Environment variable           |                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `TESTFLEET_URL`                | TestFleet's address                                                     |
+| `TESTFLEET_TOKEN`              | The API token                                                           |
+| `TESTFLEET_POLL_SECONDS`       | How often to check the run, default `5`                                 |
+| `TESTFLEET_DEPLOYMENT_VERSION` | The deployed version, default the tag argument                          |
+| `TESTFLEET_DEPLOYMENT_COMMIT`  | The deployed commit, default the CI system's commit                     |
+| `TESTFLEET_DEPLOYMENT_URL`     | A link for the deployment, default the CI system's pipeline run         |
+
+**What was deployed.** The script tells TestFleet which version and commit the run tests, with a link to the pipeline run. The run page shows them, compares them with the earlier run, and notifications name them, so a red run leads straight to the deploy before it. In GitHub Actions, GitLab CI, Azure Pipelines, and Jenkins, the commit and the link are found in the CI system's own variables without any setup; elsewhere, or to report something else, set the variables above. A commit found in the CI system's variables is only sent when it looks like a commit hash, so an unusual value never keeps the tests from running.
 
 **Exit status:** `0` when the run passed, `1` when its tests failed, `2` for anything else: an infrastructure error, a timeout, a cancelled run, or a refused request (with TestFleet's message, such as `No environment "stagign" in project "customer-portal"`). Only `passed` passes the job.
 
@@ -170,7 +175,8 @@ curl -fsS -X PATCH -H "$auth" -H 'Content-Type: application/json' \
 
 # 2. Start a run
 curl -fsS -X POST -H "$auth" -H 'Content-Type: application/json' \
-  -d '{"test_definition": "e2e", "environment": "staging"}' \
+  -d '{"test_definition": "e2e", "environment": "staging",
+       "deployment": {"version": "1.4.2", "commit": "'"$GIT_SHA"'"}}' \
   "$api/projects/customer-portal/runs"
 # → 201 {"id": 1842, "status": "queued", "final": false, …}
 

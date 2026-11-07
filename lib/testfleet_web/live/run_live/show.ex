@@ -10,7 +10,7 @@ defmodule TestFleetWeb.RunLive.Show do
   alias TestFleet.{Artifacts, Notifications, Results, Runs, Schedules}
   alias TestFleet.Accounts.Scope
   alias TestFleet.Results.Comparison
-  alias TestFleet.Runs.Run
+  alias TestFleet.Runs.{Deployment, Run}
   alias TestFleet.Schedules.Timezones
 
   # Lines loaded on mount, and the most kept in the page.
@@ -380,6 +380,7 @@ defmodule TestFleetWeb.RunLive.Show do
                   {@run.test_definition.project.name}
                 </.link>
               </p>
+              <.deployment :if={@run.deployment} id="run-deployment" deployment={@run.deployment} />
             </div>
 
             <.button
@@ -1051,6 +1052,7 @@ defmodule TestFleetWeb.RunLive.Show do
         run: run,
         baseline: baseline,
         image: image_change(run, baseline),
+        deployment: deployment_change(run, baseline),
         duration: duration_change(run, baseline)
       )
 
@@ -1091,6 +1093,23 @@ defmodule TestFleetWeb.RunLive.Show do
             <% {:changed, from, to} -> %>
               <.icon name="hero-arrow-path-rounded-square-mini" class="size-4 text-info" />
               {gettext("Image changed")}
+              <span class="font-mono text-[0.7rem] text-base-content/60">{from} → {to}</span>
+          <% end %>
+        </li>
+        <li
+          :if={@deployment}
+          id="run-changes-deployment"
+          data-changed={to_string(match?({:changed, _, _}, @deployment))}
+          class="inline-flex items-center gap-1.5"
+        >
+          <%= case @deployment do %>
+            <% {:unchanged, label} -> %>
+              <.icon name="hero-rocket-launch-mini" class="size-4 text-base-content/40" />
+              {gettext("Same deployment")}
+              <span class="font-mono text-[0.7rem] text-base-content/60">{label}</span>
+            <% {:changed, from, to} -> %>
+              <.icon name="hero-rocket-launch-mini" class="size-4 text-info" />
+              {gettext("Deployment")}
               <span class="font-mono text-[0.7rem] text-base-content/60">{from} → {to}</span>
           <% end %>
         </li>
@@ -1239,6 +1258,15 @@ defmodule TestFleetWeb.RunLive.Show do
 
   defp image_label(%Run{image_digest: nil, image: image}), do: image
   defp image_label(%Run{image_digest: digest}), do: digest
+
+  # Shown when either run names its deployment; a run without one reads "–".
+  defp deployment_change(run, baseline) do
+    case {Deployment.label(baseline.deployment), Deployment.label(run.deployment)} do
+      {nil, nil} -> nil
+      {same, same} -> {:unchanged, same}
+      {from, to} -> {:changed, from || "–", to || "–"}
+    end
+  end
 
   defp duration_change(run, baseline) do
     with now when is_integer(now) <- run_duration(run, run.finished_at),

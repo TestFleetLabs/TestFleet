@@ -13,7 +13,7 @@ defmodule TestFleetWeb.RunComponents do
   import TestFleetWeb.AppComponents, only: [badge: 1, local_time: 1]
   import TestFleetWeb.CoreComponents, only: [icon: 1]
 
-  alias TestFleet.Runs.Run
+  alias TestFleet.Runs.{Deployment, Run}
   alias TestFleet.Schedules.Timezones
 
   @doc """
@@ -86,6 +86,45 @@ defmodule TestFleetWeb.RunComponents do
 
   def triggered_via(%{trigger: :api, api_token: nil}), do: gettext("a revoked token")
   def triggered_via(_run), do: nil
+
+  @doc """
+  Renders what a pipeline deployed before it started the run: the version, the
+  short commit (the full one in the tooltip), and a link named by its host.
+  """
+  attr :id, :string, required: true
+  attr :deployment, Deployment, required: true
+
+  def deployment(assigns) do
+    ~H"""
+    <p id={@id} class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <.icon name="hero-rocket-launch-mini" class="size-4 text-base-content/40" />
+      <span class="text-base-content/60">{gettext("Deployed")}</span>
+      <span :if={@deployment.version} id={"#{@id}-version"} class="font-semibold">
+        {@deployment.version}
+      </span>
+      <code
+        :if={@deployment.commit}
+        id={"#{@id}-commit"}
+        title={@deployment.commit}
+        class="rounded-md bg-base-200 px-1.5 py-0.5 font-mono text-xs text-base-content/80"
+      >
+        {Deployment.short_commit(@deployment.commit)}
+      </code>
+      <a
+        :if={@deployment.url}
+        id={"#{@id}-link"}
+        href={@deployment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={@deployment.url}
+        class="inline-flex items-center gap-1 font-medium text-primary transition-colors hover:text-primary/80"
+      >
+        {Deployment.url_host(@deployment)}
+        <.icon name="hero-arrow-top-right-on-square-mini" class="size-3.5" />
+      </a>
+    </p>
+    """
+  end
 
   @doc "The display name of a trigger."
   def trigger_label(:manual), do: gettext("Manual")
@@ -496,6 +535,9 @@ defmodule TestFleetWeb.RunComponents do
               <span :if={@context != :test_definition}>{@run.environment.name} · </span>
               {trigger_label(@run.trigger)}
               <span :if={triggered_by(@run)}>· {triggered_by(@run)}</span>
+              <span :if={Deployment.label(@run.deployment)} data-deployment>
+                · {Deployment.label(@run.deployment)}
+              </span>
             </span>
             <.test_counts id={"#{@id}-tests"} run={@run} />
           </p>

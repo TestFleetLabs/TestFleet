@@ -5,7 +5,7 @@ defmodule TestFleetWeb.API.RunJSON do
   """
   use TestFleetWeb, :verified_routes
 
-  alias TestFleet.Runs.Run
+  alias TestFleet.Runs.{Deployment, Run}
   alias TestFleetWeb.RunComponents
 
   def show(%{run: run}), do: data(run)
@@ -19,6 +19,7 @@ defmodule TestFleetWeb.API.RunJSON do
       environment: run.environment.slug,
       trigger: run.trigger,
       triggered_by: RunComponents.triggered_by(run),
+      deployment: Deployment.to_json(run.deployment),
       status: run.status,
       final: Run.final?(run),
       image: run.image,

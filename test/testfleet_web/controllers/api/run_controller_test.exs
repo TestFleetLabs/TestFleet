@@ -9,7 +9,8 @@ defmodule TestFleetWeb.API.RunControllerTest do
   import TestFleet.TestDefinitionsFixtures
 
   alias TestFleet.{Runs, TestDefinitions}
-  alias TestFleet.Runs.Run
+  alias TestFleet.Repo
+  alias TestFleet.Runs.{Deployment, Run}
 
   setup %{conn: conn} do
     user = user_fixture()
@@ -90,6 +91,64 @@ defmodule TestFleetWeb.API.RunControllerTest do
       assert %Run{trigger: :api, triggered_by_user_id: user_id, api_token_id: token_id} = run
       assert {user_id, token_id} == {user.id, api_token.id}
       assert_receive {:run_created, %Run{id: ^id}}
+    end
+
+    test "records what the pipeline deployed", %{conn: conn} do
+      deployment = %{
+        "version" => "1.4.2",
+        "commit" => "9fceb02d0ae598e95dc970b74767f19372d61af8",
+        "url" => "https://ci.example.com/pipelines/12"
+      }
+
+      conn =
+        start(conn, %{
+          "test_definition" => "e2e",
+          "environment" => "staging",
+          "deployment" => deployment
+        })
+
+      assert %{"id" => id, "deployment" => ^deployment} = json_response(conn, 201)
+      assert %Run{deployment: %Deployment{version: "1.4.2"}} = Runs.get_run!(id)
+
+      # Without one, and with only empty fields, the run has none.
+      for body <- [
+            %{"test_definition" => "e2e", "environment" => "staging"},
+            %{
+              "test_definition" => "e2e",
+              "environment" => "staging",
+              "deployment" => %{"version" => "", "commit" => nil}
+            }
+          ] do
+        conn = conn |> recycle_auth() |> start(body)
+        assert %{"deployment" => nil} = json_response(conn, 201)
+      end
+    end
+
+    test "names a deployment's problems by field", %{conn: conn} do
+      problems = fn deployment ->
+        conn
+        |> recycle_auth()
+        |> start(%{
+          "test_definition" => "e2e",
+          "environment" => "staging",
+          "deployment" => deployment
+        })
+        |> json_response(422)
+        |> get_in(["error", "details"])
+      end
+
+      assert problems.(%{"commit" => "main", "url" => "javascript:alert(1)"}) == %{
+               "deployment.commit" => ["must be a commit hash of 7 to 64 hexadecimal characters"],
+               "deployment.url" => ["must be an http or https URL"]
+             }
+
+      assert problems.(%{"sha" => "9fceb02", "version" => 1}) == %{
+               "deployment.sha" => ["is not a known field"],
+               "deployment.version" => ["must be a string"]
+             }
+
+      assert problems.("1.4.2") == %{"deployment" => ["must be an object"]}
+      assert Repo.aggregate(Run, :count) == 0
     end
 
     test "names what is unknown", %{conn: conn} do

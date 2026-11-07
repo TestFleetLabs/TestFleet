@@ -22,6 +22,9 @@ defmodule TestFleet.Runs.Run do
     field :command, {:array, :string}, default: []
     field :image_digest, :string
 
+    # What the pipeline deployed before starting an API run; nil otherwise
+    embeds_one :deployment, TestFleet.Runs.Deployment, on_replace: :update
+
     field :container_id, :string
     field :last_log_timestamp, :integer
     field :last_log_sequence, :integer, default: 0

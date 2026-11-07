@@ -44,6 +44,8 @@ The API is for pipelines and scripts. It lives under `/api/v1`; a later incompat
 }
 ```
 
+A field inside an object is named with a dot, such as `"deployment.commit"`.
+
 ## Endpoints
 
 | Method  | Path                                                                         |                           |
@@ -68,7 +70,31 @@ Content-Type: application/json
 
 `201 Created`, with `Location: /api/v1/runs/1842` and the [run](#the-run-object). The run is `queued` and goes through the same queue and limits as every other run. It is recorded as started through the API by the token's user, and the run page names the token.
 
-Errors: `404` for an unknown project, test definition, or environment (or an environment of another project), `409` for a disabled test definition, `422` for a missing or unknown field.
+### What was deployed
+
+A pipeline that just deployed can say what, so a failure traces back to the deploy:
+
+```json
+{
+  "test_definition": "e2e",
+  "environment": "staging",
+  "deployment": {
+    "version": "1.4.2",
+    "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+    "url": "https://github.com/acme/portal/actions/runs/1029384756"
+  }
+}
+```
+
+| Field     |                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| `version` | The application's version, up to 100 characters                                                    |
+| `commit`  | The commit hash, 7 to 64 hexadecimal characters                                                    |
+| `url`     | A link to the pipeline run, the release, or the commit; an absolute `http` or `https` URL          |
+
+Every field is optional and may be `null`. The run page shows the deployment under its title and compares it with the earlier run in its Changes panel; the runs list and notifications name it. TestFleet records what it is told and does not check it.
+
+Errors: `404` for an unknown project, test definition, or environment (or an environment of another project), `409` for a disabled test definition, `422` for a missing or unknown field, or an invalid deployment field (the run is not started).
 
 ## Get a run
 
@@ -89,6 +115,11 @@ GET /api/v1/runs/1842
   "environment": "staging",
   "trigger": "api",
   "triggered_by": "ci@example.com",
+  "deployment": {
+    "version": "1.4.2",
+    "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+    "url": "https://github.com/acme/portal/actions/runs/1029384756"
+  },
   "status": "failed",
   "final": true,
   "image": "ghcr.io/acme/portal-e2e:1.4.2",
@@ -111,6 +142,7 @@ GET /api/v1/runs/1842
 | `final`                 | `true` once the status will not change any more. Poll until it is.                                                                                   |
 | `trigger`               | `manual`, `schedule`, or `api`                                                                                                                       |
 | `triggered_by`          | The email of the user who started it; `null` for scheduled runs                                                                                      |
+| `deployment`            | What the pipeline [said it deployed](#what-was-deployed), with all three fields; `null` without                                                      |
 | `image`, `image_digest` | The image as configured when the run was created, and the digest it resolved to (`null` until pulled)                                                |
 | `exit_code`             | The container's exit code; `null` if it never ran                                                                                                    |
 | `error_message`         | TestFleet's explanation for `error`, `timeout`, and some `cancelled` runs                                                                            |

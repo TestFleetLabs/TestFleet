@@ -82,6 +82,7 @@ A webhook channel receives JSON:
     "id": 1234,
     "status": "failed",
     "trigger": "schedule",
+    "deployment": null,
     "url": "https://testfleet.example.internal/acme/runs/1234",
     "started_at": "2026-09-28T13:57:59Z",
     "finished_at": "2026-09-28T14:02:11Z",
@@ -98,7 +99,7 @@ A webhook channel receives JSON:
 }
 ```
 
-`run.failed_tests` holds up to three names, for `run.failing` only; other events send an empty list. System events carry a `"system"` object instead of `run`, `test_definition`, `project`, and `environment`.
+`run.failed_tests` holds up to three names, for `run.failing` only; other events send an empty list. `run.deployment` is what the pipeline reported it deployed when it [started the run](/ci/api/#start-a-run) (`version`, `commit`, `url`), or `null`; messages to email, Slack, and Teams show it as a **Deployment** fact. System events carry a `"system"` object instead of `run`, `test_definition`, `project`, and `environment`.
 
 Headers:
 

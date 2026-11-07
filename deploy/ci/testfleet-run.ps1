@@ -9,6 +9,11 @@
 # (an API token from Settings), TESTFLEET_POLL_SECONDS (default 5).
 # Needs PowerShell 7.
 #
+# The run records what was deployed, shown on its page and in notifications:
+# TESTFLEET_DEPLOYMENT_VERSION (default: the tag), TESTFLEET_DEPLOYMENT_COMMIT and
+# TESTFLEET_DEPLOYMENT_URL (default: the commit and the pipeline run of GitHub
+# Actions, GitLab CI, Azure Pipelines, or Jenkins).
+#
 # Exit status: 0 when the run passed, 1 when its tests failed, 2 for everything
 # else (error, timeout, cancelled, or a refused request).
 param(
@@ -56,7 +61,37 @@ if ($Tag) {
   Write-Host "TestFleet: $TestDefinition now uses $($definition.image)"
 }
 
-$run = Invoke-TestFleet POST "/projects/$Project/runs" @{ test_definition = $TestDefinition; environment = $Environment }
+# What was deployed. A commit found in the CI system's variables is only sent when it
+# looks like a commit hash, so an unexpected value never keeps the tests from running.
+$version = if ($env:TESTFLEET_DEPLOYMENT_VERSION) { $env:TESTFLEET_DEPLOYMENT_VERSION } else { $Tag }
+$commit = $env:TESTFLEET_DEPLOYMENT_COMMIT
+if (-not $commit) {
+  $commit = @($env:GITHUB_SHA, $env:CI_COMMIT_SHA, $env:BUILD_SOURCEVERSION, $env:GIT_COMMIT) |
+    Where-Object { $_ } | Select-Object -First 1
+  if ($commit -notmatch '^[0-9a-fA-F]{7,64}$') { $commit = $null }
+}
+$url = $env:TESTFLEET_DEPLOYMENT_URL
+if (-not $url) {
+  $url =
+    if ($env:GITHUB_RUN_ID) {
+      $server = if ($env:GITHUB_SERVER_URL) { $env:GITHUB_SERVER_URL } else { 'https://github.com' }
+      "$server/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+    }
+    elseif ($env:CI_PIPELINE_URL) { $env:CI_PIPELINE_URL }
+    elseif ($env:BUILD_BUILDID -and $env:SYSTEM_COLLECTIONURI) {
+      "$($env:SYSTEM_COLLECTIONURI)$($env:SYSTEM_TEAMPROJECTID)/_build/results?buildId=$($env:BUILD_BUILDID)"
+    }
+    elseif ($env:BUILD_URL) { $env:BUILD_URL }
+}
+
+$start = @{ test_definition = $TestDefinition; environment = $Environment }
+$deployment = @{}
+if ($version) { $deployment.version = $version }
+if ($commit) { $deployment.commit = $commit }
+if ($url) { $deployment.url = $url }
+if ($deployment.Count -gt 0) { $start.deployment = $deployment }
+
+$run = Invoke-TestFleet POST "/projects/$Project/runs" $start
 Write-Host "TestFleet: run $($run.id) of $($run.image) on $Environment"
 Write-Host "TestFleet: $($run.url)"
 

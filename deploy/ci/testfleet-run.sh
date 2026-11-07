@@ -10,6 +10,11 @@
 # (an API token from Settings), TESTFLEET_POLL_SECONDS (default 5).
 # Needs curl and jq.
 #
+# The run records what was deployed, shown on its page and in notifications:
+# TESTFLEET_DEPLOYMENT_VERSION (default: the tag), TESTFLEET_DEPLOYMENT_COMMIT and
+# TESTFLEET_DEPLOYMENT_URL (default: the commit and the pipeline run of GitHub
+# Actions, GitLab CI, Azure Pipelines, or Jenkins).
+#
 # Exit status: 0 when the run passed, 1 when its tests failed, 2 for everything
 # else (error, timeout, cancelled, or a refused request).
 set -eu
@@ -59,8 +64,37 @@ if [ -n "$tag" ]; then
   echo "TestFleet: $test_definition now uses $(echo "$definition" | jq -r .image)"
 fi
 
+# What was deployed. A commit found in the CI system's variables is only sent when it
+# looks like a commit hash, so an unexpected value never keeps the tests from running.
+version=${TESTFLEET_DEPLOYMENT_VERSION:-$tag}
+commit=${TESTFLEET_DEPLOYMENT_COMMIT:-}
+if [ -z "$commit" ]; then
+  commit=${GITHUB_SHA:-${CI_COMMIT_SHA:-${BUILD_SOURCEVERSION:-${GIT_COMMIT:-}}}}
+  case $commit in
+    *[!0-9a-fA-F]*) commit= ;;
+    ???????*) ;;
+    *) commit= ;;
+  esac
+fi
+url=${TESTFLEET_DEPLOYMENT_URL:-}
+if [ -z "$url" ]; then
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    url="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/$GITHUB_RUN_ID"
+  elif [ -n "${CI_PIPELINE_URL:-}" ]; then
+    url=$CI_PIPELINE_URL
+  elif [ -n "${BUILD_BUILDID:-}" ] && [ -n "${SYSTEM_COLLECTIONURI:-}" ]; then
+    url="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECTID:-}/_build/results?buildId=$BUILD_BUILDID"
+  elif [ -n "${BUILD_URL:-}" ]; then
+    url=$BUILD_URL
+  fi
+fi
+
 run=$(api POST "/projects/$project/runs" \
-  "$(jq -n --arg t "$test_definition" --arg e "$environment" '{test_definition: $t, environment: $e}')")
+  "$(jq -n --arg t "$test_definition" --arg e "$environment" \
+    --arg version "$version" --arg commit "$commit" --arg url "$url" '
+    {test_definition: $t, environment: $e}
+    + ({version: $version, commit: $commit, url: $url} | with_entries(select(.value != ""))
+       | if . == {} then {} else {deployment: .} end)')")
 run_id=$(echo "$run" | jq -r .id)
 echo "TestFleet: run $run_id of $(echo "$run" | jq -r .image) on $environment"
 echo "TestFleet: $(echo "$run" | jq -r .url)"

@@ -12,6 +12,7 @@ defmodule TestFleet.Notifications.EvaluationTest do
   alias TestFleet.Notifications
   alias TestFleet.Notifications.{Delivery, DeliveryWorker, EvaluateWorker, Message}
   alias TestFleet.Runs
+  alias TestFleet.Runs.Deployment
 
   setup do
     project = project_fixture(name: "Customer Portal")
@@ -240,6 +241,32 @@ defmodule TestFleet.Notifications.EvaluationTest do
 
       assert id == run.id
       assert message.payload["environment"]["name"] == "production"
+    end
+
+    test "names the deployment the pipeline reported", context do
+      deployment = %Deployment{
+        version: "1.4.2",
+        commit: "9fceb02d0ae598e95dc970b74767f19372d61af8",
+        url: "https://ci.example.com/pipelines/12"
+      }
+
+      render = fn run ->
+        Notifications.run_message(%Delivery{event: "run.failing", run_id: run.id, data: %{}})
+      end
+
+      message = render.(run(context, :failed, trigger: :api, deployment: deployment))
+
+      assert Map.new(message.facts)["Deployment"] == "1.4.2 (9fceb02)"
+
+      assert message.payload["run"]["deployment"] == %{
+               "version" => "1.4.2",
+               "commit" => "9fceb02d0ae598e95dc970b74767f19372d61af8",
+               "url" => "https://ci.example.com/pipelines/12"
+             }
+
+      message = render.(run(context, :failed))
+      refute List.keymember?(message.facts, "Deployment", 0)
+      assert message.payload["run"]["deployment"] == nil
     end
 
     test "timeout, recovered, and error read differently", context do

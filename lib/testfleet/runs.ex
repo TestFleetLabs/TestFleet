@@ -172,7 +172,8 @@ defmodule TestFleet.Runs do
   Creates a queued run for "Run now" or the API.
 
   Options: `:trigger` (`:manual`, the default, or `:api`), `:user` who started it,
-  and the `:api_token` it was started with.
+  the `:api_token` it was started with, and the `:deployment` the pipeline
+  reported (a `TestFleet.Runs.Deployment`, from `Deployment.new/1`).
 
   The test definition is read again, so a definition disabled in the meantime is
   rejected.
@@ -200,6 +201,7 @@ defmodule TestFleet.Runs do
             environment_id: environment.id,
             triggered_by_user_id: user && user.id,
             api_token_id: api_token && api_token.id,
+            deployment: opts[:deployment],
             image: test_definition.image,
             command: test_definition.command,
             queued_at: DateTime.utc_now()

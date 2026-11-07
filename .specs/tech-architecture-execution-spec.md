@@ -445,6 +445,7 @@ schedule_id
 scheduled_for
 triggered_by_user_id
 api_token_id
+deployment
 
 status
 cancel_requested_at
@@ -501,6 +502,7 @@ Runs are shown as `#<id>`. Run ids are global, not per organization.
 **Other fields.**
 
 - `image_digest`: the repo digest after the pull (section 37). Null for locally built images without one.
+- `deployment` (`jsonb`, embedded `TestFleet.Runs.Deployment`): what the pipeline that started an API run says it deployed, so a failure can be traced to the deploy before it. `version` (1–100 characters, no control characters), `commit` (7–64 hexadecimal characters, stored lowercase), and `url` (an absolute `http(s)` URL of at most 2,048 characters: the pipeline run, release, or commit; it is rendered as a link, so nothing else is accepted). Every field is optional; without any, `deployment` is null, as on manual and scheduled runs. TestFleet records it and does not check it. `Deployment.new/1` validates it; `create_run` takes the result as `:deployment`.
 - `container_id`, `last_log_timestamp` (bigint, nanoseconds), and `last_log_sequence` let a restarted TestFleet reattach to a running container and resume the log without gaps or duplicates (section 30).
 - `log_bytes` and `log_truncated`: the log limit (section 21).
 - `tests_passed`, `tests_failed` (failures and errors), `tests_skipped`: counts from JUnit, `nil` without JUnit, so run lists show them without counting rows.
@@ -1963,7 +1965,8 @@ CI pipeline: build app 1.4.2 and its E2E image 1.4.2 → deploy to staging
   ↓
 PATCH /api/v1/projects/customer-portal/test-definitions/e2e   {"tag": "1.4.2"}
   ↓
-POST  /api/v1/projects/customer-portal/runs                    {"test_definition": "e2e", "environment": "staging"}
+POST  /api/v1/projects/customer-portal/runs                    {"test_definition": "e2e", "environment": "staging",
+                                                                 "deployment": {"version": "1.4.2", "commit": "9fceb02…"}}
   ↓  201, run 1842 (queued)
 GET   /api/v1/runs/1842   … until "final": true
   ↓
@@ -2019,7 +2022,7 @@ Authorization: Bearer tf_…
 | 404 | `not_found` | Unknown project, test definition, environment, run, or artifact; the message names which |
 | 409 | `test_definition_disabled` | Starting a run of a disabled test definition |
 | 410 | `expired` | The log or artifacts were removed by retention |
-| 422 | `invalid` | Validation failed; `"details": {"field": ["message", …]}` |
+| 422 | `invalid` | Validation failed; `"details": {"field": ["message", …]}`; a field of an object is named with a dot (`"deployment.commit"`), so clients print details without knowing about nesting |
 
 ## Endpoints
 
@@ -2038,6 +2041,8 @@ The log and artifact files are in their own `:api_files` pipeline without `accep
 
 **Start a run:** `{"test_definition": "e2e", "environment": "staging"}` → `201 Created`, `Location: /api/v1/runs/1842`, and the run. It is `queued` and goes through the dispatcher like every other run; `trigger` is `api`, with the token's user and the token. `Runs.create_run/3` serves manual and API runs, with the same checks.
 
+An optional `"deployment": {"version": "1.4.2", "commit": "9fceb02…", "url": "https://…"}` records what the pipeline deployed (section 7). Its fields are strings or null, unknown keys are refused like unknown fields, and it is validated before the lookups; a run with an invalid deployment is not created. The scripts fill it in: the version from `TESTFLEET_DEPLOYMENT_VERSION` or the tag, the commit and URL from `TESTFLEET_DEPLOYMENT_COMMIT` and `TESTFLEET_DEPLOYMENT_URL` or the CI system's own variables (GitHub Actions, GitLab CI, Azure Pipelines, Jenkins). A commit found in those variables is sent only when it looks like a hash, so an unexpected value never keeps the tests from running.
+
 **A run:**
 
 ```json
@@ -2049,6 +2054,7 @@ The log and artifact files are in their own `:api_files` pipeline without `accep
   "environment": "staging",
   "trigger": "api",
   "triggered_by": "ci@example.com",
+  "deployment": {"version": "1.4.2", "commit": "9fceb02…", "url": "https://…"},
   "status": "failed",
   "final": true,
   "image": "ghcr.io/acme/portal-e2e:1.4.2",
@@ -2062,7 +2068,7 @@ The log and artifact files are in their own `:api_files` pipeline without `accep
 }
 ```
 
-`final` saves every client the list of final statuses. `tests` is `null` without JUnit. A pipeline should pass only on `passed`, and treat `failed` (the tests failed) differently from `error` and `timeout`.
+`final` saves every client the list of final statuses. `tests` is `null` without JUnit, `deployment` without one (with every field otherwise). A pipeline should pass only on `passed`, and treat `failed` (the tests failed) differently from `error` and `timeout`.
 
 **Cancel:** `202 Accepted` with the run; idempotent. An active run reaches `cancelled` once its container stopped, so the response may still say `running`.
 
@@ -2201,10 +2207,12 @@ All HTTP uses `Req` with `retry: false` (Oban retries), `redirect: false`, and a
 
 ```text
 Customer Portal E2E is failing on production
-Failed after 4 min 12 s · 3 of 48 tests failed · scheduled run
+Failed after 4 min 12 s · 3 of 48 tests failed · API run · deployment 1.4.2 (9fceb02)
 First failures: checkout › pays with card, login › rejects wrong password, …
 Previous run passed · Open run #1234
 ```
+
+- A run with a deployment has a **Deployment** fact, its version and short commit (`Deployment.label/1`); the webhook's `run.deployment` carries all three fields, or null.
 
 - The link is the run page, absolute, from `PHX_HOST`; system messages link to the dashboard and show times in `:default_timezone`.
 - At most 3 failing test **names**, never failure messages or log output: they can carry data the team would not post to a channel.
@@ -2224,7 +2232,8 @@ Previous run passed · Open run #1234
     "event": "run.failing",
     "delivery_id": 81,
     "occurred_at": "2026-09-28T14:02:11Z",
-    "run": {"id": 1234, "status": "failed", "trigger": "schedule", "url": "https://…/acme/runs/1234",
+    "run": {"id": 1234, "status": "failed", "trigger": "schedule", "deployment": null,
+            "url": "https://…/acme/runs/1234",
             "started_at": "…", "finished_at": "…", "duration_ms": 252000, "exit_code": 1,
             "error_message": null, "tests": {"passed": 45, "failed": 3, "skipped": 0},
             "failed_tests": ["…"]},
@@ -2367,6 +2376,7 @@ Live output
 Artifacts: junit.xml, screenshots/, playwright-report/
 ```
 
+- **Deployment**, under the title when the pipeline reported one: "Deployed 1.4.2 `9fceb02` ci.example.com ↗", the full commit in the tooltip, the link (named by its host) opening in a new tab with `rel="noopener noreferrer"`.
 - The status, test definition, environment, project, and trigger: "Started by `<email>`" for manual runs, "by `<email>` via `<token name>`" (or "via a revoked token") for API runs, "Schedule" with its cron expression and a link for scheduled runs, plus a "Scheduled for" row (it differs from the queued time after downtime or a `queue` wait).
 - Queued, started, and finished times, and the duration, counting while the run is active.
 - Image, digest, command, exit code, "memory limit exceeded" when OOM-killed, the error message, and the warnings.
@@ -2398,7 +2408,7 @@ Image unchanged · Duration +0:42 · 42 → 40 passed · 0 → 2 failed
 
 - The baseline is the previous run by default; a select switches to the last passed run, and a field takes any run number. The choice is in the URL (`?compare=previous`, `?compare=last_passed`, `?compare=<id>`, with `patch`), so a comparison can be shared.
 - A run number that cannot be compared (another test definition, not final, no JUnit, not found in the organization) shows "Run #… cannot be compared: …" and the previous run instead.
-- The facts: the image ("Image unchanged", or both digests when it changed), the command when it changed, the environment when it differs, and the changes in duration and counts.
+- The facts: the image ("Image unchanged", or both digests when it changed), the deployment when either run has one ("Same deployment 1.4.2", or "Deployment 1.4.1 → 1.4.2", with "–" for a run without one), the command when it changed, the environment when it differs, and the changes in duration and counts.
 - New failures (with their message) and Fixed are listed; Still failing, Added, and Removed are collapsed behind their counts. Every test links to its test page.
 - Without a baseline: "No earlier run to compare with". Loaded with `assign_async` once the run is final.
 
@@ -2416,7 +2426,7 @@ Image unchanged · Duration +0:42 · 42 → 40 passed · 0 → 2 failed
 
 ## Runs list
 
-The latest 50 runs, newest first, live: status, number, test definition, project and environment, trigger and who started it, start time, duration, and the test counts ("42 ✓ 2 ✗").
+The latest 50 runs, newest first, live: status, number, test definition, project and environment, trigger and who started it, the deployment's label ("1.4.2 (9fceb02)") when there is one, start time, duration, and the test counts ("42 ✓ 2 ✗"). Every run row (`RunComponents.run_row/1`) shows the deployment the same way.
 
 ## Notifications page (admin)
 
@@ -2700,6 +2710,7 @@ TestFleet may also be offered as a hosted service, from the same repository: the
 
 - **Amazon ECR**, whose tokens are fetched from AWS before each pull.
 - **An image per run**, overriding the test definition's image for one API run, which removes the race between concurrent pipelines.
+- **The deployment of scheduled and manual runs**: the environment's latest reported deployment, shown as "probably" since TestFleet cannot know about deploys it was not told of; and searching runs by version or commit.
 - **Variables scoped to a test definition**, if users ask for it: an environment variable that applies to all test definitions or only to some, the more specific value winning. Today suites that expect the same key with different values (an API and a frontend suite both reading `BASE_URL`) need distinct keys mapped in the test definition's command; splitting the environment instead would break its concurrency limit and series.
 - **Visible retries**, if ever wanted: each attempt its own record (section 33).
 

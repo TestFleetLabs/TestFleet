@@ -17,6 +17,7 @@ defmodule TestFleet.Notifications.Message do
   use Phoenix.VerifiedRoutes, endpoint: TestFleetWeb.Endpoint, router: TestFleetWeb.Router
 
   alias TestFleet.Notifications.Channel
+  alias TestFleet.Runs.Deployment
 
   @enforce_keys [:event, :title]
   defstruct [:event, :title, :summary, :link, facts: [], payload: %{}, occurred_at: nil]
@@ -47,6 +48,7 @@ defmodule TestFleet.Notifications.Message do
         {"Project", project.name},
         {"Environment", environment.name},
         {"Trigger", trigger_label(run.trigger)},
+        Deployment.label(run.deployment) && {"Deployment", Deployment.label(run.deployment)},
         duration_ms && {"Duration", format_duration(duration_ms)},
         run.tests_failed != nil && {"Tests", test_counts(run)},
         (event == "run.failing" and failures.names != []) &&
@@ -67,6 +69,8 @@ defmodule TestFleet.Notifications.Message do
           "id" => run.id,
           "status" => to_string(run.status),
           "trigger" => to_string(run.trigger),
+          # What the pipeline reported it deployed; nil when it did not say
+          "deployment" => Deployment.to_json(run.deployment),
           "url" => url(~p"/#{run.organization}/runs/#{run.id}"),
           "started_at" => run.started_at && DateTime.to_iso8601(run.started_at),
           "finished_at" => run.finished_at && DateTime.to_iso8601(run.finished_at),

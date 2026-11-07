@@ -9,6 +9,10 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
   import TestFleet.RunsFixtures
   import TestFleet.TestDefinitionsFixtures
 
+  # The history queries can take longer than render_async's default 100 ms while
+  # the whole suite runs.
+  @async_timeout 2_000
+
   setup :register_and_log_in_user
 
   setup do
@@ -61,7 +65,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
         ])
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(view, "#test-failures li[data-test='adds'] [data-streak='new']")
       assert has_element?(view, "#test-failures li[data-test='stays'] [data-streak='since']")
@@ -92,7 +96,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       current = run(context, [{"pays", :failed}, {"adds", :passed}, {"new one", :passed}])
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(
                view,
@@ -114,7 +118,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       current = run(context, [{"pays", :passed}], image_digest: "sha256:fedcba9876543210")
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(view, "#run-changes-image[data-changed='true']", "sha256:0123456789ab")
     end
@@ -125,12 +129,12 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       current = run(context, [{"pays", :failed}])
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
       assert has_element?(view, "#run-changes-still_failing")
 
       view |> element("#compare-last-passed") |> render_click()
       assert_patch(view, ~p"/#{org()}/runs/#{current.id}?compare=last_passed")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(
                view,
@@ -146,11 +150,11 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       current = run(context, [{"pays", :failed}])
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       view |> form("#compare-form", %{"run" => "##{staging.id}"}) |> render_submit()
       assert_patch(view, ~p"/#{org()}/runs/#{current.id}?compare=#{staging.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(
                view,
@@ -167,7 +171,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       current = run(context, [{"pays", :failed}])
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}?compare=#{other.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(view, "#run-changes-problem", "another test definition")
 
@@ -177,7 +181,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
              )
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}?compare=999999999")
-      render_async(view)
+      render_async(view, @async_timeout)
       assert has_element?(view, "#run-changes-problem", "no such run")
     end
 
@@ -185,7 +189,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       current = run(context, [{"pays", :failed}])
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(view, "#run-changes-none")
     end
@@ -199,7 +203,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
         )
 
       {:ok, view, _html} = live(conn, ~p"/#{org()}/runs/#{current.id}")
-      render_async(view)
+      render_async(view, @async_timeout)
 
       refute has_element?(view, "#run-changes")
     end
@@ -296,7 +300,7 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       runs = alternate(context, 5)
 
       {:ok, view, _html} = live(conn, definition_page(context))
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(
                view,
@@ -317,11 +321,11 @@ defmodule TestFleetWeb.TestHistoryLiveTest do
       alternate(context, 5)
 
       {:ok, view, _html} = live(conn, definition_page(context))
-      render_async(view)
+      render_async(view, @async_timeout)
       assert has_element?(view, "#flaky-test-0")
 
       view |> element("#flaky-environment-#{context.staging.id}") |> render_click()
-      render_async(view)
+      render_async(view, @async_timeout)
 
       assert has_element?(view, "#flaky-environment-#{context.staging.id}[aria-pressed='true']")
       assert has_element?(view, "#flaky-tests-none")
