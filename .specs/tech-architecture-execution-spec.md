@@ -667,7 +667,7 @@ inserted_at
 - `file`: the JUnit file it came from, such as `junit/shard-2.xml`.
 - No `updated_at`: rows never change.
 
-A test's identity across runs is `(test_definition_id, suite, classname, name)`. This combination is indexed so per-test history and flakiness (a test alternating between passed and failed without an image change) can be queried later. An index on `(run_id, status)` lists failed tests first.
+A test's identity across runs is `(test_definition_id, suite, classname, name)`. This combination is indexed for a test's history and flakiness (below). An index on `(run_id, status)` lists failed tests first.
 
 ## Files
 
@@ -683,6 +683,68 @@ TestFleet parses every `*.xml` file directly under `/TestFleet/artifacts/junit/`
 - A file that cannot be parsed adds a warning to the run ("junit/shard-2.xml could not be parsed: …") and is ignored. If no file could be parsed, the run counts as having no JUnit.
 
 JUnit is parsed in `RunExecution`, where the files are extracted, because the final status depends on it (section 23).
+
+## A test across runs
+
+A test's history, its flakiness, the failure streaks on the run page, and the comparison of two runs read `test_results` together with `runs`. Nothing new is stored, and nothing here changes a run.
+
+A **test** is its identity within a test definition: `%{suite: _, classname: _, name: _}`, all three `NOT NULL`.
+
+**One outcome per run.** A run can report the same identity more than once: a framework retry (Playwright reports every attempt), or parametrized cases that share a name. Everything in this section uses one outcome per identity and run: `error` if any of its rows is `error`, otherwise `failed` if any is `failed`, otherwise `passed` if any is `passed`, otherwise `skipped`. A run whose rows include both `passed` and `failed` or `error` is **mixed**: the test passed on a retry. Below, **red** means `failed` or `error`.
+
+```elixir
+Results.test_history(test_definition, test, opts)       # newest first; :environment, :before (run id), :limit (50)
+Results.test_summary(test_definition, test)              # per environment: latest outcome, streak, pass rate, flips
+Results.flaky_tests(test_definition, environment, opts)  # flaky tests of the window; :up_to (run id)
+Results.failure_streaks(run)                             # per red test of the run: :new, {:since, run_id}, or :first_seen
+Results.compare(run, baseline)                           # %Results.Comparison{}
+Runs.baseline(run, :previous | :last_passed)             # the run to compare with, or nil
+```
+
+They take the test definition or run found through the scope (section 5), so they only see that organization's data.
+
+## Test history
+
+One entry per run that reported the test, newest first: the run, its environment and status, the outcome ("passed on retry" when mixed, and the number of cases when more than one), the summed duration, the image digest, the first failure message, and `finished_at`. Only runs of that test definition count, because the identity includes it. The query filters on the identity index, joins `runs`, and pages by run id (`:before`), 50 entries at a time.
+
+## Flaky tests
+
+A test is flaky when its outcome keeps changing although its suite did not. The application under test deploys on its own schedule, so one change from passed to red is a regression, and one change back is its fix. Flakiness is a change that repeats.
+
+- **Window:** per test definition and environment, the latest 30 final runs with JUnit (`tests_passed IS NOT NULL`), by id. With `:up_to`, the latest 30 up to and including that run, which is how the run page judges a run's failures as they stood then.
+- **Flip:** within the window, two consecutive outcomes of a test, one `passed` and the other red, in runs with the same `image_digest` (`IS NOT DISTINCT FROM`, so two runs of a locally built image without a digest count as the same). Runs where the test is absent or `skipped` are left out of the sequence. A change across an image change is not a flip: the suite changed. A mixed run counts as one flip on its own.
+- **Flaky:** 3 or more flips in the window. A regression and its fix are 2. A test that usually passes and fails now and then reaches 3 quickly.
+- `flaky_tests/3` computes this in one query, with `lag()` over the window's outcomes partitioned by identity. It returns at most 50 tests, most flips first, then the most recent flip. Each comes with its flips, the window's size, and the run of the latest flip.
+
+Flakiness is shown, never acted on. It does not change a run's status (section 23), its counts, or its notifications, and TestFleet does not quarantine tests: deciding which tests count belongs to the test framework, not to TestFleet.
+
+## Failure streaks
+
+`failure_streaks(run)` says, for each red test of a run, how long it has been red in that environment. It looks at earlier runs of the same test definition and environment (smaller id, outcome not `skipped`):
+
+- **`:new`**: the test's previous outcome was `passed`.
+- **`{:since, run_id}`**: its previous outcome was red too. `run_id` is the first run of the unbroken red series, the first red run after its last pass.
+- **`:first_seen`**: no earlier outcome; the test is new.
+
+All red tests of the run are answered in one query (a lateral join per identity on the identity index), whatever their number.
+
+## Comparing runs
+
+`Results.compare(run, baseline)` compares two final runs of the same test definition that both have JUnit, identity by identity:
+
+| Group | This run | Baseline |
+|-------|----------|----------|
+| New failures | red | `passed` |
+| Fixed | `passed` | red |
+| Still failing | red | red |
+| Added | reported | not reported |
+| Removed | not reported | reported |
+
+A test that is `skipped` in either run, or `passed` in both, belongs to none of the groups. It loads only the identities, outcomes, and first failure message of both runs, and `Results.Comparison.diff/2` (pure) groups them. Each group keeps its total and lists at most 100 tests.
+
+The comparison also sets the runs side by side: image and digest (unchanged, or from → to), command, environment, status, duration, and the three counts.
+
+**Baseline.** `Runs.baseline(run, :previous)` is the latest final run of the same test definition and environment with a smaller id and JUnit; `:last_passed` is the same with status `passed`. The run page can compare with any other run (section 41). It must be a final run of the same test definition with JUnit; its environment may differ, because comparing staging with production answers a real question.
 
 ---
 
@@ -1191,7 +1253,7 @@ Very large logs could move to object storage later, with metadata kept in Postgr
 | Topic | Events | Subscribers |
 |-------|--------|-------------|
 | `run:<id>` | `{:run_created, run}`, `{:run_updated, run}`, `{:run_finished, run}`, `{:run_output, lines}` | the run page, after a scoped lookup of the run |
-| `runs:<organization_id>` | the same, **without** `{:run_output, _}` | runs list, dashboard, project and test definition pages |
+| `runs:<organization_id>` | the same, **without** `{:run_output, _}` | runs list, dashboard, project, test definition, and test pages |
 | `runs` | the same, for all organizations | the dispatcher only; never a LiveView |
 | `system` | `{:docker_status, %{reachable, since, message}}` | dashboard |
 | `notifications:<organization_id>` | deliveries, with their channel redacted | delivery log, run page |
@@ -2239,6 +2301,7 @@ Every page begins with `<Layouts.app>`, receives `current_scope`, and updates li
 /:org                                             dashboard
 /:org/projects, /new, /:slug, /:slug/edit
 /:org/projects/:slug/test-definitions/new, /:id, /:id/edit
+/:org/projects/:slug/test-definitions/:id/tests?suite=…&classname=…&name=…   test page
 /:org/projects/:slug/environments/new, /:env, /:env/edit
 /:org/projects/:slug/schedules/new, /:id/edit
 /:org/runs, /:org/runs/:id                        runs list, run page
@@ -2271,6 +2334,18 @@ Test definitions (disabled ones dimmed with a badge), environments, schedules, a
 ## Test definition page
 
 Image, command, timeout, CPU, memory, shared memory, and the enabled state, with "Edit". **Run now** has one row per environment of the project, each with its own button, which creates the run and opens its page (disabled for a disabled test definition; without environments, a link to create one). Recent runs (20).
+
+**Flaky tests** (section 10): per environment, with a tab for each when the project has several. Each test shows its name and classname, its flips in the window ("5 flips in the last 30 runs"), and a link to the run of its latest flip; the name links to the test page. Loaded with `assign_async`, and reloaded when a run of this test definition finishes. When nothing is flaky: "No flaky tests in the last 30 runs".
+
+## Test page
+
+`TestFleetWeb.TestLive.Show`, in `live_session :organization`, because members can see it, like the test definition page. A test has no row of its own, so its identity travels in the query string (`suite`, `classname`, `name`). The link keeps working when runs are deleted, and the identity index serves the lookup. The project and the test definition are found through the scope as usual. An identity without results shows "No results for this test" instead of a 404, because a shared link can outlive its results.
+
+- **Header:** the test's name, classname, and suite; the project and test definition as breadcrumbs.
+- **Per environment** (`test_summary/2`): the latest outcome, the current streak ("failing for 4 runs, since #1830", "passing for 12 runs"), the pass rate and flips in the window, and a **Flaky** badge at 3 flips or more.
+- **Outcome strip:** the latest 30 outcomes of the chosen environment, oldest on the left, one cell per run in its outcome's colour, hatched when mixed, each linking to its run, with the run number, date, and duration in a tooltip. `?env=<slug>` chooses the environment (with `patch`); the strip shows only with an environment chosen, because outcomes of different environments in one row would make flips meaningless.
+- **History** (section 10): the table of the 50 latest entries, for the chosen environment or all, with "Load more".
+- **Live:** subscribes to `runs:<organization_id>`; a run of this test definition that finishes with JUnit reloads the summary and puts its entry on top, if it reported the test.
 
 ## Environment page
 
@@ -2311,7 +2386,21 @@ Artifacts: junit.xml, screenshots/, playwright-report/
 
 **Log download:** `GET /runs/:id/log`: `text/plain; charset=utf-8`, `attachment; filename="run-<id>.log"`, in sequence order as stored, streamed from PostgreSQL in chunks of 1,000 lines (`Runs.reduce_log/3`), so a 50 MB log never sits in memory; a truncated log ends with the truncation line; `410` once expired.
 
-**Tests panel** (with JUnit): the counts and total test time; failed and errored tests first with suite, class, name, duration, and message, the stack trace in a `<details>`; the other tests behind "Show all N tests", loaded on demand and collapsible again. `failed` and `error` differ in colour and icon.
+**Tests panel** (with JUnit): the counts and total test time; failed and errored tests first with suite, class, name, duration, and message, the stack trace in a `<details>`; the other tests behind "Show all N tests", loaded on demand and collapsible again. `failed` and `error` differ in colour and icon. Every test's name links to its test page. Red tests carry their failure streak ("new", "failing since #1830", "first seen") and a **Flaky** badge when they are flaky in this environment in the window up to this run (`flaky_tests(…, up_to: run.id)`). Both load with `assign_async` after the failures, so the panel never waits for them.
+
+**Changes panel** (a final run with JUnit, section 10): it answers "what changed since then?".
+
+```text
+Compared with #1840 · passed · 2 days ago        [Previous run ▾]  [Run # ____]
+Image unchanged · Duration +0:42 · 42 → 40 passed · 0 → 2 failed
+3 new failures · 1 fixed · 12 still failing · 4 added · 0 removed
+```
+
+- The baseline is the previous run by default; a select switches to the last passed run, and a field takes any run number. The choice is in the URL (`?compare=previous`, `?compare=last_passed`, `?compare=<id>`, with `patch`), so a comparison can be shared.
+- A run number that cannot be compared (another test definition, not final, no JUnit, not found in the organization) shows "Run #… cannot be compared: …" and the previous run instead.
+- The facts: the image ("Image unchanged", or both digests when it changed), the command when it changed, the environment when it differs, and the changes in duration and counts.
+- New failures (with their message) and Fixed are listed; Still failing, Added, and Removed are collapsed behind their counts. Every test links to its test page.
+- Without a baseline: "No earlier run to compare with". Loaded with `assign_async` once the run is final.
 
 **Artifacts panel:** the files as a tree with sizes and the total, with "Download" for all of them as one ZIP archive; images and videos previewed in a grid (at most 24) above the list, videos playing on click; an HTML file, or a directory with an `index.html`, gets "Open report". "Artifacts expired on …" after retention; nothing at all for a run without artifacts. Results and artifacts load once the run is final.
 
@@ -2618,7 +2707,6 @@ TestFleet may also be offered as a hosted service, from the same repository: the
 
 - **Object storage** (S3, MinIO) for artifacts and very large logs, as a second `Artifacts.Storage` backend.
 - **Partitioning** `run_logs` by month.
-- **Per-test history and flakiness views**, on the existing `test_results` index.
 - **A separate artifacts origin** (`ARTIFACTS_ORIGIN`), so HTML reports that need `localStorage` work.
 - **Key rotation** for `CLOAK_KEY`.
 
@@ -2644,6 +2732,8 @@ TestFleet may also be offered as a hosted service, from the same repository: the
 - More of the configuration over the API (projects, environments, variables, schedules), test results over the API, and an OpenAPI document.
 - Log search and filters, and rendering ANSI colours.
 - Reminders for a suite that stays red, and batching several events into one message.
+- New failures and flaky tests in notifications ("2 new failures since #1840"), and the comparison and a test's history over the API.
+- Trends of a test's duration on the test page.
 
 **Operations**
 
