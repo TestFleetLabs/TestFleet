@@ -69,6 +69,11 @@ config :testfleet, TestFleet.Accounts.OIDC,
 config :testfleet, TestFleet.Notifications.Heartbeat,
   req_options: [plug: {Req.Test, TestFleet.Notifications.Heartbeat}]
 
+# Tests start the update check themselves, against a Req.Test stub of GitHub.
+config :testfleet, TestFleet.UpdateCheck,
+  enabled: false,
+  req_options: [plug: {Req.Test, TestFleet.UpdateCheck}]
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

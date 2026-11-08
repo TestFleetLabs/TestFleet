@@ -42,3 +42,5 @@ npm-debug.log
 
 # Production secrets (deploy/.env.example is the template)
 /deploy/.env
+
+todo.md

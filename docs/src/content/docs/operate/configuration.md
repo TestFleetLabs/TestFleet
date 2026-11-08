@@ -78,6 +78,14 @@ See [Single sign-on](/operate/single-sign-on/).
 
 `GET /health` answers `200` while TestFleet is up; the Compose file uses it as the container's health check.
 
+## Updates
+
+| Variable       | Default |                                                                                                                                               |
+| -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UPDATE_CHECK` | `true`  | Asks GitHub twice a day for the latest release. When it is newer, admins see a dot on the settings icon and a link to it in their settings. `false` turns it off, for example without internet access |
+
+TestFleet only reads the release's version and link; it never downloads or installs anything. To upgrade, see [Upgrade, back up, maintain](/operate/maintenance/).
+
 ## Set by the Compose file
 
 These are wired up in `compose.yaml` and rarely need changing: `DATABASE_URL` (from `POSTGRES_PASSWORD`), `DOCKER_HOST` (`tcp://docker-socket-proxy:2375`), and `ARTIFACTS_DIR` (`/app/artifacts`).

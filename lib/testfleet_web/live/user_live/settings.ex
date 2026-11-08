@@ -14,6 +14,7 @@ defmodule TestFleetWeb.UserLive.Settings do
   alias TestFleet.Accounts.{APIToken, OIDC, Scope}
   alias TestFleet.Organizations
   alias TestFleet.Schedules.Timezones
+  alias TestFleet.UpdateCheck
 
   @impl true
   def render(assigns) do
@@ -21,6 +22,33 @@ defmodule TestFleetWeb.UserLive.Settings do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div id="settings" class="space-y-8">
         <.page_header title={gettext("Settings")} description={@current_email} />
+
+        <div
+          :if={@update}
+          id="update-available"
+          role="alert"
+          class="flex max-w-2xl flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border border-warning/40 bg-warning/10 px-5 py-4"
+        >
+          <.icon name="hero-arrow-up-circle" class="size-5 shrink-0 text-warning" />
+          <div class="min-w-0 flex-1 space-y-0.5">
+            <p class="text-sm font-semibold">
+              {gettext("TestFleet %{version} is available.", version: @update.version)}
+            </p>
+            <p class="text-sm text-base-content/70">
+              {gettext("This installation runs %{version}.", version: @current_version)}
+            </p>
+          </div>
+          <.button
+            id="update-release-link"
+            size="sm"
+            href={@update.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {gettext("Release notes")}
+            <.icon name="hero-arrow-top-right-on-square-mini" class="size-4" />
+          </.button>
+        </div>
 
         <.panel :if={@oidc_enabled} id="sso" title={@provider_name} class="max-w-2xl">
           <div class="flex flex-wrap items-center justify-between gap-4 p-5">
@@ -291,6 +319,8 @@ defmodule TestFleetWeb.UserLive.Settings do
       socket
       |> assign(:page_title, gettext("Settings"))
       |> assign(:current_email, user.email)
+      |> assign(:update, Layouts.update_available(socket.assigns.current_scope))
+      |> assign(:current_version, UpdateCheck.current_version())
       |> assign(:email_enabled, Accounts.email_enabled?())
       |> assign(:password_login, Accounts.password_login_enabled?())
       |> assign(oidc_enabled: OIDC.enabled?(), provider_name: OIDC.provider_name())

@@ -61,6 +61,11 @@ if heartbeat_url = System.get_env("HEARTBEAT_URL") do
   config :testfleet, TestFleet.Notifications.Heartbeat, url: heartbeat_url
 end
 
+# Air-gapped installs, or those that would rather not ask GitHub for new releases
+if System.get_env("UPDATE_CHECK") in ~w(false 0) do
+  config :testfleet, TestFleet.UpdateCheck, enabled: false
+end
+
 if days = System.get_env("ARTIFACT_RETENTION_DAYS") do
   config :testfleet, TestFleet.Retention, artifacts_days: String.to_integer(days)
 end

@@ -111,6 +111,13 @@ config :testfleet, TestFleet.Notifications.Watchdog,
 
 config :testfleet, TestFleet.Notifications.Heartbeat, url: nil, req_options: []
 
+# Asks GitHub twice a day whether a newer release is out (UPDATE_CHECK=false turns it off)
+config :testfleet, TestFleet.UpdateCheck,
+  enabled: true,
+  repo: "testfleetlabs/testfleet",
+  interval: :timer.hours(12),
+  req_options: []
+
 # Retention (ARTIFACT_RETENTION_DAYS and LOG_RETENTION_DAYS)
 config :testfleet, TestFleet.Retention,
   artifacts_days: 30,

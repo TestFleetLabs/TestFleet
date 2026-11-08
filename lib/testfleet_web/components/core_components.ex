@@ -100,7 +100,7 @@ defmodule TestFleetWeb.CoreComponents do
   `class` is added to the button's own classes.
   """
   attr :rest, :global,
-    include: ~w(href navigate patch method download name value disabled type form)
+    include: ~w(href navigate patch method download target rel name value disabled type form)
 
   attr :class, :any, default: nil
   attr :variant, :string, values: ~w(primary secondary danger ghost), default: "secondary"

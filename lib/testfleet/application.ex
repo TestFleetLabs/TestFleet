@@ -34,6 +34,9 @@ defmodule TestFleet.Application do
     # Reports Docker and scheduling problems; outside Oban, so a stuck cron shows.
     watchdog = [TestFleet.Notifications.Watchdog]
 
+    # Asks GitHub for a newer release; ignores itself when disabled or in :multi mode.
+    update_check = [TestFleet.UpdateCheck]
+
     # Logs the first-run setup link while there is no user
     setup_notice =
       if Application.get_env(:testfleet, TestFleetWeb.SetupNotice)[:enabled] == false,
@@ -45,7 +48,9 @@ defmodule TestFleet.Application do
 
     # Start to serve requests, typically the last entry
     children =
-      children ++ dispatcher ++ watchdog ++ oidc ++ [TestFleetWeb.Endpoint] ++ setup_notice
+      children ++
+        dispatcher ++
+        watchdog ++ update_check ++ oidc ++ [TestFleetWeb.Endpoint] ++ setup_notice
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options

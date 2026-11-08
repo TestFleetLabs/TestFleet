@@ -885,6 +885,7 @@ TestFleet.Execution.PullCoordinator,
 TestFleet.Execution.Dispatcher,      # not in tests (start: false); tests start their own
 TestFleet.Execution.Reconciler,
 TestFleet.Notifications.Watchdog     # outside Oban, so a stuck cron shows (section 39)
+TestFleet.UpdateCheck                # a newer TestFleet release (section 43)
 ```
 
 The coordinator and the task supervisor start before the run processes' supervisor, so they stop after them.
@@ -2531,6 +2532,8 @@ Stopping the container is safe at any time: running test containers keep running
 
 **Upgrade:** set the new version in `TESTFLEET_IMAGE`, `docker compose pull && docker compose up -d`. Migrations run on start, while no other TestFleet runs, because there is only one. **Rollback:** the previous image, after `bin/testfleet eval 'TestFleet.Release.rollback(TestFleet.Repo, <version>)'` when the new version added migrations.
 
+**Update check.** `TestFleet.UpdateCheck`, a GenServer, asks GitHub for the latest release (`GET https://api.github.com/repos/testfleetlabs/testfleet/releases/latest`, which skips drafts and prereleases) at start and every 12 hours (`interval`, `repo`, `enabled`). A release whose tag (`v` + version) is newer than the installed version (`Version.compare/2`) is kept in `:persistent_term`; admins see an orange dot on the settings icon and, on `/users/settings`, an alert with the installed and the new version and a link to the release. Members see neither: they do not upgrade. The request carries only `User-Agent: TestFleet/<version>`; nothing is downloaded or installed. A failed check keeps the last result and logs one warning per streak of failures. `UPDATE_CHECK=false` turns it off (air-gapped installations); in `:multi` mode it never starts.
+
 ## Health
 
 `GET /health` (and `HEAD`) is answered by a plug in the endpoint, before request logging, so the check every 30 seconds does not fill the log.
@@ -2572,6 +2575,7 @@ The proxy's endpoints are exactly the ones `Docker.Command` uses: `_ping`, `vers
 | `MAX_CONCURRENT_RUNS`, `RUN_LOG_LIMIT_MB`, `ARTIFACT_LIMIT_MB`, `ARTIFACT_RETENTION_DAYS`, `LOG_RETENTION_DAYS`, `PULL_TIMEOUT_SECONDS`, `IMAGE_RETENTION_DAYS`, `POOL_SIZE` | no | Limits and retention |
 | `SMTP_*`, `HEARTBEAT_URL` | no | Section 39 |
 | `AUTH_PASSWORD_LOGIN`, `OIDC_*` | no | Section 35 |
+| `UPDATE_CHECK` | no | `false` stops asking GitHub for a newer release (above) |
 
 Compose sets `DATABASE_URL`, `DOCKER_HOST=tcp://docker-socket-proxy:2375`, and `ARTIFACTS_DIR=/app/artifacts` itself.
 

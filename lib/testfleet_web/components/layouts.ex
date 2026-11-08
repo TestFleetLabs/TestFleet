@@ -8,6 +8,7 @@ defmodule TestFleetWeb.Layouts do
   alias TestFleet.Accounts.Scope
   alias TestFleet.Organizations
   alias TestFleet.Organizations.Organization
+  alias TestFleet.UpdateCheck
 
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
@@ -179,6 +180,8 @@ defmodule TestFleetWeb.Layouts do
   attr :class, :any, default: nil
 
   defp user_menu(assigns) do
+    assigns = assign(assigns, :update, update_available(assigns.current_scope))
+
     ~H"""
     <div
       :if={@current_scope && @current_scope.user}
@@ -197,11 +200,27 @@ defmodule TestFleetWeb.Layouts do
       <.link
         navigate={~p"/users/settings"}
         id={"#{@id}-settings"}
-        aria-label={gettext("Settings")}
-        title={gettext("Settings")}
-        class="grid size-8 place-items-center rounded-lg text-base-content/50 transition-colors hover:bg-base-200 hover:text-base-content"
+        aria-label={
+          if(@update,
+            do: gettext("Settings (TestFleet %{version} is available)", version: @update.version),
+            else: gettext("Settings")
+          )
+        }
+        title={
+          if(@update,
+            do: gettext("TestFleet %{version} is available", version: @update.version),
+            else: gettext("Settings")
+          )
+        }
+        class="relative grid size-8 place-items-center rounded-lg text-base-content/50 transition-colors hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="hero-cog-6-tooth" class="size-5" />
+        <span
+          :if={@update}
+          id={"#{@id}-update-dot"}
+          class="absolute top-1 right-1 size-2 rounded-full bg-warning ring-2 ring-base-100"
+          aria-hidden="true"
+        />
       </.link>
       <.link
         href={~p"/users/log-out"}
@@ -215,6 +234,14 @@ defmodule TestFleetWeb.Layouts do
       </.link>
     </div>
     """
+  end
+
+  @doc """
+  The newer TestFleet release, for admins: they are the ones who upgrade. Nil for
+  everyone else, and when there is none.
+  """
+  def update_available(scope) do
+    if scope && Scope.admin?(scope), do: UpdateCheck.available()
   end
 
   @doc "The display name of a role."
