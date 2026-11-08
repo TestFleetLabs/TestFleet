@@ -10,6 +10,12 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.4.1 (2026-11-08)
+
+### Enhancements
+
+- Admins see when a newer TestFleet release is out: an orange dot on the settings icon and, on their settings page, an alert with the installed and the new version and a link to the release. TestFleet asks GitHub for the latest release twice a day and never downloads or installs anything. `UPDATE_CHECK=false` turns the check off
+
 ## 0.4.0 (2026-11-07)
 
 ### Upgrade notes
