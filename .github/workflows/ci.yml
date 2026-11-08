@@ -302,7 +302,11 @@ jobs:
       - name: Put both platforms under the tags
         working-directory: ${{ runner.temp }}/digests
         run: |
+          # The package page of a multi-platform image reads these from the index,
+          # not from the images' labels.
           docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.description=TestFleet is a self-hosted platform for centrally scheduling, executing, and monitoring automated end-to-end test suites." \
+            --annotation "index:org.opencontainers.image.licenses=AGPL-3.0" \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf 'ghcr.io/testfleetlabs/testfleet@sha256:%s ' *)
 
