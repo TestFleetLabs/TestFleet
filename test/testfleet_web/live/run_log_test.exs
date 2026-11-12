@@ -115,6 +115,20 @@ defmodule TestFleetWeb.RunLogTest do
       assert response(conn, 200) == Enum.map_join(1..2_500, &"line #{&1}\n")
     end
 
+    test "reads in chunks, and stops when the consumer halts" do
+      run = run_fixture(status: :passed, finished_at: DateTime.utc_now())
+      append(run, for(n <- 1..2_000, do: line(n, "line #{n}")))
+
+      sizes = Runs.reduce_log(run, [], fn lines, acc -> {:cont, [length(lines) | acc]} end)
+      assert sizes == [1_000, 1_000]
+
+      first = Runs.reduce_log(run, nil, fn lines, nil -> {:halt, hd(lines).sequence} end)
+      assert first == 1
+
+      window = Runs.reduce_log(run, [], &{:cont, &2 ++ &1}, after: 1_998, through: 1_999)
+      assert Enum.map(window, & &1.sequence) == [1_999]
+    end
+
     test "ends a truncated log with a note", %{conn: conn} do
       run = run_fixture(status: :passed, finished_at: DateTime.utc_now())
       append(run, [line(1, "kept"), line(2, "dropped")], max_log_bytes: 4)

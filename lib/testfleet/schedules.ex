@@ -130,6 +130,8 @@ defmodule TestFleet.Schedules do
   Each schedule is handled in its own transaction, with its row locked (`SKIP
   LOCKED`: a schedule another tick holds is left to it). Missed slots are coalesced
   into one run. Returns `[{schedule_id, outcome}]` for the schedules it handled.
+  A schedule that raises is logged with the outcome `:failed`, stays due, and does
+  not stop the others.
   """
   def tick(%DateTime{} = now) do
     Repo.all(
@@ -139,11 +141,24 @@ defmodule TestFleet.Schedules do
         select: s.id
     )
     |> Enum.flat_map(fn id ->
-      case tick_schedule(id, now) do
+      case safe_tick_schedule(id, now) do
         :not_due -> []
         outcome -> [{id, outcome}]
       end
     end)
+  end
+
+  # A schedule that fails is the oldest due one in every later tick too: without
+  # this, it would keep all schedules after it from running.
+  defp safe_tick_schedule(id, now) do
+    tick_schedule(id, now)
+  rescue
+    exception ->
+      Logger.error(
+        "schedule #{id}: tick failed: " <> Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      :failed
   end
 
   defp tick_schedule(id, now) do

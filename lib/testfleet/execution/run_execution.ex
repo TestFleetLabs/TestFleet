@@ -68,6 +68,8 @@ defmodule TestFleet.Execution.RunExecution do
   @network "TestFleet-runs"
   @artifacts_dir Collector.artifacts_dir()
   @default_stop_grace_seconds 30
+  # Processes and threads per container; browsers with many workers stay far below.
+  @pids_limit 4096
   # How long the log stream may stay silent after the container exited. Silent, not
   # in total: on a busy host the stream can lag seconds behind a suite that wrote a
   # lot just before exiting, and the end of a log is the part people read.
@@ -164,7 +166,12 @@ defmodule TestFleet.Execution.RunExecution do
     notify(state, {:status, :preparing})
     request = state.request
     # The pull runs in a task so that a cancel or the pull timeout does not wait for it.
-    task = Task.async(fn -> prepare_image(request) end)
+    # Not linked: a task that crashes ends the run with its reason, not this process.
+    task =
+      Task.Supervisor.async_nolink(TestFleet.Execution.TaskSupervisor, fn ->
+        prepare_image(request)
+      end)
+
     timer = Process.send_after(self(), :pull_timeout, request.pull_timeout_ms)
     {:noreply, %{state | prepare_task: task, pull_timer: timer}}
   end
@@ -229,6 +236,13 @@ defmodule TestFleet.Execution.RunExecution do
       {:error, message} ->
         stop(finalize(%{state | error: message}))
     end
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{prepare_task: %Task{ref: ref}} = state) do
+    if state.pull_timer, do: Process.cancel_timer(state.pull_timer)
+    message = "preparing the run failed: #{Exception.format_exit(reason)}"
+    Logger.error("run #{state.run_id}: #{message}")
+    stop(finalize(%{state | prepare_task: nil, pull_timer: nil, error: message}))
   end
 
   def handle_info(:pull_timeout, %{prepare_task: %Task{}} = state) do
@@ -439,7 +453,15 @@ defmodule TestFleet.Execution.RunExecution do
         "CapDrop" => ["ALL"],
         "Privileged" => false,
         "AutoRemove" => false,
-        "ShmSize" => request.shm_size
+        "ShmSize" => request.shm_size,
+        # A fork bomb ends at the limit instead of exhausting the host.
+        "PidsLimit" => @pids_limit,
+        # TestFleet stores the log itself; Docker's copy on the host would otherwise
+        # grow without limit.
+        "LogConfig" => %{
+          "Type" => "json-file",
+          "Config" => %{"max-size" => "64m", "max-file" => "2"}
+        }
       }
       |> put_present("Memory", request.memory_limit)
       # Without this, Docker allows as much swap again, and a suite over its limit swaps instead of being OOM-killed.
@@ -858,8 +880,21 @@ defmodule TestFleet.Execution.RunExecution do
 
   defp container_finished_at(_value), do: nil
 
-  defp collect(state),
-    do: Collector.collect(state.container_id, state.artifact_path, state.max_artifact_bytes)
+  # The run's status must not depend on its artifacts: a full disk or a broken
+  # archive raising here would kill the process before the result is reported, and
+  # every reattached process after it.
+  defp collect(state) do
+    Collector.collect(state.container_id, state.artifact_path, state.max_artifact_bytes)
+  rescue
+    exception -> collection_failed(state, Exception.message(exception))
+  catch
+    kind, reason -> collection_failed(state, "#{kind} #{inspect(reason)}")
+  end
+
+  defp collection_failed(state, reason) do
+    Logger.error("run #{state.run_id}: collecting artifacts failed: #{reason}")
+    %{Collector.empty() | warnings: ["Artifacts could not be collected: #{reason}"]}
+  end
 
   defp remove_container(state) do
     case Command.remove(state.container_id) do

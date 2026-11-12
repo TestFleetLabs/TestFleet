@@ -70,6 +70,7 @@ Artifacts are limited per run (500 MiB by default). Over the limit, TestFleet ke
 
 Test containers run hardened. Design the image so it does not need more:
 
+- at most 4,096 processes and threads
 - no Linux capabilities (all are dropped) and `no-new-privileges`, so no `sudo`, no `ping` with raw sockets, no binding to ports below 1024
 - no privileged mode and no host mounts
 - shared memory (`/dev/shm`) of 2 GiB by default, enough for Chromium-based browsers

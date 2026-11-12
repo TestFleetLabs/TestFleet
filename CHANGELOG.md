@@ -10,6 +10,28 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+### Upgrade notes
+
+- `deploy/compose.yaml` pins the Docker socket proxy to `v0.5.0` instead of `latest`; copy the file again, or change the tag in yours
+- Test containers are limited to 4,096 processes and threads
+
+### Enhancements
+
+- Password logins are limited to 10 attempts per email address in 10 minutes, and login links to 5 per address in 15 minutes
+- TestFleet's pages send a Content Security Policy
+- `WEBHOOK_ALLOW_PRIVATE_HOSTS=false` refuses webhook URLs whose host is on an internal network
+- Docker's own copy of a container's output is capped, so it cannot fill the host's disk
+
+### Bug fixes
+
+- A run whose artifacts could not be collected (a full disk, a broken archive) no longer stays `running` forever: it ends with its status and a warning
+- A JUnit file in UTF-16 can no longer get a `DOCTYPE` past the check
+- A schedule that fails no longer keeps the schedules after it from running
+- Downloading a log no longer holds a database connection for as long as the download takes
+- A short PostgreSQL outage no longer stops TestFleet
+- An error while preparing a run is reported as it is, not as "lost the run while preparing it"
+- Pulling an image whose layers take minutes to extract no longer fails after 60 seconds of silence
+
 ## 0.4.1 (2026-11-08)
 
 ### Enhancements

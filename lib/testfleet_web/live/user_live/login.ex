@@ -139,10 +139,14 @@ defmodule TestFleetWeb.UserLive.Login do
   end
 
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
-    if Accounts.magic_link_enabled?() do
-      if user = Accounts.get_user_by_email(email) do
-        Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}"))
-      end
+    # A few links per address: the form must not send mail without limit. Over the
+    # limit, the answer stays the same.
+    key = {:magic_link, email |> String.trim() |> String.downcase() |> String.slice(0, 160)}
+
+    with true <- Accounts.magic_link_enabled?(),
+         :ok <- TestFleetWeb.RateLimit.hit(key, 5, :timer.minutes(15)),
+         %Accounts.User{} = user <- Accounts.get_user_by_email(email) do
+      Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}"))
     end
 
     info = gettext("If your email is in our system, you will receive a login link shortly.")

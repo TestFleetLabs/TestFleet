@@ -76,6 +76,8 @@ See [Single sign-on](/operate/single-sign-on/).
 | --------------- | ------- | ------------------------------------------------------------------------------------------------------ |
 | `HEARTBEAT_URL` | –       | Pinged with `GET` after every schedule tick, for an external dead man's switch such as Healthchecks.io |
 
+| `WEBHOOK_ALLOW_PRIVATE_HOSTS` | `true` | `false` refuses Slack, Teams, and webhook URLs whose host resolves to a loopback, private, or link-local address |
+
 `GET /health` answers `200` while TestFleet is up; the Compose file uses it as the container's health check.
 
 ## Updates

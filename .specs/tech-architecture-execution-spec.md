@@ -683,7 +683,7 @@ TestFleet parses every `*.xml` file directly under `/TestFleet/artifacts/junit/`
 
 - Accepts `<testsuites>` at the root, a single `<testsuite>`, and nested suites (Jest).
 - `<testcase>` with `<failure>` is `failed`, with `<error>` `error`, with `<skipped>` `skipped`, otherwise `passed`. `<system-out>`, `<system-err>`, and `<properties>` are ignored.
-- **Safety:** parsed with OTP's `:xmerl_sax_parser` without external entities. A document with a `<!DOCTYPE` is rejected, which rules out entity expansion attacks. A file over 50 MiB is not parsed.
+- **Safety:** parsed with OTP's `:xmerl_sax_parser` without external entities. A document with a `<!DOCTYPE` is rejected, which rules out entity expansion attacks; so is a UTF-16 or UTF-32 file, in which that check could not see one. A file over 50 MiB is not parsed.
 - A file that cannot be parsed adds a warning to the run ("junit/shard-2.xml could not be parsed: …") and is ignored. If no file could be parsed, the run counts as having no JUnit.
 
 JUnit is parsed in `RunExecution`, where the files are extracted, because the final status depends on it (section 23).
@@ -1153,6 +1153,8 @@ Every test container gets:
 - `no-new-privileges`
 - all Linux capabilities dropped
 - never `Privileged`
+- a limit of 4,096 processes and threads (`PidsLimit`), so a fork bomb cannot exhaust the host
+- Docker's own copy of the output capped (`json-file`, 2 files of 64 MB); TestFleet stores the log itself
 - no host mounts (`Binds`), and in particular never the Docker socket
 
 If a suite genuinely needs a capability, that becomes an explicit, visible setting on the test definition, not a default.
@@ -1699,6 +1701,7 @@ TestFleet therefore implements:
 - **A Docker socket proxy** (`tecnativa/docker-socket-proxy`) between TestFleet and the Docker socket, allowing only the endpoints TestFleet uses (section 43). Access to the raw socket is equivalent to root on the host; the proxy narrows what a compromised TestFleet process could do. Only the proxy mounts the socket.
 - **Reliable cleanup** of containers (sections 29, 30).
 - **Login on every page**, two roles, and no open registration (section 35).
+- **A Content Security Policy** on TestFleet's own pages: this origin only, with a nonce for the root layout's inline script (`TestFleetWeb.Plugs.ContentSecurityPolicy`).
 - **API tokens** per user, stored hashed, revocable (section 38).
 - **Untrusted artifacts:** safe extraction (section 11), JUnit without DTDs (section 10), and sandboxed delivery of HTML reports (section 41).
 - **A hardened TestFleet container:** non-root, read-only file system, no capabilities (section 43).
@@ -1708,7 +1711,8 @@ TestFleet therefore implements:
 - Secrets are visible to anyone with `docker inspect` access on the host. A runner could use Docker secrets or tmpfs-mounted files instead (section 45).
 - Docker API access remains highly privileged; the deployment is not an isolation boundary for an untrusted multi-tenant installation.
 - Members can run any image against any environment; finer permissions (a viewer role, per-project permissions) are on the roadmap.
-- There is no rate limiting of logins or API calls; TestFleet runs on an internal network behind a reverse proxy.
+- Rate limiting is minimal: 10 password attempts per email in 10 minutes and 5 login links per email in 15 minutes, counted in memory per node (`TestFleetWeb.RateLimit`). API calls are not limited; TestFleet runs on an internal network behind a reverse proxy.
+- Webhook hosts are checked only where organizations are tenants: in `:multi` mode a URL whose host resolves to a loopback, private, or link-local address is refused when sending (`TestFleet.Notifications.Destination`); in `:single` mode everything is allowed. `WEBHOOK_ALLOW_PRIVATE_HOSTS` overrides either default. The host is resolved again by the HTTP client, so DNS rebinding is not covered.
 
 ---
 
@@ -2397,7 +2401,7 @@ Artifacts: junit.xml, screenshots/, playwright-report/
 - Monospace with line numbers, wrapped long lines, tinted stderr, `[MASKED]` as a badge, ANSI escape sequences stripped for display (stored unchanged).
 - States: waiting to start, waiting for output, live (with a line count), no output, and the truncation notice ("Log limit of 50 MiB reached. Later output is shown while you watch, but not stored.").
 
-**Log download:** `GET /runs/:id/log`: `text/plain; charset=utf-8`, `attachment; filename="run-<id>.log"`, in sequence order as stored, streamed from PostgreSQL in chunks of 1,000 lines (`Runs.reduce_log/3`), so a 50 MB log never sits in memory; a truncated log ends with the truncation line; `410` once expired.
+**Log download:** `GET /runs/:id/log`: `text/plain; charset=utf-8`, `attachment; filename="run-<id>.log"`, in sequence order as stored, read from PostgreSQL in chunks of 1,000 lines, one short query per chunk (`Runs.reduce_log/4`), so a 50 MB log never sits in memory and a slow download holds no database connection; a truncated log ends with the truncation line; `410` once expired.
 
 **Tests panel** (with JUnit): the counts and total test time; failed and errored tests first with suite, class, name, duration, and message, the stack trace in a `<details>`; the other tests behind "Show all N tests", loaded on demand and collapsible again. `failed` and `error` differ in colour and icon. Every test's name links to its test page. Red tests carry their failure streak ("new", "failing since #1830", "first seen") and a **Flaky** badge when they are flaky in this environment in the window up to this run (`flaky_tests(…, up_to: run.id)`). Both load with `assign_async` after the failures, so the panel never waits for them.
 
@@ -2576,6 +2580,7 @@ The proxy's endpoints are exactly the ones `Docker.Command` uses: `_ping`, `vers
 | `SMTP_*`, `HEARTBEAT_URL` | no | Section 39 |
 | `AUTH_PASSWORD_LOGIN`, `OIDC_*` | no | Section 35 |
 | `UPDATE_CHECK` | no | `false` stops asking GitHub for a newer release (above) |
+| `WEBHOOK_ALLOW_PRIVATE_HOSTS` | no | Whether webhooks may go to hosts on internal networks (see the accepted limitations of the security section). Default: `true` in `:single` mode, `false` in `:multi` |
 
 Compose sets `DATABASE_URL`, `DOCKER_HOST=tcp://docker-socket-proxy:2375`, and `ARTIFACTS_DIR=/app/artifacts` itself.
 

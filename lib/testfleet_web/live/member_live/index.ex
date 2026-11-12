@@ -88,6 +88,13 @@ defmodule TestFleetWeb.MemberLive.Index do
     end
   end
 
+  # Deactivation is account-wide. In :multi mode an organization's admin decides
+  # about memberships only; the buttons are not rendered there, and an event sent
+  # by hand is ignored.
+  def handle_event(event, _params, %{assigns: %{multi?: true}} = socket)
+      when event in ["deactivate", "reactivate"],
+      do: {:noreply, socket}
+
   def handle_event("deactivate", %{"id" => id}, socket) do
     user = Accounts.get_member!(socket.assigns.current_scope, id)
 

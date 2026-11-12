@@ -43,22 +43,26 @@ defmodule TestFleetWeb.RunLogController do
       )
       |> send_chunked(200)
 
-    conn =
+    # A client that went away ends the download; it is not an error.
+    {status, conn} =
       Runs.reduce_log(
         run,
-        conn,
-        fn lines, conn ->
-          {:ok, conn} = chunk(conn, Enum.map(lines, &[&1.content, ?\n]))
-          conn
+        {:ok, conn},
+        fn lines, {:ok, conn} ->
+          case chunk(conn, Enum.map(lines, &[&1.content, ?\n])) do
+            {:ok, conn} -> {:cont, {:ok, conn}}
+            {:error, _reason} -> {:halt, {:closed, conn}}
+          end
         end,
         window
       )
 
-    if run.log_truncated and is_nil(after_sequence) do
-      {:ok, conn} = chunk(conn, [truncation_notice(), ?\n])
+    with :ok <- status,
+         true <- run.log_truncated and is_nil(after_sequence),
+         {:ok, conn} <- chunk(conn, [truncation_notice(), ?\n]) do
       conn
     else
-      conn
+      _ -> conn
     end
   end
 

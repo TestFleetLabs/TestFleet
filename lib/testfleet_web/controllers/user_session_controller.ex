@@ -2,7 +2,12 @@ defmodule TestFleetWeb.UserSessionController do
   use TestFleetWeb, :controller
 
   alias TestFleet.Accounts
-  alias TestFleetWeb.UserAuth
+  alias TestFleetWeb.{RateLimit, UserAuth}
+
+  # Password attempts per email: slows guessing down without locking anyone out
+  # for long. Magic links and single sign-on are not affected.
+  @login_attempts 10
+  @login_window :timer.minutes(10)
 
   # After the first-run setup or accepting an invitation
   def create(conn, %{"_action" => "welcome"} = params) do
@@ -42,21 +47,43 @@ defmodule TestFleetWeb.UserSessionController do
   end
 
   # email + password login
-  defp create_session(conn, %{"user" => user_params}, info) do
-    %{"email" => email, "password" => password} = user_params
-
-    if user = Accounts.get_user_by_email_and_password(email, password) do
+  defp create_session(
+         conn,
+         %{"user" => %{"email" => email, "password" => password} = user_params},
+         info
+       )
+       when is_binary(email) and is_binary(password) do
+    # Per email, registered or not, so the answer does not tell which it is. Per
+    # address would count everybody behind the reverse proxy as one.
+    with :ok <- RateLimit.hit({:login, login_key(email)}, @login_attempts, @login_window),
+         %Accounts.User{} = user <- Accounts.get_user_by_email_and_password(email, password) do
       conn
       |> put_flash(:info, info)
       |> UserAuth.log_in_user(user, user_params)
     else
+      {:error, :rate_limited} ->
+        conn
+        |> put_flash(:error, gettext("Too many login attempts. Try again in a few minutes."))
+        |> put_flash(:email, String.slice(email, 0, 160))
+        |> redirect(to: ~p"/users/log-in")
+
       # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
-      conn
-      |> put_flash(:error, gettext("Invalid email or password"))
-      |> put_flash(:email, String.slice(email, 0, 160))
-      |> redirect(to: ~p"/users/log-in")
+      nil ->
+        conn
+        |> put_flash(:error, gettext("Invalid email or password"))
+        |> put_flash(:email, String.slice(email, 0, 160))
+        |> redirect(to: ~p"/users/log-in")
     end
   end
+
+  # A request without the form's fields
+  defp create_session(conn, _params, _info) do
+    conn
+    |> put_flash(:error, gettext("Invalid email or password"))
+    |> redirect(to: ~p"/users/log-in")
+  end
+
+  defp login_key(email), do: email |> String.trim() |> String.downcase() |> String.slice(0, 160)
 
   def update_password(conn, %{"user" => user_params} = params) do
     user = conn.assigns.current_scope.user

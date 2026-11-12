@@ -11,7 +11,8 @@ defmodule TestFleet.Results.JUnit do
 
   Safety: a JUnit file comes from the suite, so it is untrusted. Documents with a
   `<!DOCTYPE` are rejected, which rules out entity expansion, and external entities
-  are never loaded. Callers limit the file size.
+  are never loaded. UTF-16 and UTF-32 files are rejected, because the DOCTYPE check
+  could not read them. Callers limit the file size.
   """
 
   @max_details_bytes 65_536
@@ -28,12 +29,24 @@ defmodule TestFleet.Results.JUnit do
 
   @spec parse(binary()) :: {:ok, [test_case()]} | {:error, String.t()}
   def parse(xml) when is_binary(xml) do
-    if String.contains?(xml, "<!DOCTYPE") do
-      {:error, "a DOCTYPE is not allowed"}
-    else
-      sax(xml)
+    cond do
+      # UTF-16 and UTF-32, with or without a byte order mark: every `<` comes with a
+      # NUL byte there. The DOCTYPE check below reads bytes, so it would not see one
+      # in such a file, while the parser would.
+      String.contains?(xml, <<0>>) or utf16_bom?(xml) ->
+        {:error, "the encoding must be UTF-8 or another ASCII-compatible one"}
+
+      String.contains?(xml, "<!DOCTYPE") ->
+        {:error, "a DOCTYPE is not allowed"}
+
+      true ->
+        sax(xml)
     end
   end
+
+  defp utf16_bom?(<<0xFE, 0xFF, _::binary>>), do: true
+  defp utf16_bom?(<<0xFF, 0xFE, _::binary>>), do: true
+  defp utf16_bom?(_xml), do: false
 
   defp sax(xml) do
     state = %{suites: [], current: nil, text: nil, cases: [], seen_root: false}

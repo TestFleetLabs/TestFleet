@@ -94,6 +94,18 @@ defmodule TestFleet.Results.JUnitTest do
     assert byte_size(cut) >= 65_536
   end
 
+  test "rejects UTF-16, where the DOCTYPE check could not see a DOCTYPE" do
+    xml =
+      ~s(<!DOCTYPE x [<!ENTITY a "aaaa">]><testsuite name="s"><testcase name="&a;"/></testsuite>)
+
+    for endianness <- [:big, :little], bom? <- [true, false] do
+      encoded = :unicode.characters_to_binary(xml, :utf8, {:utf16, endianness})
+      bom = if bom?, do: :unicode.encoding_to_bom({:utf16, endianness}), else: ""
+
+      assert {:error, "the encoding must be" <> _} = JUnit.parse(bom <> encoded)
+    end
+  end
+
   test "rejects a DOCTYPE, which could expand entities" do
     xml = """
     <?xml version="1.0"?>

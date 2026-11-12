@@ -71,7 +71,7 @@ services:
   # The only service with the Docker socket. It allows the endpoints TestFleet uses
   # (Execution.Docker.Command): containers, images, networks, and registry auth.
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    image: tecnativa/docker-socket-proxy:v0.5.0
     restart: unless-stopped
     environment:
       CONTAINERS: 1

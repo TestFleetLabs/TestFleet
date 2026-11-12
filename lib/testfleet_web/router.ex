@@ -10,6 +10,7 @@ defmodule TestFleetWeb.Router do
     plug :put_root_layout, html: {TestFleetWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TestFleetWeb.Plugs.ContentSecurityPolicy
     plug :fetch_current_scope_for_user
   end
 
@@ -104,8 +105,13 @@ defmodule TestFleetWeb.Router do
     # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
+    # The mailbox preview brings its own inline scripts and styles.
+    pipeline :dev_tools do
+      plug :delete_resp_header, "content-security-policy"
+    end
+
     scope "/dev" do
-      pipe_through :browser
+      pipe_through [:browser, :dev_tools]
 
       live_dashboard "/dashboard", metrics: TestFleetWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview

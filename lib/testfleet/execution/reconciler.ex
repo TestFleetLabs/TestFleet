@@ -64,7 +64,17 @@ defmodule TestFleet.Execution.Reconciler do
 
   @impl true
   def handle_info(:reconcile, state) do
-    run(:periodic)
+    # A pass that raises (PostgreSQL restarting, for example) is left to the next
+    # one; crashing would count against the application's restart limit.
+    try do
+      run(:periodic)
+    rescue
+      exception ->
+        Logger.error(
+          "reconciliation failed: " <> Exception.format(:error, exception, __STACKTRACE__)
+        )
+    end
+
     schedule(state.interval)
     {:noreply, state}
   end

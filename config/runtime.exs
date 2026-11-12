@@ -61,6 +61,19 @@ if heartbeat_url = System.get_env("HEARTBEAT_URL") do
   config :testfleet, TestFleet.Notifications.Heartbeat, url: heartbeat_url
 end
 
+# Whether webhooks may go to hosts on internal networks. Without it: yes in
+# :single mode, no in :multi mode (TestFleet.Notifications.Destination).
+case System.get_env("WEBHOOK_ALLOW_PRIVATE_HOSTS") do
+  value when value in ~w(true 1) ->
+    config :testfleet, TestFleet.Notifications, allow_private_hosts: true
+
+  value when value in ~w(false 0) ->
+    config :testfleet, TestFleet.Notifications, allow_private_hosts: false
+
+  _ ->
+    :ok
+end
+
 # Air-gapped installs, or those that would rather not ask GitHub for new releases
 if System.get_env("UPDATE_CHECK") in ~w(false 0) do
   config :testfleet, TestFleet.UpdateCheck, enabled: false

@@ -60,6 +60,32 @@ defmodule TestFleet.Execution.DispatcherTest do
     assert %{status: :preparing} = Runs.get_run!(run.id)
   end
 
+  test "survives a pass that raises, and messages it does not know", context do
+    run = queued(context, environment(context, 1))
+    {:ok, flaky} = Agent.start_link(fn -> :raise end)
+
+    ping = fn ->
+      if Agent.get_and_update(flaky, &{&1, :ok}) == :raise,
+        do: raise("the database went away"),
+        else: {:ok, "fake"}
+    end
+
+    {_result, log} =
+      ExUnit.CaptureLog.with_log(fn ->
+        start_dispatcher(ping: ping, docker_check_interval: 0)
+      end)
+
+    # The first pass raised; the one `start_dispatcher/1` waits for admitted the run.
+    assert log =~ "dispatch pass failed"
+    assert started_ids() == [run.id]
+
+    pid = Process.whereis(Dispatcher)
+    send(pid, :something_else)
+    :ok = Dispatcher.dispatch()
+
+    assert Process.whereis(Dispatcher) == pid
+  end
+
   test "respects the environment limit and admits the next run when one finishes", context do
     environment = environment(context, 1)
     first = queued(context, environment)

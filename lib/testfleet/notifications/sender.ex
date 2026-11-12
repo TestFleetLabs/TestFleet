@@ -8,6 +8,8 @@ defmodule TestFleet.Notifications.Sender do
     * `429`, `5xx`, and transport errors - worth retrying
     * redirects and other `4xx` - permanent (a revoked Slack URL answers `404` or
       `410`); redirects are not followed
+    * a host on an internal network, where `TestFleet.Notifications.Destination`
+      does not allow those - permanent, and nothing is sent
 
   `reason` is short and safe to store and show: it never contains the URL, the
   signing secret, or a response body.
@@ -15,7 +17,7 @@ defmodule TestFleet.Notifications.Sender do
 
   alias TestFleet.Mailer
   alias TestFleet.Notifications
-  alias TestFleet.Notifications.{Channel, Format, Message}
+  alias TestFleet.Notifications.{Channel, Destination, Format, Message}
 
   @timeout 10_000
 
@@ -65,6 +67,13 @@ defmodule TestFleet.Notifications.Sender do
   end
 
   defp post(url, body, headers) do
+    case Destination.check(url) do
+      :ok -> request(url, body, headers)
+      {:error, reason} -> {:error, :permanent, reason}
+    end
+  end
+
+  defp request(url, body, headers) do
     options =
       Keyword.merge(
         [

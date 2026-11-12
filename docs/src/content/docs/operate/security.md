@@ -9,7 +9,7 @@ TestFleet runs code from container images against your systems, with credentials
 
 - **Encrypted at rest:** environment variable values (all of them, not only secrets), registry passwords, and notification webhook URLs and signing secrets, with AES-256-GCM under `CLOAK_KEY`.
 - **Never sent back:** after saving, secret values, registry passwords, and webhook URLs are never sent to the browser. Forms leave them empty ("leave empty to keep the current value").
-- **Masked in logs:** every occurrence of a secret value of the run's environment is replaced with `[MASKED]` before a log line is stored or streamed. Secrets need at least 6 characters, because shorter values cannot be masked reliably.
+- **Masked in logs:** every occurrence of a secret value of the run's environment is replaced with `[MASKED]` before a log line is stored or streamed. Secrets need at least 6 characters, because shorter values cannot be masked reliably. Only the value itself is masked: a suite that prints a secret encoded (Base64, URL-encoded) or split across lines prints it unmasked.
 - **Not in notifications:** messages contain test names, never failure messages, log lines, or variables.
 - **Not in TestFleet's own logs:** URLs of notification channels, `Authorization` headers, and secret values are kept out of logs and crash reports.
 
@@ -21,7 +21,7 @@ Every run's container is created with:
 
 - all Linux capabilities dropped, and `no-new-privileges`
 - no privileged mode, no host mounts, no access to the Docker socket
-- CPU and memory limits from the test definition, and a mandatory timeout
+- CPU and memory limits from the test definition, a limit of 4,096 processes and threads, and a mandatory timeout
 - the network `TestFleet-runs`, separate from TestFleet's own: a suite can reach the systems it tests, but not TestFleet's database or the socket proxy
 
 A suite still has outbound network access, and the credentials of its environment. Treat suite images like any other code you deploy: build them in your pipelines, from your repositories.
@@ -36,6 +36,8 @@ TestFleet passes registry credentials per pull. It never runs `docker login` and
 
 - **Every page requires a login.** There is no open registration; the first admin needs a one-time link from the server's log.
 - **Roles:** admins manage the organization's members, registries, and notification channels; members everything around testing. See [Users and access](/guides/users/).
+- **Password attempts are limited** to 10 per email address in 10 minutes, and login links to 5 per address in 15 minutes. Single sign-on is not affected.
+- **A Content Security Policy** lets TestFleet's pages load scripts, styles, and frames from TestFleet only.
 - **API tokens** are stored as SHA-256 hashes, shown once, can expire, and die with their user's deactivation. They start with `tf_`, so secret scanners can recognize them; GitHub push protection accepts custom patterns such as `tf_[A-Za-z0-9_-]{43}`.
 - **Artifacts are untrusted.** HTML reports and SVGs from suites are served with a sandboxing Content Security Policy, so their scripts run in an isolated origin without access to TestFleet's session. Archive entries that are links or escape the artifacts directory are skipped. JUnit files are parsed without external entities.
 - **The TestFleet container** runs as `nobody`, read-only, with all capabilities dropped.
@@ -44,6 +46,7 @@ TestFleet passes registry credentials per pull. It never runs `docker login` and
 
 - Put TestFleet behind TLS on an internal network; do not expose it to the internet.
 - Use single sign-on, and `OIDC_ALLOWED_DOMAINS` or provider-side assignment to limit who gets in.
+- Webhooks may point anywhere TestFleet can reach, including your internal network; only admins can create them. Set `WEBHOOK_ALLOW_PRIVATE_HOSTS=false` if no webhook receiver is internal: hosts that resolve to a loopback, private, or link-local address are then refused.
 - Use dedicated, read-only registry credentials, and dedicated test users in the systems under test, with the least privileges the suites need.
 - Keep production environments' concurrency limit at 1 unless you have a reason.
 - Back up `CLOAK_KEY` separately from the database backups.

@@ -18,6 +18,8 @@ defmodule TestFleet.Application do
       {Oban, Application.fetch_env!(:testfleet, Oban)},
       {DNSCluster, query: Application.get_env(:testfleet, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TestFleet.PubSub},
+      # Login attempts per email
+      TestFleetWeb.RateLimit,
       {Registry, keys: :unique, name: TestFleet.Execution.Registry},
       # Before the pull coordinator and the run processes, so they stop after them.
       {Task.Supervisor, name: TestFleet.Execution.TaskSupervisor},

@@ -28,7 +28,7 @@ Root `<testsuites>`, a single `<testsuite>`, and nested suites (as Jest writes t
 The run page lists failed tests first, with their message and stack trace, and the rest behind "Show all". Run lists show the counts at a glance.
 
 :::note[Safe parsing]
-Reports are parsed without external entities; a report with a `<!DOCTYPE` is refused, and so is a file over 50 MiB. A file that cannot be parsed adds a warning to the run and is skipped; the others still count.
+Reports are parsed without external entities; a report with a `<!DOCTYPE` is refused, and so are a UTF-16 or UTF-32 file and a file over 50 MiB. A file that cannot be parsed adds a warning to the run and is skipped; the others still count.
 :::
 
 ### Why JUnit matters for the status

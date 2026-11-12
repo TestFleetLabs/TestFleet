@@ -39,6 +39,7 @@ defmodule TestFleet.Runs do
   @stop_grace_seconds 30
   @max_log_bytes 50 * 1024 * 1024
   @log_chunk 10_000
+  @log_chunk_lines 1_000
 
   ## PubSub
 
@@ -718,31 +719,44 @@ defmodule TestFleet.Runs do
 
   @doc """
   Reduces over a run's stored log in order, in chunks of up to 1,000 lines, without
-  loading it into memory: `fun.(lines, acc)` returns the new acc.
+  loading it into memory: `fun.(lines, acc)` returns `{:cont, acc}`, or
+  `{:halt, acc}` to stop early.
+
+  Each chunk is a query of its own, so a slow consumer (a download over a slow
+  connection) holds no database connection while it works.
 
   Options: only the lines `after:` a sequence number, and `through:` one.
   """
   def reduce_log(%Run{id: id}, acc, fun, opts \\ []) do
-    query = from l in LogLine, where: l.run_id == ^id, order_by: l.sequence
+    query =
+      from l in LogLine,
+        where: l.run_id == ^id,
+        order_by: l.sequence,
+        limit: @log_chunk_lines
 
     query =
-      Enum.reduce(opts, query, fn
-        {:after, sequence}, query -> from l in query, where: l.sequence > ^sequence
-        {:through, sequence}, query -> from l in query, where: l.sequence <= ^sequence
-      end)
+      case opts[:through] do
+        nil -> query
+        through -> from l in query, where: l.sequence <= ^through
+      end
 
-    {:ok, acc} =
-      Repo.transaction(
-        fn ->
-          query
-          |> Repo.stream(max_rows: 1_000)
-          |> Stream.chunk_every(1_000)
-          |> Enum.reduce(acc, fun)
-        end,
-        timeout: :infinity
-      )
+    reduce_log_chunks(query, opts[:after] || 0, acc, fun)
+  end
 
-    acc
+  defp reduce_log_chunks(query, after_sequence, acc, fun) do
+    case Repo.all(from l in query, where: l.sequence > ^after_sequence) do
+      [] ->
+        acc
+
+      lines ->
+        case fun.(lines, acc) do
+          {:cont, acc} when length(lines) == @log_chunk_lines ->
+            reduce_log_chunks(query, List.last(lines).sequence, acc, fun)
+
+          {_cont_or_halt, acc} ->
+            acc
+        end
+    end
   end
 
   @doc "The sequence number of a run's last stored line, or 0 without lines."

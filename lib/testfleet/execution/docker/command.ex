@@ -60,7 +60,9 @@ defmodule TestFleet.Execution.Docker.Command do
       params: [fromImage: ImageRef.name(ref), tag: ImageRef.pull_tag(ref)],
       headers: RegistryAuth.headers(auth, ref.host),
       decode_body: false,
-      receive_timeout: 60_000
+      # Between two progress messages; extracting a large layer can stay silent
+      # for minutes. The run's own pull timeout bounds the whole pull.
+      receive_timeout: 600_000
     ]
 
     with {:ok, %{body: body}} <- call(options, [200]) do

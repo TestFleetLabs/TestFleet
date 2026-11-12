@@ -95,7 +95,13 @@ defmodule TestFleet.Execution.Dispatcher do
 
   @impl true
   def handle_continue(:recover, state) do
-    Reconciler.run(:startup)
+    # Without the startup pass, the periodic one repairs the same, a little later.
+    try do
+      Reconciler.run(:startup)
+    rescue
+      exception -> log_failed_pass("startup reconciliation", exception, __STACKTRACE__)
+    end
+
     {:noreply, state, {:continue, :dispatch}}
   end
 
@@ -123,6 +129,9 @@ defmodule TestFleet.Execution.Dispatcher do
   end
 
   def handle_info({:EXIT, _pid, reason}, state), do: {:stop, reason, state}
+
+  # Other messages on the topic, or a late reply: none is worth a restart.
+  def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
   def terminate(_reason, state) do
@@ -172,11 +181,22 @@ defmodule TestFleet.Execution.Dispatcher do
 
   ## Dispatching
 
+  # A pass that raises (PostgreSQL restarting, for example) is logged and left to
+  # the next one. Crashing instead would exceed the supervisor's restart limit
+  # within seconds and take the application down with it.
   defp dispatch_pass(state) do
     queued = Runs.list_queued()
     state = check_docker(state, queued != [])
     if queued != [] and state.docker.reachable, do: admit_queued(queued, state)
     state
+  rescue
+    exception ->
+      log_failed_pass("dispatch pass", exception, __STACKTRACE__)
+      state
+  end
+
+  defp log_failed_pass(name, exception, stacktrace) do
+    Logger.error("#{name} failed: " <> Exception.format(:error, exception, stacktrace))
   end
 
   defp admit_queued(queued, state) do

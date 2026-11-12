@@ -12,7 +12,7 @@ services:
   # Exposes a restricted Docker Engine API over HTTP, so TestFleet never
   # touches the raw socket. Point DOCKER_HOST at tcp://localhost:2375.
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    image: tecnativa/docker-socket-proxy:v0.5.0
     environment:
       - CONTAINERS=1
       - IMAGES=1

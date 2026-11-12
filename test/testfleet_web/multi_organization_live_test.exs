@@ -61,6 +61,15 @@ defmodule TestFleetWeb.MultiOrganizationLiveTest do
     assert Accounts.get_user!(member.id).deactivated_at == nil
   end
 
+  test "a deactivation sent by hand is ignored", %{conn: conn, ours: ours} do
+    member = user_fixture(organization: ours)
+    {:ok, lv, _html} = live(conn, ~p"/#{ours}/members")
+
+    render_click(lv, "deactivate", %{"id" => member.id})
+
+    assert Accounts.get_user!(member.id).deactivated_at == nil
+  end
+
   test "the last admin cannot be removed", %{conn: conn, ours: ours, admin: admin} do
     other_admin = user_fixture(organization: ours, role: :admin)
     {:ok, lv, _html} = live(conn, ~p"/#{ours}/members")

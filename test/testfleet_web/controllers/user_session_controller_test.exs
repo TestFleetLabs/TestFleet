@@ -28,6 +28,37 @@ defmodule TestFleetWeb.UserSessionControllerTest do
       assert response =~ ~p"/users/log-out"
     end
 
+    test "refuses further attempts for an email after too many", %{conn: conn, user: user} do
+      user = set_password(user)
+      # However the address is written
+      attempt = fn password ->
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => String.upcase(user.email), "password" => password}
+        })
+      end
+
+      for _ <- 1..10, do: attempt.("wrong password")
+
+      conn = attempt.(valid_user_password())
+      refute get_session(conn, :user_token)
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Too many login attempts"
+      assert redirected_to(conn) == ~p"/users/log-in"
+    end
+
+    test "answers a request without the form's fields", %{conn: conn} do
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"email" => "someone@example.com"}})
+      assert redirected_to(conn) == ~p"/users/log-in"
+    end
+
+    test "sends a Content Security Policy with the inline script's nonce", %{conn: conn} do
+      conn = get(conn, ~p"/users/log-in")
+      [policy] = get_resp_header(conn, "content-security-policy")
+
+      assert policy =~ "default-src 'self'"
+      assert [_, nonce] = Regex.run(~r/script-src 'self' 'nonce-([\w-]+)'/, policy)
+      assert html_response(conn, 200) =~ ~s(<script nonce="#{nonce}">)
+    end
+
     test "logs the user in with remember me", %{conn: conn, user: user} do
       user = set_password(user)
 
