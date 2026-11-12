@@ -10,6 +10,8 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.4.2 (2026-11-12)
+
 ### Upgrade notes
 
 - `deploy/compose.yaml` pins the Docker socket proxy to `v0.5.0` instead of `latest`; copy the file again, or change the tag in yours
