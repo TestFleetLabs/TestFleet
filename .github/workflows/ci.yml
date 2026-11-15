@@ -60,6 +60,9 @@ jobs:
       - run: mix compile --warnings-as-errors
       - run: mix deps.unlock --check-unused
       - run: mix format --check-formatted
+      # In a VM of its own: the tests' connections must not load their types
+      # before Oban's migration created its own.
+      - run: mix do ecto.create --quiet + ecto.migrate --quiet
       - run: mix test
 
   # Integration tests against the real Docker Engine, with the fixture suite and
@@ -125,6 +128,10 @@ jobs:
           curl -sf http://localhost:2375/_ping
 
       - run: mix deps.get
+
+      # In a VM of its own: the tests' connections must not load their types
+      # before Oban's migration created its own.
+      - run: mix do ecto.create --quiet + ecto.migrate --quiet
 
       - run: mix test --only docker
         env:

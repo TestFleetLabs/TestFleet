@@ -44,6 +44,7 @@ defmodule TestFleet.MixProject do
     [
       {:bandit, "~> 1.14.1"},
       {:cloak_ecto, "~> 1.3.0"},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
       {:crontab, "~> 1.2.1"},
       {:daisyui,
        github: "saadeghi/daisyui",
@@ -52,6 +53,7 @@ defmodule TestFleet.MixProject do
        app: false,
        compile: false,
        depth: 1},
+      {:dialyxir, "~> 1.4.9", only: [:dev, :test], runtime: false},
       {:dns_cluster, "~> 0.3.1"},
       {:ecto_sql, "~> 3.14.0"},
       {:esbuild, "~> 0.10.1", runtime: Mix.env() == :dev},
@@ -100,6 +102,7 @@ defmodule TestFleet.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      check: ["format --check-formatted", "credo --strict", "dialyzer"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind testfleet", "esbuild testfleet"],
       "assets.deploy": [

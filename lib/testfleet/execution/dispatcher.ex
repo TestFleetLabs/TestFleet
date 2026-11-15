@@ -203,28 +203,29 @@ defmodule TestFleet.Execution.Dispatcher do
     {total, by_environment} = Runs.active_counts()
     acc = {total, by_environment, Runs.active_schedule_ids()}
 
-    Enum.reduce_while(queued, acc, fn run, {total, counts, schedules} = acc ->
-      environment_count = Map.get(counts, run.environment_id, 0)
+    _ =
+      Enum.reduce_while(queued, acc, fn run, {total, counts, schedules} = acc ->
+        environment_count = Map.get(counts, run.environment_id, 0)
 
-      cond do
-        total >= state.max_concurrent_runs ->
-          {:halt, acc}
+        cond do
+          total >= state.max_concurrent_runs ->
+            {:halt, acc}
 
-        environment_count >= run.environment.max_concurrent_runs ->
-          {:cont, acc}
+          environment_count >= run.environment.max_concurrent_runs ->
+            {:cont, acc}
 
-        waits_for_previous_run?(run, schedules) ->
-          {:cont, acc}
+          waits_for_previous_run?(run, schedules) ->
+            {:cont, acc}
 
-        admit(run, state) == :started ->
-          {:cont,
-           {total + 1, Map.put(counts, run.environment_id, environment_count + 1),
-            if(run.schedule_id, do: MapSet.put(schedules, run.schedule_id), else: schedules)}}
+          admit(run, state) == :started ->
+            {:cont,
+             {total + 1, Map.put(counts, run.environment_id, environment_count + 1),
+              if(run.schedule_id, do: MapSet.put(schedules, run.schedule_id), else: schedules)}}
 
-        true ->
-          {:cont, acc}
-      end
-    end)
+          true ->
+            {:cont, acc}
+        end
+      end)
 
     :ok
   end

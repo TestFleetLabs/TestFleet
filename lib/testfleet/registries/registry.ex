@@ -13,6 +13,8 @@ defmodule TestFleet.Registries.Registry do
   import Ecto.Changeset
   import TestFleet.Changesets, only: [update_present: 3]
 
+  @type t :: %__MODULE__{}
+
   @host_format ~r/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]{1,5})?$/
 
   schema "registries" do

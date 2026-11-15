@@ -71,7 +71,7 @@ defmodule TestFleet.Registries do
   `registry` is the stored registry, or a new `%Registry{}`; `attrs` are the form
   values. An empty password uses the stored one, as when saving.
   """
-  @spec test_connection(%Registry{}, map()) :: :ok | {:error, String.t()}
+  @spec test_connection(Registry.t(), map()) :: :ok | {:error, String.t()}
   def test_connection(%Registry{} = registry, attrs) do
     changeset = change_registry(registry, attrs)
     host = Ecto.Changeset.get_field(changeset, :host)
