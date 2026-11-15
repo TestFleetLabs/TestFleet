@@ -86,7 +86,7 @@ defmodule TestFleet.Results.JUnit do
   defp event({:characters, chars}, _location, %{text: {iodata, size}} = state)
        when size < @max_details_bytes do
     chunk = List.to_string(chars)
-    %{state | text: {[iodata | chunk], size + byte_size(chunk)}}
+    %{state | text: {[iodata, chunk], size + byte_size(chunk)}}
   end
 
   defp event(_event, _location, state), do: state

@@ -11,7 +11,9 @@ defmodule TestFleet.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      # lib/mix/tasks uses Mix, which is not a runtime dependency
+      dialyzer: [plt_add_apps: [:mix]]
     ]
   end
 
