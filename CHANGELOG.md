@@ -10,6 +10,12 @@ Each version lists its changes in this order, leaving out empty sections:
 
 ## Unreleased
 
+## 0.4.4 (2026-11-21)
+
+### Enhancements
+
+- Update dependencies
+
 ## 0.4.3 (2026-11-15)
 
 A maintenance release: static analysis with Credo and Dialyzer, and fixes for what they reported. Nothing changes in how TestFleet behaves.

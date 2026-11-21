@@ -4,7 +4,7 @@ defmodule TestFleet.MixProject do
   def project do
     [
       app: :testfleet,
-      version: "0.4.3",
+      version: "0.4.4",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -17,6 +17,7 @@ defmodule TestFleet.MixProject do
     ]
   end
 
+  4
   # Configuration for the OTP application.
   #
   # Type `mix help compile.app` for more information.
@@ -44,7 +45,7 @@ defmodule TestFleet.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:bandit, "~> 1.14.1"},
+      {:bandit, "~> 1.15.0"},
       {:cloak_ecto, "~> 1.3.0"},
       {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
       {:crontab, "~> 1.2.1"},
@@ -57,6 +58,7 @@ defmodule TestFleet.MixProject do
        depth: 1},
       {:dialyxir, "~> 1.4.9", only: [:dev, :test], runtime: false},
       {:dns_cluster, "~> 0.3.1"},
+      {:ecto, "~> 3.14.3"},
       {:ecto_sql, "~> 3.14.0"},
       {:esbuild, "~> 0.10.1", runtime: Mix.env() == :dev},
       {:gen_smtp, "~> 1.3"},
@@ -73,18 +75,18 @@ defmodule TestFleet.MixProject do
       {:oban, "~> 2.24.2"},
       # OIDC login
       {:oidcc, "~> 3.9.2"},
-      {:phoenix, "~> 1.8.16"},
+      {:phoenix, "~> 1.8.17"},
       {:phoenix_ecto, "~> 4.7.0"},
       {:phoenix_html, "~> 4.4.0"},
       {:phoenix_live_dashboard, "~> 0.9.1"},
       {:phoenix_live_reload, "~> 1.7.0", only: :dev},
-      {:phoenix_live_view, "~> 1.2.13"},
+      {:phoenix_live_view, "~> 1.2.15"},
       # Password hashing without a C compiler
       {:pbkdf2_elixir, "~> 2.0"},
       {:postgrex, "~> 0.22.4"},
       {:req, "~> 0.7.5"},
       {:sbom, "~> 0.12.1", only: :dev, runtime: false},
-      {:swoosh, "~> 1.29.3"},
+      {:swoosh, "~> 1.30.0"},
       {:tailwind, "~> 0.5.2", runtime: Mix.env() == :dev},
       {:telemetry_metrics, "~> 1.2.0"},
       {:telemetry_poller, "~> 1.3.0"},
